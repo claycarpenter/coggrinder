@@ -1,0 +1,110 @@
+>>> import sys; print('%s %s' % (sys.executable or sys.platform, sys.version))
+PyDev console: using default backend (IPython not available).
+/usr/bin/python2.7 2.7.3rc1 (default, Mar 10 2012, 08:44:28) 
+[GCC 4.6.3]
+>>> from oauth2client.tools import run
+>>> from oauth2client.client import OAuth2WebServerFlow
+>>> dir run(flow, storage, http)
+  File "<console>", line 1
+    dir run(flow, storage, http)
+          ^
+SyntaxError: invalid syntax
+>>> dir(run)
+['__call__', '__class__', '__closure__', '__code__', '__defaults__', '__delattr__', '__dict__', '__doc__', '__format__', '__get__', '__getattribute__', '__globals__', '__hash__', '__init__', '__module__', '__name__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__', 'func_closure', 'func_code', 'func_defaults', 'func_dict', 'func_doc', 'func_globals', 'func_name']
+>>> help(run)
+Help on function run in module oauth2client.tools:
+
+run(flow, storage, http=None)
+    Core code for a command-line application.
+    
+    Args:
+      flow: Flow, an OAuth 2.0 Flow to step through.
+      storage: Storage, a Storage to store the credential in.
+      http: An instance of httplib2.Http.request
+           or something that acts like it.
+    
+    Returns:
+      Credentials, the obtained credential.
+
+>>> client_id = "877874321255.apps.googleusercontent.com"
+>>> client_secret = "tYAa2PZSo1QXZC3DiyQeY7Xm"
+>>> oauth_scope = 'https://www.googleapis.com/auth/tasks'
+>>> oauth_info = object()
+>>> oauth_info.client_id = client_id
+Traceback (most recent call last):
+  File "<console>", line 1, in <module>
+AttributeError: 'object' object has no attribute 'client_id'
+>>> oauth_info = {}
+>>> type(oauth_info)
+<type 'dict'>
+>>> oauth_info["client_id"] = client_id
+>>> oauth_info
+{'client_id': '877874321255.apps.googleusercontent.com'}
+>>> oauth_info["client_secret"] = client_secret
+>>> oauth_info["oauth_scope"] = oauth_scope
+>>> oauth_info
+{'client_secret': 'tYAa2PZSo1QXZC3DiyQeY7Xm', 'client_id': '877874321255.apps.googleusercontent.com', 'oauth_scope': 'https://www.googleapis.com/auth/tasks'}
+>>> oauth_info.keys()
+['client_secret', 'client_id', 'oauth_scope']
+>>> oauth_info.items()
+[('client_secret', 'tYAa2PZSo1QXZC3DiyQeY7Xm'), ('client_id', '877874321255.apps.googleusercontent.com'), ('oauth_scope', 'https://www.googleapis.com/auth/tasks')]
+>>> oauth_info.values()
+['tYAa2PZSo1QXZC3DiyQeY7Xm', '877874321255.apps.googleusercontent.com', 'https://www.googleapis.com/auth/tasks']
+>>> for value in oauth_info.values():
+...     print value
+...     
+... 
+tYAa2PZSo1QXZC3DiyQeY7Xm
+877874321255.apps.googleusercontent.com
+https://www.googleapis.com/auth/tasks
+>>> oauth_info["user_agent"] = "coggrinder/0.1"
+>>> oauth_info
+{'client_secret': 'tYAa2PZSo1QXZC3DiyQeY7Xm', 'user_agent': 'coggrinder/0.1', 'client_id': '877874321255.apps.googleusercontent.com', 'oauth_scope': 'https://www.googleapis.com/auth/tasks'}
+>>> oauth_flow = OAuth2WebServerFlow(oauth_info["client_id"],oauth_info["client_secret"],oauth_info["oauth_scope"],oauth_info["user_agent"])
+>>> oauth_flow
+<oauth2client.client.OAuth2WebServerFlow object at 0x7f65ec8f0a10>
+>>> credentials = run(oauth_flow)
+Traceback (most recent call last):
+  File "<console>", line 1, in <module>
+TypeError: run() takes at least 2 arguments (1 given)
+>>> credentials = run(oauth_flow, None)
+Traceback (most recent call last):
+  File "<console>", line 1, in <module>
+  File "/usr/local/lib/python2.7/dist-packages/google_api_python_client-1.0beta8-py2.7.egg/oauth2client/tools.py", line 162, in run
+    storage.put(credential)
+AttributeError: 'NoneType' object has no attribute 'put'
+>>> from mockito import mock()
+  File "<console>", line 1
+    from mockito import mock()
+                            ^
+SyntaxError: invalid syntax
+>>> from mockito import mock
+>>> credentials = run(oauth_flow, mock())
+Authentication successful.
+>>> credentials
+<oauth2client.client.OAuth2Credentials object at 0x7f65ec8a9f50>
+>>> import httplib2
+>>> http = httplib2.Http()
+>>> http
+<httplib2.Http object at 0x7f65ec8f0c90>
+>>> http = credentials.authorize(http)
+>>> http
+<httplib2.Http object at 0x7f65ec8f0c90>
+>>> gtasks_service = build("tasks","v1",http=http)
+Traceback (most recent call last):
+  File "<console>", line 1, in <module>
+NameError: name 'build' is not defined
+>>> import apiclient.discovery.build
+Traceback (most recent call last):
+  File "<console>", line 1, in <module>
+ImportError: No module named build
+>>> from apiclient.discovery import build
+>>> gtasks_service = build("tasks","v1",http=http)
+>>> gtasks_service
+<apiclient.discovery.Resource object at 0x7f65ebe0c690>
+>>> gtasks_service.tasklists()
+<apiclient.discovery.Resource object at 0x20bbdd0>
+>>> gtasks_service.tasklists().list()
+<apiclient.http.HttpRequest object at 0x20bbe10>
+>>> gtasks_service.tasklists().list().execute()
+{u'items': [{u'kind': u'tasks#taskList', u'updated': u'2012-03-19T12:27:07.000Z', u'id': u'MDE5NDY3OTQ3NzM3MzEyNTUwODE6MDow', u'selfLink': u'https://www.googleapis.com/tasks/v1/users/@me/lists/MDE5NDY3OTQ3NzM3MzEyNTUwODE6MDow', u'title': u"claycarpenter's list"}, {u'kind': u'tasks#taskList', u'updated': u'2012-03-19T12:27:44.000Z', u'id': u'MDE5NDY3OTQ3NzM3MzEyNTUwODE6NTQ1NzYwODM4OjA', u'selfLink': u'https://www.googleapis.com/tasks/v1/users/@me/lists/MDE5NDY3OTQ3NzM3MzEyNTUwODE6NTQ1NzYwODM4OjA', u'title': u'Work'}, {u'kind': u'tasks#taskList', u'updated': u'2012-03-18T01:29:59.000Z', u'id': u'MDE5NDY3OTQ3NzM3MzEyNTUwODE6MTQyNzI2ODEwNDow', u'selfLink': u'https://www.googleapis.com/tasks/v1/users/@me/lists/MDE5NDY3OTQ3NzM3MzEyNTUwODE6MTQyNzI2ODEwNDow', u'title': u'Play'}, {u'kind': u'tasks#taskList', u'updated': u'2012-03-10T03:30:06.000Z', u'id': u'MDE5NDY3OTQ3NzM3MzEyNTUwODE6MTQzMTYyMTU5MDow', u'selfLink': u'https://www.googleapis.com/tasks/v1/users/@me/lists/MDE5NDY3OTQ3NzM3MzEyNTUwODE6MTQzMTYyMTU5MDow', u'title': u'Read and Research'}], u'kind': u'tasks#taskLists', u'etag': u'"AvVMQwqTguZo4VukWjZenVwfVB0/UzwPbyqLAOc6FXuGPIoQg4N9A3Q"'}

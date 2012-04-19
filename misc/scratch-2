@@ -1,0 +1,16 @@
+def build_path(self, *path_indices):
+        """Constructs a tree path from the list of indices. 
+        
+        Always assumes an implied root node (0), and calling the method without
+        any path indices will generate the root node address.
+        
+        Args:
+            path_indices: Iterable collection of individual path indices. Must
+                be able to convert to string values.
+        """
+        path_indices = [Tree.ROOT_PATH]
+        
+        if path_indices is not None:
+            path_indices.extend(path_indices)
+        
+        return Tree.PATH_SEPARATOR.join(path_indices)

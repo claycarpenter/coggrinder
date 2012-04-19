@@ -1,0 +1,64 @@
+    def test_create_new_tree_from_tasklist(self):
+        """Test creation of a tree populated with child tasks, ensuring those
+        children are accessible via (Gtk-style) tree path strings.
+        
+        Create a tasklist and three child tasks. Child tasks will be provided
+        in a dict, keyed by entity id with the values being the tasks 
+        themselves.
+        
+        The tasks will be organized such that tasks A and B are direct 
+        descendants of the tasklist (i.e., "top-level" tasks) while C is a 
+        child of A. Task A will be ordered before (higher than) task B.
+        
+        Tasks will all be added to the TaskListTree as a single dict, rather
+        than individually.
+        
+        Arrange:
+            Create new, blank tree.
+            Create tasklist.
+            Create three child tasks, A, B, C. Establish C as child of A.
+            Create dict of three tasks (imitating service query result).
+        
+        Act:
+            Add tasklist and tasks (dict) to the tree.
+            Request entity at 0 (expect tasklist)
+            Request entity at 0:0 (expect task A)
+            Request entity at 0:1 (expect task B)
+            Request entity at 0:1:0 (expect task C)
+        
+        Assert:
+            Actual tasklist and tasks A,B,C are equal to expected objects.
+        """        
+        ### Arrange ###########################################################
+        
+        # Create an empty TaskTreeStore.
+        tasktree = TaskTreeStore()
+        
+        tasklist = TaskList(entity_id="tl-1")
+
+        # Direct children of the tasklist.
+        task_a = Task(entity_id="t-a", tasklist_id=tasklist.entity_id, title="task a", position=1)
+        task_b = Task(entity_id="t-b", tasklist_id=tasklist.entity_id, title="task b", position=2)
+
+        # Child of task A.
+        task_c = Task(entity_id="t-c", tasklist_id=tasklist.entity_id, title="task c", parent_id=task_a.entity_id, position=1)
+
+        # Dict of the three tasks.
+        tasks = {task_a.entity_id:task_a, task_b.entity_id:task_b, task_c.entity_id:task_c}
+        
+        ### Act ###############################################################
+        
+        # Populate the tree.
+        tasktree.add_tasks(tasks)
+        
+        # Retrieve the tasklist and tasks by using their expected tree path 
+        # strings.
+        actual_tasklist = tasktree.get_entity("0")
+        actual_task_a = tasktree.get_entity("0:0")
+        actual_task_b = tasktree.get_entity("0:1")
+        actual_task_c = tasktree.get_entity("0:0:0")
+        
+        ### Assert ############################################################
+        self.assertEqual(
+            (tasklist, task_a, task_b, task_c)
+            (actual_tasklist, actual_task_a, actual_task_b, actual_task_c))

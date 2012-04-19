@@ -1,0 +1,149 @@
+>>> import sys; print('%s %s' % (sys.executable or sys.platform, sys.version))
+/usr/bin/python2.7 2.7.3rc2 (default, Mar 22 2012, 04:35:15) 
+[GCC 4.6.3]
+>>> from coggrinder.console import ConsoleTestUtil
+>>> gtasks_sp = ConsoleTestUtil.create_gtasks_service_proxy()
+>>> gtasks_sp.tasks()
+<apiclient.discovery.Resource object at 0x7ff3d0c1b990>
+>>> gtasks_sp.tasks().get("
+  File "<console>", line 1
+    gtasks_sp.tasks().get("
+                          ^
+SyntaxError: EOL while scanning string literal
+>>>     @classmethod
+  File "<console>", line 1
+    @classmethod
+   ^
+IndentationError: unexpected indent
+>>>     def create_tasklist_service(cls):
+  File "<console>", line 1
+    def create_tasklist_service(cls):
+   ^
+IndentationError: unexpected indent
+>>>         auth_service = AuthenticationService()
+  File "<console>", line 1
+    auth_service = AuthenticationService()
+   ^
+IndentationError: unexpected indent
+>>>         authorized_http = auth_service.authenticate_connection()
+  File "<console>", line 1
+    authorized_http = auth_service.authenticate_connection()
+   ^
+IndentationError: unexpected indent
+>>>         gtasks_service_proxy = apiclient.discovery.build("tasks", "v1", 
+  File "<console>", line 1
+    gtasks_service_proxy = apiclient.discovery.build("tasks", "v1",
+   ^
+IndentationError: unexpected indent
+>>>             http=authorized_http)
+  File "<console>", line 1
+    http=authorized_http)
+   ^
+IndentationError: unexpected indent
+>>>         
+>>>         tasklist_service = TaskListService(gtasks_service_proxy.tasklists())
+  File "<console>", line 1
+    tasklist_service = TaskListService(gtasks_service_proxy.tasklists())
+   ^
+IndentationError: unexpected indent
+>>>         
+>>>         return tasklist_service)
+  File "<console>", line 1
+    return tasklist_service)
+   ^
+IndentationError: unexpected indent
+>>> gtasks_sp.tasks().get("MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw")
+Traceback (most recent call last):
+  File "<console>", line 1, in <module>
+TypeError: method() takes exactly 1 argument (2 given)
+>>> gtasks_sp.tasks().get(task="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw",tasklist="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow")
+<apiclient.http.HttpRequest object at 0x7ff3cf72fa10>
+>>> gtasks_sp.tasks().get(task="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw",tasklist="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow").execute()
+{u'status': u'needsAction', u'kind': u'tasks#task', u'title': u'I am done.', u'updated': u'2012-03-26T01:45:59.000Z', u'etag': u'"ssYnm3j90FPBkm558C0vtSZTEc4/LTMwMDA1Mzc0Mw"', u'position': u'00000000002147483647', u'id': u'MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw', u'selfLink': u'https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw'}
+>>> import pprint
+>>> pp = pprint.PrettyPrinter(indent=4)
+>>> from numpy.distutils.interactive import task_dict
+Traceback (most recent call last):
+  File "<console>", line 1, in <module>
+ImportError: cannot import name task_dict
+>>> task_dict = gtasks_sp.tasks().get(task="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw",tasklist="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow").execute()
+>>> task_dict
+{u'status': u'needsAction', u'kind': u'tasks#task', u'title': u'I am done.', u'updated': u'2012-03-26T01:45:59.000Z', u'etag': u'"ssYnm3j90FPBkm558C0vtSZTEc4/LTMwMDA1Mzc0Mw"', u'position': u'00000000002147483647', u'id': u'MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw', u'selfLink': u'https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw'}
+>>> pp.pprint(task_dict)
+{   u'etag': u'"ssYnm3j90FPBkm558C0vtSZTEc4/LTMwMDA1Mzc0Mw"',
+    u'id': u'MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw',
+    u'kind': u'tasks#task',
+    u'position': u'00000000002147483647',
+    u'selfLink': u'https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw',
+    u'status': u'needsAction',
+    u'title': u'I am done.',
+    u'updated': u'2012-03-26T01:45:59.000Z'}
+>>> patch_dict = {
+...  "id": "MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw",
+...  "title": "I am done.",
+...  "updated": "2012-03-26T01:30:05.000Z",
+...  "position": "00000000002147483648",
+...  "status": "completed"
+... }
+>>> patch_dict
+{'status': 'completed', 'position': '00000000002147483648', 'updated': '2012-03-26T01:30:05.000Z', 'id': 'MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw', 'title': 'I am done.'}
+>>> gtasks_sp.tasks().patch(task="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw",tasklist="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow", body=patch_dict).execute()
+{u'status': u'completed', u'kind': u'tasks#task', u'title': u'I am done.', u'completed': u'2012-03-26T02:11:46.000Z', u'updated': u'2012-03-26T01:45:59.000Z', u'etag': u'"ssYnm3j90FPBkm558C0vtSZTEc4/MTcxODk1Mzk3NQ"', u'position': u'00000000002147483647', u'id': u'MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw', u'selfLink': u'https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw'}
+>>> patch_result_dict = gtasks_sp.tasks().patch(task="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw",tasklist="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow", body=patch_dict).execute()
+>>> pp.pprint(patch_result_dict)
+{   u'completed': u'2012-03-26T02:11:46.000Z',
+    u'etag': u'"ssYnm3j90FPBkm558C0vtSZTEc4/MTcxODk1Mzk3NQ"',
+    u'id': u'MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw',
+    u'kind': u'tasks#task',
+    u'position': u'00000000002147483647',
+    u'selfLink': u'https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw',
+    u'status': u'completed',
+    u'title': u'I am done.',
+    u'updated': u'2012-03-26T02:11:46.000Z'}
+>>> patch_dict
+{'status': 'completed', 'position': '00000000002147483648', 'updated': '2012-03-26T01:30:05.000Z', 'id': 'MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw', 'title': 'I am done.'}
+>>> pp.pprint(patch_dict)
+{   'id': 'MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw',
+    'position': '00000000002147483648',
+    'status': 'completed',
+    'title': 'I am done.',
+    'updated': '2012-03-26T01:30:05.000Z'}
+>>> patch_dict['status'] = "needsAction"
+>>> pp.pprint(patch_dict)
+{   'id': 'MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw',
+    'position': '00000000002147483648',
+    'status': 'needsAction',
+    'title': 'I am done.',
+    'updated': '2012-03-26T01:30:05.000Z'}
+>>> patch_dict['completed'] = None
+>>> pp.pprint(patch_dict)
+{   'completed': None,
+    'id': 'MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw',
+    'position': '00000000002147483648',
+    'status': 'needsAction',
+    'title': 'I am done.',
+    'updated': '2012-03-26T01:30:05.000Z'}
+>>> patch_result_dict = gtasks_sp.tasks().patch(task="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw",tasklist="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow", body=patch_dict).execute()
+>>> pp.pprint(patch_result_dict)
+{   u'etag': u'"ssYnm3j90FPBkm558C0vtSZTEc4/LTMwMDA1Mzc0Mw"',
+    u'id': u'MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw',
+    u'kind': u'tasks#task',
+    u'position': u'00000000002147483647',
+    u'selfLink': u'https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw',
+    u'status': u'needsAction',
+    u'title': u'I am done.',
+    u'updated': u'2012-03-26T02:12:08.000Z'}
+>>> patch_dict['completed'] = ""
+>>> pp.pprint(patch_dict)
+{   'completed': '',
+    'id': 'MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw',
+    'position': '00000000002147483648',
+    'status': 'needsAction',
+    'title': 'I am done.',
+    'updated': '2012-03-26T01:30:05.000Z'}
+>>> patch_result_dict = gtasks_sp.tasks().patch(task="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw",tasklist="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow", body=patch_dict).execute()
+Traceback (most recent call last):
+  File "<console>", line 1, in <module>
+  File "/usr/local/lib/python2.7/dist-packages/google_api_python_client-1.0beta8-py2.7.egg/apiclient/http.py", line 389, in execute
+    raise HttpError(resp, content, self.uri)
+HttpError: <HttpError 400 when requesting https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MTow/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTgzNjY0NTg2MToxMjQyMzg2OTIw?alt=json returned "Bad Request">

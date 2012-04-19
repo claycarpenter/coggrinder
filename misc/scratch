@@ -1,0 +1,74 @@
+pydev debugger: starting
+False
+None
+True
+Selection change event detected...
+selection
+<TreeSelection object at 0x1b12550 (GtkTreeSelection at 0x1cbfad0)>
+model = selection.get_selected_rows()[0]
+selected_rows = selection.get_selected_rows()[1]
+model.get_iter(selected_rows[0])
+<GtkTreeIter at 0x1e65e30>
+row = model.get_iter(selected_rows[0])
+row
+<GtkTreeIter at 0x1e63d00>
+row[0]
+Traceback (most recent call last):
+  File "/usr/dev/tools/aptana-studio-3/plugins/org.python.pydev.debug_2.4.0.2012020116/pysrc/pydevd_comm.py", line 756, in doIt
+    result = pydevd_vars.evaluateExpression(self.thread_id, self.frame_id, self.expression, self.doExec)
+  File "/usr/dev/tools/aptana-studio-3/plugins/org.python.pydev.debug_2.4.0.2012020116/pysrc/pydevd_vars.py", line 384, in evaluateExpression
+    result = eval(compiled, updated_globals, frame.f_locals)
+  File "<string>", line 1, in <module>
+TypeError: 'TreeIter' object does not support indexing
+
+model[row]
+<gi.overrides.Gtk.TreeModelRow object at 0x1d242d0>
+model[row][1]
+
+model[row][0]
+TaskList 1
+
+model[row][100]
+Traceback (most recent call last):
+  File "/usr/dev/tools/aptana-studio-3/plugins/org.python.pydev.debug_2.4.0.2012020116/pysrc/pydevd_comm.py", line 756, in doIt
+    result = pydevd_vars.evaluateExpression(self.thread_id, self.frame_id, self.expression, self.doExec)
+  File "/usr/dev/tools/aptana-studio-3/plugins/org.python.pydev.debug_2.4.0.2012020116/pysrc/pydevd_vars.py", line 384, in evaluateExpression
+    result = eval(compiled, updated_globals, frame.f_locals)
+  File "<string>", line 1, in <module>
+  File "/usr/lib/python2.7/dist-packages/gi/overrides/Gtk.py", line 1069, in __getitem__
+    raise IndexError("column index is out of bounds: %d" % key)
+IndexError: column index is out of bounds: 100
+
+len(model[row])
+Traceback (most recent call last):
+  File "/usr/dev/tools/aptana-studio-3/plugins/org.python.pydev.debug_2.4.0.2012020116/pysrc/pydevd_comm.py", line 756, in doIt
+    result = pydevd_vars.evaluateExpression(self.thread_id, self.frame_id, self.expression, self.doExec)
+  File "/usr/dev/tools/aptana-studio-3/plugins/org.python.pydev.debug_2.4.0.2012020116/pysrc/pydevd_vars.py", line 384, in evaluateExpression
+    result = eval(compiled, updated_globals, frame.f_locals)
+  File "<string>", line 1, in <module>
+TypeError: object of type 'TreeModelRow' has no len()
+
+
+row
+<GtkTreeIter at 0x1e63d00>
+
+selected_rows
+[<GtkTreePath at 0x1d89b90>]
+
+selected_rows[0]
+0
+
+Selection change event detected...
+
+
+
+<TreeSelection object at 0x2b363c0 (GtkTreeSelection at 0x2b856d0)>
+dir(selection)
+['__class__', '__copy__', '__deepcopy__', '__delattr__', '__dict__', '__doc__', '__eq__', '__format__', '__gdoc__', '__ge__', '__getattribute__', '__grefcount__
+', '__gt__', '__gtype__', '__hash__', '__info__', '__init__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', 
+'__setattr__', '__sizeof__', '__str__', '__subclasshook__', 'chain', 'connect', 'connect_after', 'connect_object', 'connect_object_after', 'count_selected_rows'
+, 'disconnect', 'disconnect_by_func', 'do_changed', 'emit', 'emit_stop_by_name', 'freeze_notify', 'get_data', 'get_mode', 'get_properties', 'get_property', 'get
+_selected', 'get_selected_rows', 'get_tree_view', 'handler_block', 'handler_block_by_func', 'handler_disconnect', 'handler_is_connected', 'handler_unblock', 'ha
+ndler_unblock_by_func', 'iter_is_selected', 'notify', 'parent', 'path_is_selected', 'priv', 'props', 'select_all', 'select_iter', 'select_path', 'select_range',
+ 'selected_foreach', 'set_data', 'set_mode', 'set_properties', 'set_property', 'set_select_function', 'stop_emission', 'thaw_notify', 'unselect_all', 'unselect_
+iter', 'unselect_path', 'unselect_range', 'weak_ref']

@@ -1,0 +1,645 @@
+'''
+Created on Mar 29, 2012
+
+@author: Clay Carpenter
+'''
+from gi.repository import Gtk, GdkPixbuf
+from coggrinder.entities.tasks import TaskList, Task
+from coggrinder.gui.task_tree import TaskTreeManager
+from coggrinder.resources.icons import buttons
+import unittest
+from mockito import mock, when, any
+from coggrinder.entities.properties import TaskStatus
+
+class TaskTreeWindow(Gtk.Window):
+    _icon_location = "buttons"
+     
+    def __init__(self):
+        Gtk.Window.__init__(self, title="CogGrinder")
+
+        self.set_default_size(400, 400)
+        
+        # Set up the primary window components: the toolbar at the top of the
+        # screen, with the task tree filling the remaining space.
+        self.base_layout = Gtk.VBox(spacing=0)
+        self.toolbar_box = Gtk.HBox(spacing=10)
+        self.base_layout.pack_start(self.toolbar_box, False, False, 0)
+        
+        # Set up the task tree view.
+        self.base_layout.pack_end(self._build_tree_view(), True, True, 0)
+        
+        # Set up the toolbar by function group.
+        # Set up persistence buttons.
+        self.toolbar_box.pack_start(self._build_persistence_buttons(), False, False, 5)
+        
+        # Set up list/folder buttons.
+        self.toolbar_box.pack_start(self._build_list_buttons(), False, False, 5)
+        
+        # Set up task buttons.
+        self.toolbar_box.pack_start(self._build_task_buttons(), False, False, 5)
+        
+        # Set up task organization buttons.
+        self.toolbar_box.pack_start(self._build_task_organization_buttons(), False, False, 5)
+        
+        # Set up configuration buttons.
+        self.toolbar_box.pack_end(self._build_configuration_buttons(), False, False, 5)
+        
+        # Set up the task tree view and connect to the selection event.
+        self._build_tree_model()
+        
+        self.add(self.base_layout)
+        
+    # TODO: A lot of this button building code is redundant.
+    def _build_persistence_buttons(self):
+        ''' 
+        Builds buttons for:
+        -- Save/persist
+        -- Sync with (Google) server
+        -- Revert changes
+        '''
+        button_box = Gtk.HBox(spacing=5)
+        
+        self._save_button = BinaryIconButton(buttons.FILES["save.png"], is_enabled=False)
+        button_box.add(self._save_button)
+        self._save_button.connect('clicked', self._handle_save_button)
+        
+        self._sync_button = BinaryIconButton(buttons.FILES["sync.png"])
+        button_box.add(self._sync_button)
+        self._sync_button.connect('clicked', self._handle_sync_button)
+        
+        self._revert_button = BinaryIconButton(buttons.FILES["revert.png"], is_enabled=False)
+        button_box.add(self._revert_button)
+        self._revert_button.connect('clicked', self._handle_revert_button)
+        
+        return button_box
+    
+    def _build_list_buttons(self):
+        '''
+        Builds buttons for:
+        -- Add new list
+        -- Delete existing list
+        '''
+        button_box = Gtk.HBox(spacing=5)
+        
+        self._add_list_button = BinaryIconButton(buttons.FILES["folder_plus.png"])
+        button_box.add(self._add_list_button)
+        self._add_list_button.connect('clicked', self._handle_add_list_button)
+        
+        self._remove_list_button = BinaryIconButton(buttons.FILES["folder_delete.png"], is_enabled=False)
+        button_box.add(self._remove_list_button)
+        self._remove_list_button.connect('clicked', self._handle_remove_list_button)
+        
+        return button_box
+    
+    def _build_task_buttons(self):
+        '''
+        Builds buttons for:
+        -- Add new task
+        -- Edit selected task(s)
+        -- Complete selected task(s)
+        -- Remove selected task(s)
+        '''
+        button_box = Gtk.HBox(spacing=5)
+        
+        self._add_task_button = BinaryIconButton(buttons.FILES["doc_plus.png"], is_enabled=False)
+        button_box.add(self._add_task_button)
+        self._add_task_button.connect('clicked', self._handle_add_task_button)
+        
+        self._edit_task_button = BinaryIconButton(buttons.FILES["doc_edit.png"], is_enabled=False)
+        button_box.add(self._edit_task_button)
+        self._edit_task_button.connect('clicked', self._handle_edit_task_button)
+        
+        self._complete_task_button = BinaryIconButton(buttons.FILES["checkbox_checked.png"], is_enabled=False)
+        button_box.add(self._complete_task_button)
+        self._complete_task_button.connect('clicked', self._handle_complete_task_button)
+        
+        self._remove_task_button = BinaryIconButton(buttons.FILES["doc_delete.png"], is_enabled=False)
+        button_box.add(self._remove_task_button)
+        self._remove_task_button.connect('clicked', self._handle_remove_task_button)
+        
+        return button_box
+    
+    def _build_task_organization_buttons(self):
+        '''
+        Builds buttons for:
+        -- Promote task
+        -- Demote task
+        -- Reorder task up(ward)
+        -- Reorder task down(ward)
+        '''
+        button_box = Gtk.HBox(spacing=5)
+        
+        self._promote_task_button = BinaryIconButton(buttons.FILES["sq_br_prev.png"], is_enabled=False)
+        button_box.add(self._promote_task_button)
+        self._promote_task_button.connect('clicked', self._handle_promote_task_button)
+        
+        self._demote_task_button = BinaryIconButton(buttons.FILES["sq_br_next.png"], is_enabled=False)
+        button_box.add(self._demote_task_button)
+        self._demote_task_button.connect('clicked', self._handle_demote_task_button)
+        
+        self._reorder_task_up_button = BinaryIconButton(buttons.FILES["sq_br_up.png"], is_enabled=False)
+        button_box.add(self._reorder_task_up_button)
+        self._reorder_task_up_button.connect('clicked', self._handle_reorder_task_up_button)
+        
+        self._reorder_task_down_button = BinaryIconButton(buttons.FILES["sq_br_down.png"], is_enabled=False)
+        button_box.add(self._reorder_task_down_button)
+        self._reorder_task_down_button.connect('clicked', self._handle_reorder_task_down_button)
+        
+        return button_box
+    
+    def _build_configuration_buttons(self):
+        '''
+        Builds buttons for:
+        -- Configure program options
+        '''
+        button_box = Gtk.HBox(spacing=5)
+        
+        self._configuration_button = BinaryIconButton(buttons.FILES["cog.png"])
+        button_box.add(self._configuration_button)
+        self._configuration_button.connect('clicked', self._handle_configuration_button)
+        
+        return button_box
+        
+    def _build_tree_model(self):
+        # Build debug entity dicts.
+        tasklists, tasks = self._build_debug_entity_dicts()
+        
+        # Create a new TaskTree, wiping out any old one if it existed.
+        self.task_treestore = TaskTreeStore(tasklists, tasks)
+        
+        print "Capturing currently expanded rows/entities..."
+        tree_state = dict()
+        self._collect_tree_state(self.task_treestore.row_data, self.task_treestore.row_data.get_iter_first(), tree_state)
+        for entity_id in tree_state.keys():
+            print "Recorded: {0}".format(entity_id)
+        
+        # Connect the tree store/row_data to the tree view.
+        self.treeview.set_model(self.task_treestore.row_data)
+            
+        # Restore tree view's expanded rows status.
+        self._restore_tree_state(self.task_treestore.row_data, self.task_treestore.row_data.get_iter_first(), tree_state)
+    
+    def _collect_tree_state(self, model, tree_iter, tree_state):
+        while tree_iter != None:
+            tree_path = model.get_path(tree_iter)
+            
+            is_expanded = is_selected = False
+            
+            if self.treeview.row_expanded(tree_path):
+                is_expanded = True
+            
+            if self.selection.path_is_selected(tree_path):
+                is_selected = True
+            
+            if is_expanded or is_selected:
+                entity_id = model[tree_iter][TaskTreeStore.TreeNode.ENTITY_ID]
+                tree_state[entity_id] = (is_expanded, is_selected)            
+            
+            if model.iter_has_child(tree_iter):
+                child_iter = model.iter_children(tree_iter)
+                
+                self._collect_tree_state(model, child_iter, tree_state)
+            
+            tree_iter = model.iter_next(tree_iter)
+    
+    def _restore_tree_state(self, model, tree_iter, tree_state):
+        while tree_iter != None:
+            tree_path = model.get_path(tree_iter)
+            current_entity_id = model[tree_iter][TaskTreeStore.TreeNode.ENTITY_ID]
+            
+            if tree_state.has_key(current_entity_id):
+                print "Restoring: {0}".format(current_entity_id)
+                
+                # Row state will be a tuple containing is_expanded, is_selected.
+                row_state = tree_state[current_entity_id]
+                
+                if row_state[0]:
+                    self.treeview.expand_row(tree_path, False)
+                    
+                if row_state[1]:
+                    self.selection.select_path(tree_path)
+            
+            if model.iter_has_child(tree_iter):
+                child_iter = model.iter_children(tree_iter)
+                
+                self._restore_tree_state(model, child_iter, tree_state)
+            
+            tree_iter = model.iter_next(tree_iter)
+            
+    def _get_entity_for_path(self, tree_path):
+        pass
+    
+    def _get_path_for_entity(self, entity):
+        
+        pass
+        
+    def _build_debug_entity_dicts(self):
+        tasklists = dict()
+        tasklist_count = 3
+        for i in range(tasklist_count):
+            tasklist = TaskList()
+            tasklist.entity_id = "tl-{0}".format(i)
+            tasklist.title = "TaskList {0}".format(i)
+            
+            tasklists[tasklist.entity_id] = tasklist
+                
+        expected_task_l1 = Task(entity_id="t-0", title="Task 0", tasklist_id=tasklist.entity_id)
+        expected_task_l2 = Task(entity_id="t-1", title="Task 1", tasklist_id=tasklist.entity_id, parent_id=expected_task_l1.entity_id)
+        tasks = {expected_task_l1.entity_id: expected_task_l1, expected_task_l2.entity_id:expected_task_l2}
+        
+        return (tasklists, tasks)
+        
+        
+    def _build_tree_view(self):
+        self.treeview = Gtk.TreeView()
+        
+        self.text_renderer = Gtk.CellRendererText()     
+        self.text_renderer.set_property("wrap-width", 200)        
+        self.text_renderer.set_property("editable", True)
+        self.text_renderer.connect("edited", self._handle_cell_edited)        
+        
+        self.image_renderer = Gtk.CellRendererPixbuf()
+        
+        self.column = Gtk.TreeViewColumn("Task Name")
+        self.column.pack_start(self.image_renderer, False)
+        self.column.pack_end(self.text_renderer, True)
+        self.column.add_attribute(self.image_renderer, "pixbuf", TaskTreeStore.TreeNode.ICON)
+        self.column.add_attribute(self.text_renderer, "text", TaskTreeStore.TreeNode.LABEL)
+        
+        self.treeview.append_column(self.column)
+        
+        # Set up tree selection manager.
+        self.selection = self.treeview.get_selection()
+        
+        # Set the selection mode to allow multiple nodes to be selected
+        # simultaneously.
+        self.selection.set_mode(Gtk.SelectionMode.MULTIPLE)
+        
+        # Monitor selection change events.
+        self.selection.connect("changed", self._handle_selection_change) 
+        
+        return self.treeview
+        
+    def _handle_selection_change(self, selection_data):
+        selected_rows = selection_data.get_selected_rows()[1]
+                
+        self._selected_tasks = list()
+        self._selected_tasklists = list()
+                
+        # Count the tasklists and tasks in the selection.
+        print "Selected:"
+        for new_selected_row in selected_rows:
+            print "-- {0}".format(new_selected_row)            
+            selected_entity = self.task_treestore.get_entity(
+                new_selected_row.to_string())
+            
+            if isinstance(selected_entity, TaskList):
+                # This row represents a Tasklist.
+                self._selected_tasklists.append(selected_entity)
+            elif isinstance(selected_entity, Task):
+                # This row represents a Task.
+                self._selected_tasks.append(selected_entity)
+        
+        if len(self._selected_tasklists) == 1:
+            self._tasklist_selection_state = TaskTreeWindow.SelectionState.SINGLE
+        elif len(self._selected_tasklists) > 1:
+            self._tasklist_selection_state = TaskTreeWindow.SelectionState.MULTIPLE_HETERGENOUS
+        else:
+            self._tasklist_selection_state = TaskTreeWindow.SelectionState.NONE
+        
+        if len(self._selected_tasks) == 1:
+            self._task_selection_state = TaskTreeWindow.SelectionState.SINGLE
+        elif len(self._selected_tasks) > 1:
+            # Determine if all selected tasks belong to the same tasklist or
+            # not.
+            is_homogenous = True
+            prev_tasklist_id = None
+            for selected_task in self._selected_tasks:
+                if prev_tasklist_id is not None and selected_task.tasklist_id != prev_tasklist_id:
+                    is_homogenous = False
+                    break
+            
+            if is_homogenous:
+                self._task_selection_state = TaskTreeWindow.SelectionState.MULTIPLE_HOMOGENOUS
+            else:
+                self._task_selection_state = TaskTreeWindow.SelectionState.MULTIPLE_HETERGENOUS
+        else:
+            self._task_selection_state = TaskTreeWindow.SelectionState.NONE
+                                    
+        self._update_button_states()
+            
+    def _update_button_states(self):
+        # Only enable when single tasklist is selected.
+        self._remove_list_button.set_state(self._tasklist_selection_state == self.SelectionState.SINGLE)
+                
+        # Only show add task when a single row/entity--either task or 
+        # tasklist--is selected:
+        # -- Task single and tasklist none or
+        # -- Task none and tasklist single
+        add_task_button_enabled = False
+        if (self._task_selection_state == self.SelectionState.SINGLE and self._tasklist_selection_state == self.SelectionState.NONE) or (self._task_selection_state == self.SelectionState.NONE and self._tasklist_selection_state == self.SelectionState.SINGLE):
+            add_task_button_enabled = True            
+        self._add_task_button.set_state(add_task_button_enabled)
+        
+        # Show whenever task or tasks are selected, regardless of tasklist.
+        task_detail_buttons_enabled = False
+        if self._task_selection_state != self.SelectionState.NONE:
+            task_detail_buttons_enabled = True
+        self._edit_task_button.set_state(task_detail_buttons_enabled)
+        self._complete_task_button.set_state(task_detail_buttons_enabled)        
+        self._remove_task_button.set_state(task_detail_buttons_enabled)
+        self._promote_task_button.set_state(task_detail_buttons_enabled)
+        self._demote_task_button.set_state(task_detail_buttons_enabled)
+        self._reorder_task_up_button.set_state(task_detail_buttons_enabled)
+        self._reorder_task_down_button.set_state(task_detail_buttons_enabled)
+    
+    def _handle_save_button(self, button):
+        raise NotImplementedError
+    
+    def _handle_sync_button(self, button):
+        raise NotImplementedError
+    
+    def _handle_revert_button(self, button):
+        raise NotImplementedError
+    
+    def _handle_add_list_button(self, button):
+        # Create the new tasklist, and add it to the task tree.
+        new_tasklist = TaskList(title="")
+        new_tasklist = self.task_treestore.add_tasklist(new_tasklist)
+        
+        # Find the new tasklist, select it (wiping out other selections), and
+        # set it to editable/editing.
+        
+        raise NotImplementedError
+    
+    def _handle_remove_list_button(self, button):
+        raise NotImplementedError
+        
+    def _handle_add_task_button(self, button):
+        # Find selected entity. This will determine the new tasks's parent 
+        # tasklist and, optionally, it's parent task as well.
+        
+        # Create a new blank Task, and persist it to the service. Store the 
+        # returned empty Task that contains updated info (ID, etc.) from the
+        # Google service.
+        
+        # Pull updated tasklist and task lists from the service.
+        
+        # Rebuild the task tree model.
+        
+        # Restore the task tree view state.
+        
+        # Override existing selection. Select new task and set the tree node to
+        # be "editable".
+        raise NotImplementedError
+        
+    def _handle_edit_task_button(self, button):
+        raise NotImplementedError
+        
+    def _handle_complete_task_button(self, button):
+        raise NotImplementedError
+        
+    def _handle_remove_task_button(self, button):
+        raise NotImplementedError
+        
+    def _handle_promote_task_button(self, button):
+        raise NotImplementedError
+        
+    def _handle_demote_task_button(self, button):
+        raise NotImplementedError
+        
+    def _handle_reorder_task_up_button(self, button):
+        raise NotImplementedError
+        
+    def _handle_reorder_task_down_button(self, button):
+        raise NotImplementedError
+    
+    def _handle_configuration_button(self, button):
+        print "Rebuilding the TaskTreeStore..."
+        self._build_tree_model()
+        
+        # Find selected node.
+        
+        # Start editing the selected node.
+        
+        
+    def _handle_cell_edited(self, widget, path, new_text):
+        print "Cell edited with this new text: {0}".format(new_text)
+        
+#        edit_iter = self.task_treestore.row_data.get_iter(path)
+#        entity = self.task_treestore.row_data[edit_iter][TaskTreeStore.TreeNode.ENTITY_ID]
+#        
+#        '''
+#        The problem with this approach is that the tree row_data row doesn't get updated.
+#        
+#        I think we have to go through the tree node in order to make changes here.
+#        '''        
+#        entity = self.task_treestore.get_entity(path)
+        
+    class SelectionState(object):
+            NONE = 0
+            SINGLE = 1
+            MULTIPLE_HOMOGENOUS = 2 # All in same tasklist
+            MULTIPLE_HETERGENOUS = 3 # In different tasklists
+#------------------------------------------------------------------------------ 
+
+class TaskTreeStore(object):
+    '''
+    Maintain:
+    -- Dict of tasklists, keyed by ID
+    -- Dict of tasks, keyed by ID
+    -- Tree row_data of TreeNodes, with ID and type properties. 
+        ...actually, is type really necessary? Might be able to infer that
+        from the treenodes' position...
+    '''
+    class TreeNode(object):
+        ENTITY_ID = 0
+        LABEL = 1
+        ICON = 2
+
+        def __init__(self, entity):
+            self.row_data = list()
+            self.row_data.insert(TaskTreeStore.TreeNode.ENTITY_ID, entity.entity_id)
+            self.row_data.insert(TaskTreeStore.TreeNode.LABEL, entity.title)
+        
+            # Create icons needed to present the task tree.
+            self.list_image = Gtk.Image.new_from_file(TaskTreeWindow._icon_location 
+                + "task_tree/folder.png")
+            self.task_complete_image = Gtk.Image.new_from_file(TaskTreeWindow._icon_location 
+                + "task_tree/checkmark.png")
+            self.task_incomplete_image = Gtk.Image.new_from_file(TaskTreeWindow._icon_location 
+                + "task_tree/checkbox_unchecked.png")                        
+            
+            list_icon = self.list_image.get_pixbuf()
+            checked_icon = self.task_complete_image.get_pixbuf()
+            unchecked_icon = self.task_incomplete_image.get_pixbuf()
+            
+            if isinstance(entity, TaskList):
+                icon = list_icon
+            elif isinstance(entity, Task):
+                if entity.task_status == TaskStatus.COMPLETED:
+                    icon = checked_icon
+                else:
+                    icon = unchecked_icon
+
+            self.row_data.insert(TaskTreeStore.TreeNode.ICON, icon)
+    
+    def __init__(self, tasklists, tasks):        
+        self.tasklists = tasklists
+        self.tasks = tasks
+        
+        # This index allows us to quickly look up where in the tree a given
+        # entity is.
+        self.entity_path_index = dict()
+        
+        self.row_data = self._build_tree()
+        
+    def _build_tree(self):
+        '''
+        Build a tree representing all of the user's tasklists and tasks.
+        Tasklists will always be first-level nodes, while tasks will always be
+        at least second-level nodes or deeper.
+        '''
+        model = Gtk.TreeStore(str, str, GdkPixbuf.Pixbuf)
+        
+        root_iter = model.get_iter_first()
+        
+        # Iterate over the tasklists dict, adding each tasklist to the root. 
+        for tasklist_id in self.tasklists:
+            tasklist = self.tasklists[tasklist_id]
+            tasklist_iter = model.append(root_iter, TaskTreeStore.TreeNode(tasklist).row_data)
+            
+            # Add tasklist to the path index.
+            self.entity_path_index[tasklist.entity_id] = model.get_path(tasklist_iter).to_string()
+
+            # Find all tasks with this tasklist id and FOO parent id.
+            self._build_task_tree(model, tasklist_iter, tasklist_id, None)
+            
+        return model
+    
+    def _build_task_tree(self, model, parent_iter, tasklist_id, parent_id):
+        '''
+        Build a tree for a particular tasklist.
+        '''
+        for task_id in self.tasks:
+            task = self.tasks[task_id]
+            if task.parent_id == parent_id and task.tasklist_id == tasklist_id:
+                task_iter = model.append(parent_iter, TaskTreeStore.TreeNode(task).row_data)
+            
+                # Add task to the path index.
+                self.entity_path_index[task.entity_id] = model.get_path(task_iter).to_string()
+                
+                self._build_task_tree(model, task_iter, tasklist_id, task.entity_id)
+    
+    def get_entity(self, tree_path):
+        entity_iter = self.row_data.get_iter_from_string(tree_path)
+        entity_id = self.row_data[entity_iter][TaskTreeStore.TreeNode.ENTITY_ID]
+        
+        entity = None
+        if self.tasklists.has_key(entity_id):
+            entity = self.tasklists[entity_id]
+        elif self.tasks.has_key(entity_id):
+            entity = self.tasks[entity_id]
+            
+        return entity
+        
+#------------------------------------------------------------------------------ 
+
+class TaskTreeStoreTest(unittest.TestCase):
+    def test_get_entity_tasklist_only(self):
+        expected_tasklists = dict()
+        tasklist_count = 3
+        for i in range(tasklist_count):
+            tasklist = TaskList()
+            tasklist.entity_id = "tl-{0}".format(i)
+            tasklist.title = "TaskList {0}".format(i)
+            
+            expected_tasklists[tasklist.entity_id] = tasklist
+            
+        task_treestore = TaskTreeStore(expected_tasklists, {})
+        
+        actual_tasklists = dict()
+        for i in range(tasklist_count):
+            actual_tasklist = task_treestore.get_entity(str(i))
+            self.assertIsNotNone(actual_tasklist)
+            
+            actual_tasklists[actual_tasklist.entity_id] = actual_tasklist
+            
+        self.assertEqual(expected_tasklists, actual_tasklists)
+        
+    def test_get_entity_tasks(self):
+        tasklist = TaskList(entity_id="tl-0", title="TaskList 0")
+        expected_tasklists = {tasklist.entity_id: tasklist}
+        
+        expected_task_l1 = Task(entity_id="t-0", title="Task 0", tasklist_id=tasklist.entity_id)
+        expected_task_l2 = Task(entity_id="t-1", title="Task 1", tasklist_id=tasklist.entity_id, parent_id=expected_task_l1.entity_id)
+        expected_tasks = {expected_task_l1.entity_id: expected_task_l1, expected_task_l2.entity_id:expected_task_l2}
+        
+        task_treestore = TaskTreeStore(expected_tasklists, expected_tasks)
+        
+        actual_task_l1 = task_treestore.get_entity("0:0")
+        self.assertEqual(expected_task_l1, actual_task_l1)
+        
+        actual_task_l2 = task_treestore.get_entity("0:0:0")
+        self.assertEqual(expected_task_l2, actual_task_l2)  
+#------------------------------------------------------------------------------ 
+
+class BinaryIconButton(Gtk.Button):
+    def __init__(self, icon_file_path, disabled_icon_file_path=None, is_enabled=True):
+        Gtk.Button.__init__(self)
+        
+        self.enabled_icon_file_path = icon_file_path
+        
+        if disabled_icon_file_path is None:
+            # If there is no specified disabled icon file path, assume that the
+            # file can be found in this location:
+            # [enabled icon path]-disabled[enabled-icon-extension]
+            file_ext_location = self.enabled_icon_file_path.rindex('.')
+            icon_file_root = self.enabled_icon_file_path[0:file_ext_location]
+            icon_file_ext = self.enabled_icon_file_path[file_ext_location:len(self.enabled_icon_file_path)]
+            disabled_icon_file_path = icon_file_root + "_disabled" + icon_file_ext
+        self.disabled_icon_file_path = disabled_icon_file_path        
+        
+        # Load the icon images.
+        self.icon_image = Gtk.Image()
+        self.add(self.icon_image)
+        
+        # Set the initial enabled state.
+        self.is_enabled = is_enabled
+        
+        # Set the appropriate icon.
+        if self.is_enabled:
+            self.enable()
+        else:
+            self.disable()
+        
+    def _set_icon(self):
+        # Add the Image that reflects the current button state.
+        if self.is_enabled:
+            self.icon_image.set_from_file(self.enabled_icon_file_path)
+        else:
+            self.icon_image.set_from_file(self.disabled_icon_file_path)
+            
+    def enable(self):
+        self.is_enabled = True
+        self._set_icon()
+        self.set_sensitive(True)
+    
+    def disable(self):
+        self.is_enabled = False
+        self._set_icon()
+        self.set_sensitive(False)
+        
+    def set_state(self, is_enabled):
+        if is_enabled:
+            self.enable()
+        else:
+            self.disable()
+#------------------------------------------------------------------------------ 
+
+if __name__ == '__main__':
+    win = TaskTreeWindow()
+    win.connect("delete-event", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()
+
