@@ -1,3 +1,5 @@
+This is just a quick and dirty file to document how to set up authentication for Google Task service python objects.
+
 >>> import sys; print('%s %s' % (sys.executable or sys.platform, sys.version))
 PyDev console: using default backend (IPython not available).
 /usr/bin/python2.7 2.7.3rc1 (default, Mar 10 2012, 08:44:28) 
