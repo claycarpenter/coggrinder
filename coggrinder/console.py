@@ -5,7 +5,7 @@ Created on Mar 22, 2012
 """
 from coggrinder.entities.tasks import TaskList, Task
 from coggrinder.task_services import TaskListService, TaskService
-from coggrinder.authentication_services import AuthenticationService
+from coggrinder.authentication import AuthenticationService
 import apiclient.discovery
 import random
 
@@ -192,11 +192,11 @@ class ConsoleTestUtil(object):
         new_task = ConsoleTestUtil.test_delete_task(task_service, tasklist, new_task)
         
         ConsoleTestUtil.test_get_tasks_in_tasklist(task_service, tasklist)
-    
+
 if __name__ == "__main__":
 #    print "Running TaskListService tests..."
 #    ConsoleTestUtil.test_tasklist_service()
     
     print "\n\nRunning TaskService tests..."
     ConsoleTestUtil.test_task_service()
-    
+

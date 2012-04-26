@@ -564,16 +564,26 @@ class TaskListServiceTest(unittest.TestCase):
         verify(mock_delete_request).execute()
 #------------------------------------------------------------------------------ 
 
-# TODO: Prune this class?
-class GoogleTasksServiceProxy(object):
-    def __init__(self, authenticated_http):
-        self.authenticated_http = authenticated_http
+class TaskTreeService(object):
+    def __init__(self, auth_service=None):
+        self.auth_service = auth_service
+        
+        self.gtasks_service_proxy = None
+        
+    def connect(self):        
+        # Create an authenticatable connection for use in communicating with 
+        # the Google Task services. 
+        auth_http_connection = self.auth_service.authenticate_connection()
         
         # Build the (real) Google Tasks service proxy.
         self.gtasks_service_proxy = apiclient.discovery.build("tasks", "v1",
             http=self.authenticated_http)    
-
-    def create_tasklist_service(self):        
+        
+        # Create the tasklist and task services.
+        self.tasklist_service = self._create_tasklist_service()
+        self.task_service = self._create_task_service()
+        
+    def _create_tasklist_service(self):        
         assert self.gtasks_service_proxy is not None
         assert self.gtasks_service_proxy.tasklists() is not None
         
@@ -581,13 +591,13 @@ class GoogleTasksServiceProxy(object):
         
         return tasklist_service
    
-    def create_task_service(self):
+    def _create_task_service(self):
         assert self.gtasks_service_proxy is not None
         assert self.gtasks_service_proxy.tasks() is not None
         
         task_service = TaskService(self.gtasks_service_proxy.tasks())
         
-        return task_service        
+        return task_service
 #------------------------------------------------------------------------------
 
 '''

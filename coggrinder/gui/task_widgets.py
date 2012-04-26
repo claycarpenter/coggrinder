@@ -6,24 +6,22 @@ Created on Mar 29, 2012
 from gi.repository import Gtk, GdkPixbuf
 from coggrinder.entities.tasks import TaskList, Task
 from coggrinder.resources.icons import buttons
-import unittest
 from coggrinder.gui.events import Event
-from coggrinder.gui.tree_data import TaskTreeStore, TreeNode
-from pprint import pprint
+from coggrinder.gui.task_tree import TaskTreeStore, TreeNode
+
 
 class TaskTreeWindowController(object):
-    def __init__(self):        
-        # Create the new TaskTreeViewController that will handle rendering and 
-        # interacting with the task(list) tree.
-        self._taskview_controller = TaskTreeViewController()
-        
-        self.tasktree_service = None
+    def __init__(self):                
         self.tasktree = None
         
         # Initialize the TaskTreeWindow Gtk window that serves as the view
         # for this controller.
         self.view = TaskTreeWindow()
         
+        # Wire up all of the view events to handler methods in this controller.
+        self._wire_events()
+        
+    def _wire_events(self):
         # Connect to all events that need to be listened for.
         self.view.save_button_clicked.register(self._handle_save_event)
         self.view.sync_button_clicked.register(self._handle_sync_event)
