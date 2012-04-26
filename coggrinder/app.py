@@ -7,7 +7,7 @@ from coggrinder.gui.task_widgets import TaskTreeWindowController
 from gi.repository import Gtk
 from coggrinder.gui.authentication_widgets import AuthenticationController
 from coggrinder.services.authentication_services import AuthenticationService, CredentialsStorage
-from coggrinder.services.task_services import TaskTreeService
+from coggrinder.services.tasktree_services import TaskTreeService
 from coggrinder.preferences import Preferences
 
 class CogGrinderApp(object):
