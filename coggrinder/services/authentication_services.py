@@ -29,7 +29,7 @@ class AuthenticationService(object):
             oauth_service = OAuthService()
         self.oauth_service = oauth_service
 
-    def authenticate_connection(self):
+    def build_authenticated_connection(self):
         if not self.has_valid_credentials():
             raise AuthenticationException(
                 "Cannot authenticate HTTP service connection without valid credentials.")
@@ -70,11 +70,6 @@ class AuthenticationService(object):
             return True
         else:
             return False
-
-    def create_gtasks_service_proxy(self):
-        authorized_http = self.authenticate_connection()
-        gtasks_service_proxy = apiclient.discovery.build("tasks", "v1",
-            http=authorized_http)
 #------------------------------------------------------------------------------ 
 
 class AuthenticationServiceTest(unittest.TestCase):
@@ -86,7 +81,7 @@ class AuthenticationServiceTest(unittest.TestCase):
         when(mock_credentials).authorize(any()).thenReturn(mock_http)
 
         auth_service = AuthenticationService(credentials=mock_credentials)
-        http = auth_service.authenticate_connection()
+        http = auth_service.build_authenticated_connection()
 
         self.assertIs(http, mock_http)
 

@@ -573,7 +573,7 @@ class TaskTreeService(object):
     def connect(self):        
         # Create an authenticatable connection for use in communicating with 
         # the Google Task services. 
-        auth_http_connection = self.auth_service.authenticate_connection()
+        auth_http_connection = self.auth_service.build_authenticated_connection()
         
         # Build the (real) Google Tasks service proxy.
         self.gtasks_service_proxy = apiclient.discovery.build("tasks", "v1",

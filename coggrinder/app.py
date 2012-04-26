@@ -5,15 +5,15 @@ Created on Apr 4, 2012
 """
 from coggrinder.gui.task_widgets import TaskTreeWindowController
 from gi.repository import Gtk
-from coggrinder.authentication import AuthenticationService, CredentialsStorage
 from coggrinder.gui.authentication_widgets import AuthenticationController
-from coggrinder.task_services import TaskTreeService
+from coggrinder.services.authentication_services import AuthenticationService, CredentialsStorage
+from coggrinder.services.task_services import TaskTreeService
 from coggrinder.preferences import Preferences
 
 class CogGrinderApp(object):
     def __init__(self, preferences=None):
         self.preferences = preferences
-        self.auth_service = None        
+        self.auth_service = None
         self.tasktree_service = None
 
     def start(self):
@@ -36,21 +36,21 @@ class CogGrinderApp(object):
         # attempt to refresh the access token, and only then when it be known
         # if a user has successfully completed authentication and granted this
         # application access to the Tasks data.
-        
+
         # Create the TaskTree service, giving it a reference to the auth 
         # service. When connect() is called, TaskTree service will use the
         # auth srvc's credential information to authenticate a new connection
         # to the remote Google Task services. 
         self.tasktree_service = TaskTreeService(auth_service=self.auth_service)
         self.tasktree_service.connect()
-        
+
         # Create the main UI for the app. Give it a handle to the TaskTree
         # service so it can populate the task tree widget.
         main_controller = TaskTreeWindowController(
             tasktree_service=self.tasktree_service)
-                
+
         # Begin the main program loop.
-        Gtk.main()        
+        Gtk.main()
 
 #        tasklist_service = gtasks_service_proxy.create_tasklist_service()
 #        task_service = gtasks_service_proxy.create_task_service()

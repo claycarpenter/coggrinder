@@ -5,7 +5,7 @@ Created on Apr 6, 2012
 """
 
 from gi.repository import Gtk
-from coggrinder.authentication import AuthenticationException, AuthenticationService, CredentialsStorage
+from coggrinder.services.authentication_services import AuthenticationException
 import errno
 
 class AuthenticationController(object):

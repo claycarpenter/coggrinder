@@ -4,8 +4,8 @@ Created on Mar 22, 2012
 @author: clay
 """
 from coggrinder.entities.tasks import TaskList, Task
-from coggrinder.task_services import TaskListService, TaskService
-from coggrinder.authentication import AuthenticationService
+from coggrinder.services.task_services import TaskListService, TaskService
+from coggrinder.services.authentication_services import AuthenticationService
 import apiclient.discovery
 import random
 
@@ -14,7 +14,7 @@ class ConsoleTestUtil(object):
     @classmethod
     def create_gtasks_service_proxy(cls):
         auth_service = AuthenticationService()
-        authorized_http = auth_service.authenticate_connection()
+        authorized_http = auth_service.build_authenticated_connection()
         gtasks_service_proxy = apiclient.discovery.build("tasks", "v1",
             http=authorized_http)
         
