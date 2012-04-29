@@ -136,14 +136,12 @@ class BaseTaskEntity(object):
         return str(self.to_str_dict())
 
     def __repr__(self):
-        return str(self.__str__())
+        return self.__str__()
 
     def __eq__(self, other):
         are_equal = False
 
         if other is not None:
-#            are_equal = self.__dict__ == other.__dict__
-
             # TODO: I think I'm making this comparison too hard...
 
             # Loop through each property, testing whether the values are the 
@@ -154,7 +152,8 @@ class BaseTaskEntity(object):
                     # If the key is defined for the current entity, make sure the
                     # other entity also has the key defined and that those two
                     # keys have the same value.
-                    if (not other.__dict__.has_key(prop.entity_key)) or (self.__dict__[prop.entity_key] != other.__dict__[prop.entity_key]):
+                    if ((not other.__dict__.has_key(prop.entity_key)) 
+                        or (self.__dict__[prop.entity_key] != other.__dict__[prop.entity_key])):
                         are_equal = False
                         break
                 elif other.__dict__.has_key(prop.entity_key):
