@@ -76,6 +76,10 @@ class Tree(DeclaredPropertiesComparable):
                 path_indices += (int(index),)
 
         return path_indices
+    
+    def clear(self):
+        """Clear the tree of all nodes."""
+        self.children = list()        
 
     def has_children(self, node_indices):
         node = self.get_node(node_indices)
@@ -1214,6 +1218,40 @@ class TreePopulateTest(unittest.TestCase):
         self.assertEqual(root_value, tree.get((0,)))
         self.assertEqual(n1_value, tree.get((0, 0)))
         self.assertEqual(n2_value, tree.get((0, 1)))
+
+    def test_clear(self):
+        """Test clearing the tree of all nodes.
+
+        Test tree architecture:
+        - 0
+            - 0:0
+
+        Arrange:
+            Create blank tree.
+            Create and add root node.
+            Create and add leaf node.
+        Act:
+            Clear the tree.
+        Assert:
+            Accessing root, leaf nodes raise NodeNotFoundError.
+            That the tree has no children.
+        """
+        ### Arrange ###
+        tree = Tree()
+        root_node = tree.append(None,"0")
+        tree.append(root_node, "0:0")
+
+        ### Act ###   
+        tree.clear()
+
+        ### Assert ###
+        with self.assertRaises(NodeNotFoundError):
+            tree.get(Tree.ROOT_PATH)
+            
+        with self.assertRaises(NodeNotFoundError):
+            tree.get(Tree.ROOT_PATH + (0,))
+            
+        self.assertFalse(tree.children)
 #------------------------------------------------------------------------------
 
 class BaseTreeReorganizationTest(unittest.TestCase):
@@ -1586,7 +1624,7 @@ class TreePromoteTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(self.node_c, self.tree.get_node((0, 0, 1)))
         self.assertEqual(self.node_d, self.tree.get_node((0, 0, 1, 0)))
-        self.assertEqual(self.node_e, self.tree.get_node((0, 0, 1, 1)))
+        self.assertEqual(self.node_e, self.tree.get_node((0, 0, 1, 1)))    
 #------------------------------------------------------------------------------ 
 
 class TreeDemoteTest(BaseTreeReorganizationTest):
