@@ -7,7 +7,7 @@ from gi.repository import Gtk, GdkPixbuf
 from coggrinder.entities.tasks import TaskList, Task
 from coggrinder.resources.icons import buttons
 from coggrinder.gui.events import Event
-from coggrinder.gui.task_tree import TaskTreeStore, TreeNode
+from coggrinder.gui.task_treestore import TaskTreeStore, TreeNode
 
 
 class TaskTreeWindowController(object):
