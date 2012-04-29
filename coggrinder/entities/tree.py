@@ -5,7 +5,7 @@ Created on Apr 11, 2012
 '''
 
 import unittest
-from coggrinder.entities.comparable import DeclaredPropertiesComparable
+from coggrinder.core.comparable import DeclaredPropertiesComparable
 
 class Tree(DeclaredPropertiesComparable):
     ROOT_PATH = (0,)
