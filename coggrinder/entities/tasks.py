@@ -308,7 +308,7 @@ class Task(BaseTaskEntity):
         return entity
 #------------------------------------------------------------------------------ 
 
-class TaskItemTest(unittest.TestCase):
+class TaskTest(unittest.TestCase):
     def test_to_str_dict(self):
         task_id = "abcid"
         task_title = "task title"
