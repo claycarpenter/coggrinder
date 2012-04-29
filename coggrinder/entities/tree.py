@@ -5,8 +5,9 @@ Created on Apr 11, 2012
 '''
 
 import unittest
+from coggrinder.entities.comparable import DeclaredPropertiesComparable
 
-class Tree(object):
+class Tree(DeclaredPropertiesComparable):
     ROOT_PATH = (0,)
     PATH_SEPARATOR = ":"
 
@@ -369,9 +370,12 @@ class Tree(object):
         # nodes to be promoted.
         if self.get_node(Tree.ROOT_PATH) in nodes:
             raise RootReorganizationError()
+
+    def _get_comparable_properties(self):
+        return ("children", "path")
 #------------------------------------------------------------------------------ 
 
-class TreeNode(object):
+class TreeNode(DeclaredPropertiesComparable):
     """Simple tree node that contains a value and allows traversal up (towards
     root), down (to children), previous and next.
     """
@@ -392,6 +396,9 @@ class TreeNode(object):
             return True
         else:
             return False
+
+    def _get_comparable_properties(self):
+        return ("parent", "path", "value", "children")
 
     def __str__(self):
         return self.__repr__()
@@ -1727,4 +1734,263 @@ class TreeDemoteTest(BaseTreeReorganizationTest):
         self.assertEqual(self.node_c, self.tree.get_node((0, 0, 0)))
         self.assertEqual(self.node_e, self.tree.get_node((0, 0, 1, 0)))
         self.assertEqual(self.node_g, self.tree.get_node((0, 1, 0, 0)))
+#------------------------------------------------------------------------------ 
+
+class TreeEqualityTest(unittest.TestCase):
+    def test_empty_vs_empty(self):
+        """Test the equality of two newly created, empty Trees.
+
+        Act:
+            Create two Trees.
+        Assert:
+            That the two Trees are equal.
+        """
+        ### Act ###
+        tree_one = Tree()
+        tree_two = Tree()
+
+        ### Assert ###
+        self.assertEqual(tree_one, tree_two)
+
+    def test_empty_vs_identity(self):
+        """Test that a Tree is equal to itself.
+
+        Act:
+            Create one Tree.
+        Assert:
+            That the Tree is equal to itself.
+        """
+        ### Act ###
+        tree_one = Tree()
+
+        ### Assert ###
+        self.assertEqual(tree_one, tree_one)
+
+    def test_empty_vs_root_populated(self):
+        """Test that an empty Tree is not equal to a Tree populated with a
+        root node.
+
+        Act:
+            Create an empty Tree.
+            Create a second Tree.
+            Populate second Tree with root node.
+        Assert:
+            That the empty and populated trees are _not_ equal.
+        """
+        ### Act ###
+        tree_empty = Tree()
+        tree_root_populated = Tree()
+        tree_root_populated.append(None, "root")
+
+        ### Assert ###
+        self.assertNotEqual(tree_empty, tree_root_populated)
+
+    def test_populated_different_root_node_values(self):
+        """Test that two Tree objects are not equal if they have different root
+        node values.
+
+        Act:
+            Create Tree one, and populate with root node with value
+            "root 1".
+            Create Tree two, and populate with root node with value
+            "root 2".
+        Assert:
+            That the empty and populated trees are _not_ equal.
+        """
+        ### Act ###
+        tree_one = Tree()
+        tree_one.append(None, "root 1")
+        tree_two = Tree()
+        tree_two.append(None, "root 2")
+
+        ### Assert ###
+        self.assertNotEqual(tree_one, tree_two)
+
+    def test_populated_different_node_ordering(self):
+        """Test that two Tree objects are not equal if their node populations
+        have identical values and general architecture, but have a different
+        ordering.
+
+        Tree AB:
+        - root
+            - A
+            - B
+
+        Tree BA:
+        - root
+            - B
+            - A
+
+        Act:
+            Create Trees AB and BA, and populate them as shown in above
+            example.
+        Assert:
+            That Trees AB and BA are _not_ equal.
+        """
+        ### Arrange ###
+        root_value = "root"
+        a_value = "A"
+        b_value = "B"
+
+        ### Act ###
+        tree_one = Tree()
+        root = tree_one.append(None, root_value)
+        tree_one.append(root, a_value)
+        tree_one.append(root, b_value)
+
+        tree_two = Tree()
+        root = tree_two.append(None, root_value)
+        tree_two.append(root, b_value)
+        tree_two.append(root, a_value)
+
+        ### Assert ###
+        self.assertNotEqual(tree_one, tree_two)
+
+    def test_populated_vs_populated(self):
+        """Test that two Trees with multi-level architectures are equal if
+        their node populations have identical values and architecture,
+        including node sibling ordering.
+
+        Trees one and two:
+        - root
+            - A
+            - B
+
+        Act:
+            Create Trees one and two, and populate them as shown in above
+            example.
+        Assert:
+            That Trees one and two are equal.
+        """
+        ### Arrange ###
+        root_value = "root"
+        a_value = "A"
+        b_value = "B"
+
+        ### Act ###
+        tree_one = Tree()
+        root = tree_one.append(None, root_value)
+        tree_one.append(root, a_value)
+        tree_one.append(root, b_value)
+
+        tree_two = Tree()
+        root = tree_two.append(None, root_value)
+        tree_two.append(root, a_value)
+        tree_two.append(root, b_value)
+
+        ### Assert ###
+        self.assertEqual(tree_one, tree_two)
+#------------------------------------------------------------------------------ 
+
+class TreeNodeEqualityTest(unittest.TestCase):
+    def test_equality_identity(self):
+        """Test that a TreeNode is equal to itself.
+
+        Act:
+            Create one TreeNode.
+        Assert:
+            That the TreeNode is equal to itself.
+        """
+        ### Act ###
+        treenode_one = TreeNode()
+
+        ### Assert ###
+        self.assertEqual(treenode_one, treenode_one)
+
+    def test_equality_identical(self):
+        """Test that two TreeNodes with identical property values are equal.
+
+        Arrange:
+            Establish expected parent, path, value property values.
+        Act:
+            Create TreeNodes one and two with expected values.
+        Assert:
+            That the two TreeNodes are equal.
+        """
+        ### Arrange ###
+        expected_parent = None
+        expected_path = ()
+        expected_value = "root"
+
+        ### Act ###
+        treenode_one = TreeNode(parent=expected_parent, path=expected_path,
+            value=expected_value)
+        treenode_two = TreeNode(parent=expected_parent, path=expected_path,
+            value=expected_value)
+
+        ### Assert ###
+        self.assertEqual(treenode_one, treenode_two)
+
+    def test_equality_different_values(self):
+        """Test that two TreeNodes with different property values are not
+        equal.
+
+        Arrange:
+            Establish expected parent, path, value property values sets for
+            both nodes.
+        Act:
+            Create TreeNode one with expected values.
+            Create TreeNode two with second set of expected values.
+        Assert:
+            That the two TreeNodes are _not_ equal.
+        """
+        ### Arrange ###
+        expected_parent = None
+        expected_path = ()
+        expected_value_one = "root 1"
+        expected_value_two = "root 2"
+
+        ### Act ###
+        treenode_one = TreeNode(parent=expected_parent, path=expected_path,
+            value=expected_value_one)
+        treenode_two = TreeNode(parent=expected_parent, path=expected_path,
+            value=expected_value_two)
+
+        ### Assert ###
+        self.assertNotEqual(treenode_one, treenode_two)
+
+    def test_child_ordering_different(self):
+        """Test that two TreeNodes architectures that are identical except for
+        the ordering of the children are not equal.
+        
+        The TreeNodes will have these architectures:
+        
+        One:
+        - root
+            - A
+            - B
+            
+        Two:
+        -root
+            - B
+            - A
+
+        Arrange:
+            Establish expected parent, path, value property values sets for
+            all nodes.
+        Act:
+            Create both TreeNode architectures as documented above.            
+        Assert:
+            That the two TreeNodes are _not_ equal.
+        """
+        ### Arrange ###
+        parent_value = "root"
+        a_value = "a"
+        b_value = "b"
+
+        ### Act ###
+        tn_one_parent = TreeNode(parent=None, path=(), value=parent_value)
+        tn_one_a = TreeNode(parent=tn_one_parent, path=(0), value=a_value)
+        tn_one_b = TreeNode(parent=tn_one_parent, path=(1), value=b_value)
+        tn_one_parent.children.append(tn_one_a)
+        tn_one_parent.children.append(tn_one_b)
+        
+        tn_two_parent = TreeNode(parent=None, path=(), value=parent_value)
+        tn_two_b = TreeNode(parent=tn_two_parent, path=(0), value=b_value)
+        tn_two_a = TreeNode(parent=tn_two_parent, path=(1), value=a_value)
+        tn_two_parent.children.append(tn_two_b)
+        tn_two_parent.children.append(tn_two_a)
+
+        ### Assert ###
+        self.assertNotEqual(tn_one_parent, tn_two_parent)
 #------------------------------------------------------------------------------ 
