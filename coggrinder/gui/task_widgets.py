@@ -564,6 +564,8 @@ class TaskTreeViewController(object):
     def __init__(self):
         self.view = TaskTreeView()
         
+        self._tasktree = None
+        
         # TODO: Connect edited and (selection) changed event handlers.
         self.view.title_renderer.connect("edited", self._handle_cell_edited)
                 
@@ -762,14 +764,7 @@ class TaskTreeViewController(object):
     def _get_entity_for_path(self, tree_path):
         entity_id = self._get_entity_id_for_path(tree_path)
         
-        if self._tasklists.has_key(entity_id):
-            entity = self._tasklists.get(entity_id)
-        elif self._tasks.has_key(entity_id):
-            entity = self._tasks.get(entity_id)
-        else:
-            raise ValueError(
-                "Could not find an entity for the path {0} and entity id {1}".format(
-                tree_path, entity_id))
+        entity = self._tasktree.get_entity(entity_id)
 
         return entity
         

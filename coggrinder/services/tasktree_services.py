@@ -139,7 +139,7 @@ class TaskTreeServiceTest(ManagedFixturesTestCase):
             children of the root) in the TaskTreeService's TaskTree.
         """
         ### Arrange ###
-        expected_tasklists = {"tl-" + str(x): 
+        expected_tasklists = {"tl-" + str(x):
             TaskList(entity_id="tl-" + str(x), title='Tasklist ' + str(x))
             for x in range(0, 3)}
 
@@ -245,6 +245,25 @@ class TaskTree(Tree):
 
     def get_tasks_for_tasklist(self, tasklist):
         return self._all_tasks[tasklist.entity_id]
+
+    def get_entity(self, entity_id):
+        entity = None
+        try:
+            entity = self._tasklists[entity_id]
+            print
+        except KeyError:
+            for tasklist_id in self._tasklists.keys():
+                tasklist_tasks = self._all_tasks[tasklist_id]
+                
+                try:
+                    entity = tasklist_tasks[entity_id]
+                except KeyError:
+                    pass
+            
+        if entity is None:
+            raise ValueError("Could not find entity with ID {id}".format(id=entity_id))
+        
+        return entity
 #------------------------------------------------------------------------------ 
 
 class TaskTreeTest(ManagedFixturesTestCase):
@@ -308,7 +327,9 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestCase):
         self.expected_t_1 = Task(entity_id="t-1", title="t-1", tasklist_id=self.expected_tl_0.entity_id,
             position="1")
         self.tasklists = {self.expected_tl_0.entity_id: self.expected_tl_0}
-        self.all_tasks = {self.expected_tl_0.entity_id: [self.expected_t_0, self.expected_t_1]}
+        tl_0_tasks = {self.expected_t_0.entity_id:self.expected_t_0,
+            self.expected_t_1.entity_id:self.expected_t_1}
+        self.all_tasks = {self.expected_tl_0.entity_id: tl_0_tasks}
 
         self._register_fixtures(self.expected_tl_0, self.expected_t_0,
             self.expected_t_1, self.tasklists, self.all_tasks)
@@ -338,7 +359,7 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestCase):
         self.assertEqual(self.expected_t_1, actual_t_1)
 
     def test_get_tasks_for_tasklist(self):
-        """Test that providing Task data can be retrieved by the parent
+        """Test that provided Task data can be retrieved by the parent
         TaskList.
 
         Arrange:
@@ -360,6 +381,68 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestCase):
 
         ### Assert ###
         self.assertEqual(expected_tasks, actual_tasks)
+
+    def test_get_entity_tasklist(self):
+        """Test that searching the TaskTree for an entity ID belonging to a
+        TaskList will return that TaskList instance.
+
+        Arrange:
+            Create a new TaskTree, providing it the TaskList and Task data
+            through init arguments.
+        Act:
+            Search for a TaskList with the entity ID of the expected TaskList.
+        Assert:
+            That the found TaskList is equal to the expected TaskList.
+        """
+        ### Arrange ###
+        tasktree = TaskTree(tasklists=self.tasklists, all_tasks=self.all_tasks)
+
+        ### Act ###
+        actual_tl_0 = tasktree.get_entity(self.expected_tl_0.entity_id)
+
+        ### Assert ###
+        self.assertEqual(self.expected_tl_0, actual_tl_0)
+
+    def test_get_entity_task(self):
+        """Test that searching the TaskTree for an entity ID belonging to a
+        Task will return that Task instance.
+
+        Arrange:
+            Create a new TaskTree, providing it the TaskList and Task data
+            through init arguments.
+        Act:
+            Search for a Task with the entity ID of the expected Task (t-1).
+        Assert:
+            That the found Task is equal to the expected Task.
+        """
+        ### Arrange ###
+        tasktree = TaskTree(tasklists=self.tasklists, all_tasks=self.all_tasks)
+
+        ### Act ###
+        actual_t_1 = tasktree.get_entity(self.expected_t_1.entity_id)
+
+        ### Assert ###
+        self.assertEqual(self.expected_t_1, actual_t_1)
+
+    def test_get_entity_missing(self):
+        """Test that searching for an entity that is not in the TaskTree will
+        raise an error.
+
+        Arrange:
+            Create a new TaskTree, providing it the TaskList and Task data
+            through init arguments.
+            Create a bogus Task ID.
+        Assert:
+            That searching the TaskTree for the bogus Task ID raises a
+            ValueError.
+        """
+        ### Arrange ###
+        tasktree = TaskTree(tasklists=self.tasklists, all_tasks=self.all_tasks)
+        expected_bogus_id = "bogus-task-id"
+
+        ### Assert ###
+        with self.assertRaises(ValueError):
+            tasktree.get_entity(expected_bogus_id)
 #------------------------------------------------------------------------------ 
 
 '''
