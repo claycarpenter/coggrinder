@@ -76,10 +76,10 @@ class Tree(DeclaredPropertiesComparable):
                 path_indices += (int(index),)
 
         return path_indices
-    
+
     def clear(self):
         """Clear the tree of all nodes."""
-        self.children = list()        
+        self.children = list()
 
     def has_children(self, node_indices):
         node = self.get_node(node_indices)
@@ -377,6 +377,15 @@ class Tree(DeclaredPropertiesComparable):
 
     def _get_comparable_properties(self):
         return ("children", "path")
+
+    def _full_tree_as_str(self, node=None, depth=0):
+        if node is None:
+            node = self.get_node(Tree.ROOT_PATH)
+
+        print "{indent} - {path} - {value}".format(
+            indent="".center(depth * 4), path=node.path, value=node.value)
+        for child_node in node.children:
+            self._full_tree_as_str(node=child_node, depth=depth+1)
 #------------------------------------------------------------------------------ 
 
 class TreeNode(DeclaredPropertiesComparable):
@@ -1238,7 +1247,7 @@ class TreePopulateTest(unittest.TestCase):
         """
         ### Arrange ###
         tree = Tree()
-        root_node = tree.append(None,"0")
+        root_node = tree.append(None, "0")
         tree.append(root_node, "0:0")
 
         ### Act ###   
@@ -1247,10 +1256,10 @@ class TreePopulateTest(unittest.TestCase):
         ### Assert ###
         with self.assertRaises(NodeNotFoundError):
             tree.get(Tree.ROOT_PATH)
-            
+
         with self.assertRaises(NodeNotFoundError):
             tree.get(Tree.ROOT_PATH + (0,))
-            
+
         self.assertFalse(tree.children)
 #------------------------------------------------------------------------------
 
@@ -1624,7 +1633,7 @@ class TreePromoteTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(self.node_c, self.tree.get_node((0, 0, 1)))
         self.assertEqual(self.node_d, self.tree.get_node((0, 0, 1, 0)))
-        self.assertEqual(self.node_e, self.tree.get_node((0, 0, 1, 1)))    
+        self.assertEqual(self.node_e, self.tree.get_node((0, 0, 1, 1)))
 #------------------------------------------------------------------------------ 
 
 class TreeDemoteTest(BaseTreeReorganizationTest):
@@ -1990,14 +1999,14 @@ class TreeNodeEqualityTest(unittest.TestCase):
     def test_child_ordering_different(self):
         """Test that two TreeNodes architectures that are identical except for
         the ordering of the children are not equal.
-        
+
         The TreeNodes will have these architectures:
-        
+
         One:
         - root
             - A
             - B
-            
+
         Two:
         -root
             - B
@@ -2007,7 +2016,7 @@ class TreeNodeEqualityTest(unittest.TestCase):
             Establish expected parent, path, value property values sets for
             all nodes.
         Act:
-            Create both TreeNode architectures as documented above.            
+            Create both TreeNode architectures as documented above.
         Assert:
             That the two TreeNodes are _not_ equal.
         """
@@ -2022,7 +2031,7 @@ class TreeNodeEqualityTest(unittest.TestCase):
         tn_one_b = TreeNode(parent=tn_one_parent, path=(1), value=b_value)
         tn_one_parent.children.append(tn_one_a)
         tn_one_parent.children.append(tn_one_b)
-        
+
         tn_two_parent = TreeNode(parent=None, path=(), value=parent_value)
         tn_two_b = TreeNode(parent=tn_two_parent, path=(0), value=b_value)
         tn_two_a = TreeNode(parent=tn_two_parent, path=(1), value=a_value)

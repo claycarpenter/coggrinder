@@ -48,6 +48,8 @@ class CogGrinderApp(object):
         # service so it can populate the task tree widget.
         main_controller = TaskTreeWindowController(
             tasktree_service=self.tasktree_service)
+        main_controller.refresh_task_data()
+        main_controller.show()
 
         # Begin the main program loop.
         Gtk.main()

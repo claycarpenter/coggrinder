@@ -11,8 +11,10 @@ from coggrinder.gui.task_treestore import TaskTreeStore, TreeNode
 
 
 class TaskTreeWindowController(object):
-    def __init__(self):                
+    def __init__(self, tasktree_service=None):                
         self.tasktree = None
+        
+        self._tasktree_service = tasktree_service
         
         # Initialize the TaskTreeWindow Gtk window that serves as the view
         # for this controller.
@@ -51,10 +53,10 @@ class TaskTreeWindowController(object):
         task tree.
         """
         # Pull updated task data (tasklists and tasks) from the services.
-        self.tasktree = self.tasktree_service.refresh()
+        self._tasktree_service.refresh_tasktree()
                 
         # Update the UI task tree.
-        self.view.update_task_tree(self.tasktree)
+        self.view.update_tasktree(self._tasktree_service.tree)
 
     def _handle_save_event(self, button):
         raise NotImplementedError
@@ -317,8 +319,8 @@ class TaskTreeWindow(Gtk.Window):
         # Connect to the selection changed event from the TreeView.
         self.treeview_controller.selection_state_changed.register(self.toolbar_controller.selection_state_changed)
         
-    def update_task_tree(self, tasklists, tasks):
-        self.treeview_controller.update_task_tree(tasklists, tasks)
+    def update_tasktree(self, tasktree):
+        self.treeview_controller.update_tasktree(tasktree)
         
     def set_entity_editable(self, target_entity):
         """
@@ -551,18 +553,13 @@ class TaskToolbarView(Gtk.HBox):
 #------------------------------------------------------------------------------ 
 
 class TaskTreeViewController(object):
-    """
-    Provides an interface to the task tree view. Converts task tree paths into
+    """Provides an interface to the task tree view. 
+    
+    Converts task tree paths into
     usable entity lists to be consumed by the parent controller. Converts
     entity lists into new tree stores and displays the updated information.
     
     Manages tree state: selections, selection state, and expansion state.
-    
-    Maintain:
-    -- Dict of tasklists, keyed by ID - still necessary?
-    -- Dict of tasks, keyed by ID - still necessary?
-    -- TaskTreeView/Gtk.TreeView
-    -- TaskTreeStore/Gtk.TreeStore
     """            
     def __init__(self):
         self.view = TaskTreeView()
@@ -585,8 +582,9 @@ class TaskTreeViewController(object):
         # This index allows us to quickly look up where in the tree a given
         # entity is.
         self.entity_path_index = dict()
-        self._tasks = dict()
-        self._tasklists = dict()
+        
+        # TODO: Document the expected keys and values for this dict; how it
+        # will be used.
         self.tree_states = dict()
         
         # Set default for clearing flag. This flag is used to help ignore 
@@ -597,11 +595,11 @@ class TaskTreeViewController(object):
         # Connect the tree store/row_data to the tree view.
         self.view.set_model(self.task_treestore)
         
-    def update_task_tree(self, tasklists, tasks):
-        """
-        Collect the current tree state, replace the tree model, and then 
+    def update_tasktree(self, tasktree):
+        """Collect the current tree state, replace the tree model, and then 
         restore the tree state (as much as possible).
         """
+        
         # Collect current tree state.
         self._rebuild_tree_state()
         
@@ -612,9 +610,8 @@ class TaskTreeViewController(object):
         self._is_clearing = False
         
         # Build a new tree with the updated task data.
-        self._tasklists = tasklists
-        self._tasks = tasks
-        self.entity_path_index = self.task_treestore.build_tree(tasklists, tasks)
+        self._tasktree = tasktree
+        self.entity_path_index = self.task_treestore.build_tree(tasktree)
         
         # With the new tree structure in place, try to restore the old tree 
         # state to the fullest extent possible.
@@ -750,13 +747,17 @@ class TaskTreeViewController(object):
             key_index = self.entity_path_index.values().index(tree_path)
             return self.entity_path_index.keys()[key_index]
         else:
-            raise ValueError("Could not find an entity registered with path {0}".format(tree_path))
+            raise ValueError(
+                "Could not find an entity registered with path {0}".format(
+                tree_path))
     
     def _get_path_for_entity_id(self, entity_id):
         if self.entity_path_index.has_key(entity_id):
             return self.entity_path_index.get(entity_id)
         else:
-            raise ValueError("Could not find a path for entity with id {0}".format(entity_id))
+            raise ValueError(
+                "Could not find a path for entity with id {0}".format(
+                entity_id))
         
     def _get_entity_for_path(self, tree_path):
         entity_id = self._get_entity_id_for_path(tree_path)
@@ -766,7 +767,9 @@ class TaskTreeViewController(object):
         elif self._tasks.has_key(entity_id):
             entity = self._tasks.get(entity_id)
         else:
-            raise ValueError("Could not find an entity for the path {0} and entity id {1}".format(tree_path, entity_id))
+            raise ValueError(
+                "Could not find an entity for the path {0} and entity id {1}".format(
+                tree_path, entity_id))
 
         return entity
         

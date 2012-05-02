@@ -96,8 +96,8 @@ class TaskService(AuthenticatedService):
         return task
     
     def get_tasks_in_tasklist(self, tasklist):     
-        """
-        Return a dictionary of all tasks belonging to the specified tasklist. 
+        """Return a dictionary of all tasks belonging to the specified TaskList.
+         
         Dictionary keys will be entity IDs, values will be the corresponding 
         task instances.
         """   

@@ -10,63 +10,63 @@ from coggrinder.resources.icons import task_tree
 
 class TaskTreeStore(Gtk.TreeStore):
     def __init__(self):
-        self.store = Gtk.TreeStore(str, str, GdkPixbuf.Pixbuf)
+#        self.store = Gtk.TreeStore(str, str, GdkPixbuf.Pixbuf)
+        Gtk.TreeStore.__init__(self, str, str, GdkPixbuf.Pixbuf)
 
-        self.entity_path_index = dict()
+        # TODO: Document keys, values, uses.
+        self.entity_path_index = None
 
-    def build_tree(self, tasklists, tasks):
-        """
-        Build a tree representing all of the user's tasklists and tasks.
-        Tasklists will always be first-level nodes, while tasks will always be
+        self._root_node = None
+
+    def build_tree(self, tasktree):
+        """Build a tree representing all of the user's task data (TaskLists and
+        Tasks).
+
+        TaskLists will always be first-level nodes, while Tasks will always be
         at least second-level nodes or deeper.
 
         Args:
-            tasklists:
-            tasks:
+            tasktree: The TaskTree that contains the task data.
+        Returns:
+            dict with that maps entity (both TaskList and Task) ID keys to
+            their path (as a str) in the TreeModel.
         """
-#        self._root
-#        self.entity_path_index = dict()
-#        
-#        # Iterate over the tasklists dict, adding each tasklist to the root. 
-#        for tasklist_id in tasklists:
-#            tasklist = tasklists[tasklist_id]
-#            tasklist_iter = self.append(self._root, TreeNode(tasklist).row_data)
-#            
-#            # Add tasklist to the path index.
-#            self.entity_path_index[tasklist.entity_id] = self.get_path(tasklist_iter).to_string()
-#
-#            # Find all tasks with this tasklist id and FOO parent id.
-#            self._build_tasklist_task_tree(tasks, entity_path_index, tasklist_iter, tasklist_id, None)
-#            
-#        return entity_path_index
+        self._root_node = self.get_iter_first()
 
-    def _build_tree_from_tasks(self, tasks, parent_iter):
-        """
-        Build a tree for a particular tasklist.
-        """
-        # Determine which entities remaining in the tasks dict have yet to be 
-        # added to the tree by comparing sets of keys in the tasks dict vs
-        # those in the entity path index.
-        keys_in_tasklist = set(tasks.keys())
-        keys_in_tree = set(self.entity_path_index.keys())
-        remaining_keys = keys_in_tasklist - keys_in_tree
+        self.entity_path_index = dict()
 
-        # Check to see if the parent is a tasklist or task.
-        parent_id = self[parent_iter][TreeNode.ENTITY_ID]
-        parent = self.entity_path_index[parent_id]
-        if isinstance(parent, TaskList):
-            parent_id = None
+        # Iterate over each TaskList in the TaskTree, adding each as a node in 
+        # the TreeModel. 
+        for tasklist in tasktree.tasklists.values():
+            row_model_data = TreeNode(tasklist).row_data
+            tasklist_iter = self.append(self._root_node,
+                TreeNode(tasklist).row_data)
 
-        for entity_id in remaining_keys:
-            task = tasks[entity_id]
+            # Add the TaskList to the path index.
+            tasklist_treepath = self.get_path(tasklist_iter)
+            self.entity_path_index[tasklist.entity_id] = tasklist_treepath.to_string()
 
+            # Get all of the Tasks for the current TaskList.
+            tasklist_tasks = tasktree.get_tasks_for_tasklist(tasklist)
+
+            # Add all of the TaskList Tasks to the tree as nodes under the 
+            # TaskList.
+            self._build_tasklist_tree(tasklist_tasks, tasklist_iter)
+
+        return self.entity_path_index
+
+    def _build_tasklist_tree(self, tasks, parent_iter, parent_id=None):
+        """Build a tree for a particular TaskList."""
+        for task in tasks.values():
             if task.parent_id == parent_id:
                 task_iter = self.append(parent_iter, TreeNode(task).row_data)
 
-                # Add task to the path index.
+                # Add the Task to the path index.
                 self.entity_path_index[task.entity_id] = self.get_string_from_iter(task_iter)
 
-                self._build_tree_from_tasks(tasks, task_iter)
+                # Recursively build the tree below this Task.
+                self._build_tasklist_tree(tasks, task_iter,
+                    parent_id=task.entity_id)
 
     def get_entity(self, tree_path):
         """Retrieves the entity targeted by the specified tree path.
@@ -104,8 +104,8 @@ class TaskTreeStore(Gtk.TreeStore):
             self._build_tree_from_tasks(tasks, tasklist_iter)
 
     def add_entity(self, entity, parent_iter=None):
-        new_node_iter = self.store.append(parent_iter, TreeNode(entity).row_data)
-        self.entity_path_index[entity.entity_id] = self.store.get_string_from_iter(new_node_iter)
+        new_node_iter = self.append(parent_iter, TreeNode(entity).row_data)
+        self.entity_path_index[entity.entity_id] = self.get_string_from_iter(new_node_iter)
 
 #------------------------------------------------------------------------------ 
 
