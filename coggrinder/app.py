@@ -52,21 +52,7 @@ class CogGrinderApp(object):
         main_controller.show()
 
         # Begin the main program loop.
-        Gtk.main()
-
-#        tasklist_service = gtasks_service_proxy.create_tasklist_service()
-#        task_service = gtasks_service_proxy.create_task_service()
-#
-#        print task_service, tasklist_service
-
-#        tasktree_service = TaskTreeService()
-#        tasktree_service.tasklist_service = tasklist_service
-#        tasktree_service.task_service = task_service
-#        
-#        main_controller.tasktree_service = tasktree_service
-#        main_controller.refresh_task_data()
-#        main_controller.show()
-#        
+        Gtk.main()        
 #------------------------------------------------------------------------------ 
 
 if __name__ == '__main__':
