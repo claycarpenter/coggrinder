@@ -138,23 +138,23 @@ class TaskDataTestSupport(object):
     def create_expected_tasklists(cls, entity_id_prefix="tl-",
         title_prefix="TaskList ", begin_count=0, end_count=3):
         """Create a dictionary of TaskList objects.
-        
+
         Each TaskList object will be given a unique ID and title, beginning
-        with the associated prefixes and ending with a integer between the 
-        begin count and end count values. The method will create begin_count - 
-        end_count TaskLists. 
-        
+        with the associated prefixes and ending with a integer between the
+        begin count and end count values. The method will create begin_count -
+        end_count TaskLists.
+
         Args:
             entity_id_prefix: str prefix for the TaskList ID.
             title_prefix: str prefix for the TaskList title.
             begin_count: int for the first TaskList.
             end_count: int for the last TaskList.
         Returns:
-            A dictionary keyed with the TaskList IDs, with values mapping to 
+            A dictionary keyed with the TaskList IDs, with values mapping to
             the corresponding TaskList instance.
         """
         assert begin_count < end_count
-        
+
         expected_tasklists = {entity_id_prefix + str(x):
             TaskList(entity_id=entity_id_prefix + str(x),
             title=title_prefix + str(x)) for x in range(begin_count, end_count)}
@@ -180,7 +180,13 @@ class TaskDataTestSupport(object):
         return expected_all_tasks
 #------------------------------------------------------------------------------ 
 
-class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):
+class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):
+    """This collection of tests examines the TaskTreeService's ability to 
+    manage and synchronize the task data it holds with the remote Google 
+    services.    
+    """
+    # TODO: This setUp is currently duplicated with the 
+    # PopulatedTaskTreeServiceTest.
     def setUp(self):
         # Create a basic, blank TaskTreeService with TaskService and 
         # TaskListService mocks.
@@ -192,22 +198,12 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
             self.expected_tasklists)
 
         # Wire the mock services to return the expected task data when
-        # queried.                
-#        when(self.mock_tasklist_srvc).get_all_tasklists().thenReturn(
-#            copy.deepcopy(self.expected_tasklists))
-#        for expected_tasklist in self.expected_tasklists.values():
-#            when(self.mock_task_srvc).get_tasks_in_tasklist(expected_tasklist).thenReturn(
-#                copy.deepcopy(self.expected_all_tasks[expected_tasklist.entity_id]))
-
-        cloned_expected_tasklists = copy.deepcopy(self.expected_tasklists)
+        # queried.                        
         when(self.mock_tasklist_srvc).get_all_tasklists().thenReturn(
-            cloned_expected_tasklists)
-        for expected_tasklist in cloned_expected_tasklists.values():
-            cloned_expected_tasks_in_tasklist = copy.deepcopy(
-                self.expected_all_tasks[expected_tasklist.entity_id])
+            self.expected_tasklists)
+        for expected_tasklist in self.expected_tasklists.values():
             when(self.mock_task_srvc).get_tasks_in_tasklist(expected_tasklist).thenReturn(
-                cloned_expected_tasks_in_tasklist)
-            print
+                self.expected_all_tasks[expected_tasklist.entity_id])
 
         # Update the TaskTreeService task data.
         self.tasktree_srvc.refresh_task_data()
@@ -236,6 +232,34 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
 
         ### Assert ###
         self.assertEqual(expected_tasktree, self.tasktree_srvc.tree)
+#------------------------------------------------------------------------------ 
+
+class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):
+    """This collection of tests intends to ensure that the TaskTreeService
+    properly updates the TaskTree task data.
+
+    It does not cover syncing the task data with the remote Google services.
+    """
+    def setUp(self):
+        # Create a basic, blank TaskTreeService with TaskService and 
+        # TaskListService mocks.
+        TaskTreeServiceTestCommon.setUp(self)
+
+        # Create the expected task data containers.
+        self.expected_tasklists = TaskDataTestSupport.create_expected_tasklists()
+        self.expected_all_tasks = TaskDataTestSupport.create_expected_all_tasks(
+            self.expected_tasklists)
+
+        # Wire the mock services to return the expected task data when
+        # queried.                        
+        when(self.mock_tasklist_srvc).get_all_tasklists().thenReturn(
+            self.expected_tasklists)
+        for expected_tasklist in self.expected_tasklists.values():
+            when(self.mock_task_srvc).get_tasks_in_tasklist(expected_tasklist).thenReturn(
+                self.expected_all_tasks[expected_tasklist.entity_id])
+
+        # Update the TaskTreeService task data.
+        self.tasktree_srvc.refresh_task_data()
 
     def test_get_tasklist(self):
         """Test that retrieving ("getting") a TaskList from the TaskTreeService
@@ -283,11 +307,9 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         ### Assert ###
         self.assertEqual(expected_task, actual_task)
 
-    @unittest.skip("This shouldn't work, as the test isn't written properly...")
     def test_update_tasklist(self):
         """Test that updating a TaskList properly changes the target TaskList
-        properties, and that subsequent searches for that TaskList retrieve an
-        instance that has the updated properties.
+        properties in the TaskTreeService's task data (TaskTree).
 
         Arrange:
             - Create an expected updated TaskList based on the properties of the
@@ -305,36 +327,18 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         ### Arrange ###
         expected_updated_title = "updated"
         expected_updated_tasklist = copy.deepcopy(
-            self.expected_tasklists.values()[0])
+            self.expected_tasklists["tl-0"])
         expected_updated_tasklist.title = expected_updated_title
-
-        '''
-        Needs to call .refresh_task_data
-
-        Changing the expected_tasklists is problematic without making copies of
-        the entities.
-
-        Use this as a test of the intermediate/local task data area.
-        Need to see if the task tree has been updated, I guess? Is that the
-        correct test?
-        Should use other tests to find out if the staging/persisting works
-        appropriately, right?
-            - This test would validate that update_tasklist updates the
-            service's TaskTree.
-            - A second test would use update_tasklist (assuming that it's
-            operating appropriately because the method is covered in this test)
-            to modify the local task data, while then going on to test the
-            persist/revert/refresh/etc. method(s).
-        '''
 
         ### Act ###   
         actual_tasklist = self.tasktree_srvc.get_tasklist(expected_updated_tasklist.entity_id)
         actual_tasklist.title = expected_updated_title
         self.tasktree_srvc.update_tasklist(actual_tasklist)
-        acutal_tasklist = self.tasktree_srvc.get_task(actual_tasklist.entity_id)
 
         ### Assert ###
-        self.assertEqual(expected_updated_tasklist, actual_tasklist)
+        tasktree_tasklist = self.tasktree_srvc.tree.get_entity(
+                actual_tasklist.entity_id)
+        self.assertEqual(expected_updated_tasklist, tasktree_tasklist)
 #------------------------------------------------------------------------------ 
 
 class TaskTree(Tree):
