@@ -131,6 +131,55 @@ class TaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon,
         self.assertEqual(expected_tasktree, self.tasktree_srvc.tree)
 #------------------------------------------------------------------------------ 
 
+class TaskDataTestSupport(object):
+    """Simple support class to make it more convenient to product mock TaskList
+    and Task data for use in testing."""
+    @classmethod
+    def create_expected_tasklists(cls, entity_id_prefix="tl-",
+        title_prefix="TaskList ", begin_count=0, end_count=3):
+        """Create a dictionary of TaskList objects.
+        
+        Each TaskList object will be given a unique ID and title, beginning
+        with the associated prefixes and ending with a integer between the 
+        begin count and end count values. The method will create begin_count - 
+        end_count TaskLists. 
+        
+        Args:
+            entity_id_prefix: str prefix for the TaskList ID.
+            title_prefix: str prefix for the TaskList title.
+            begin_count: int for the first TaskList.
+            end_count: int for the last TaskList.
+        Returns:
+            A dictionary keyed with the TaskList IDs, with values mapping to 
+            the corresponding TaskList instance.
+        """
+        assert begin_count < end_count
+        
+        expected_tasklists = {entity_id_prefix + str(x):
+            TaskList(entity_id=entity_id_prefix + str(x),
+            title=title_prefix + str(x)) for x in range(begin_count, end_count)}
+
+        return expected_tasklists
+
+    @classmethod
+    def create_expected_all_tasks(cls, expected_tasklists):
+        expected_all_tasks = dict()
+        for expected_tasklist in expected_tasklists.values():
+            t_a = Task(entity_id=expected_tasklist.entity_id + "-t-a",
+                tasklist_id=expected_tasklist.entity_id, title="Task A")
+            t_b = Task(entity_id=expected_tasklist.entity_id + "-t-b",
+                tasklist_id=expected_tasklist.entity_id, title="Task B",
+                parent_id=t_a.entity_id)
+            t_c = Task(entity_id=expected_tasklist.entity_id + "-t-c",
+                tasklist_id=expected_tasklist.entity_id, title="Task C",
+                parent_id=t_a.entity_id)
+
+            expected_all_tasks[expected_tasklist.entity_id] = {t_a.entity_id:t_a,
+                t_b.entity_id:t_b, t_c.entity_id:t_c}
+
+        return expected_all_tasks
+#------------------------------------------------------------------------------ 
+
 class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):
     def setUp(self):
         # Create a basic, blank TaskTreeService with TaskService and 
@@ -138,8 +187,8 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         TaskTreeServiceTestCommon.setUp(self)
 
         # Create the expected task data containers.
-        self.expected_tasklists = self._create_expected_tasklists()
-        self.expected_all_tasks = self._create_expected_all_tasks(
+        self.expected_tasklists = TaskDataTestSupport.create_expected_tasklists()
+        self.expected_all_tasks = TaskDataTestSupport.create_expected_all_tasks(
             self.expected_tasklists)
 
         # Wire the mock services to return the expected task data when
@@ -162,30 +211,6 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
 
         # Update the TaskTreeService task data.
         self.tasktree_srvc.refresh_task_data()
-
-    def _create_expected_tasklists(self):
-        expected_tasklists = {"tl-" + str(x):
-            TaskList(entity_id="tl-" + str(x), title='Tasklist ' + str(x))
-            for x in range(0, 3)}
-
-        return expected_tasklists
-
-    def _create_expected_all_tasks(self, expected_tasklists):
-        expected_all_tasks = dict()
-        for expected_tasklist in expected_tasklists.values():
-            t_a = Task(entity_id=expected_tasklist.entity_id + "-t-a",
-                tasklist_id=expected_tasklist.entity_id, title="Task A")
-            t_b = Task(entity_id=expected_tasklist.entity_id + "-t-b",
-                tasklist_id=expected_tasklist.entity_id, title="Task B",
-                parent_id=t_a.entity_id)
-            t_c = Task(entity_id=expected_tasklist.entity_id + "-t-c",
-                tasklist_id=expected_tasklist.entity_id, title="Task C",
-                parent_id=t_a.entity_id)
-
-            expected_all_tasks[expected_tasklist.entity_id] = {t_a.entity_id:t_a,
-                t_b.entity_id:t_b, t_c.entity_id:t_c}
-
-        return expected_all_tasks
 
     def test_refresh_tasktree(self):
         """Test creating a tree with a list of TaskLists (and no Tasks).
@@ -565,28 +590,3 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase)
         with self.assertRaises(ValueError):
             self.tasktree.get_entity(expected_bogus_id)
 #------------------------------------------------------------------------------ 
-
-'''
-TaskTreeService scratch.
-
-    def refresh_task_data(self):
-        """
-        Pull updated tasklist and task information from the Google Task
-        services. Store the updated results locally before refreshing the UI
-        task tree.
-        """
-        # Pull updated tasklists and tasks from the services.
-        self._tasklists = self.tasklist_service.get_all_tasklists()
-
-        self._tasks = dict()
-        for tasklist_id in self._tasklists:
-            # Find all tasks for the current tasklist (by tasklist ID).
-            tasklist = self._tasklists[tasklist_id]
-            tasks_in_tasklist = self.task_service.get_tasks_in_tasklist(tasklist)
-
-            # Merge the tasks-in-tasklist dict with the current dict of tasks.
-            self._tasks.update(tasks_in_tasklist)
-
-        # Update the UI task tree.
-        self.view.update_task_tree(self._tasklists, self._tasks)
-'''
