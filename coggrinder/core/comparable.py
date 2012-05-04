@@ -46,7 +46,7 @@ class DeclaredPropertiesComparable(object):
         # TODO: Can this be accomplished without setting a comparing flag on 
         # other?
         try:
-            if self._comparing == other._comparing == True:
+            if self._comparing == other._comparing:
                 # In a loop, exit immediately with True.
                 return True
         except AttributeError:
