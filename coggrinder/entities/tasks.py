@@ -163,6 +163,9 @@ class BaseTaskEntity(object):
                     break
 
         return are_equal
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
 #------------------------------------------------------------------------------ 
 
 class BaseTaskEntityTest(unittest.TestCase):
