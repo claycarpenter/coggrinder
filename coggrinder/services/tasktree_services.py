@@ -8,9 +8,10 @@ import unittest
 import apiclient.discovery
 from coggrinder.services.task_services import TaskService, TaskListService
 from coggrinder.entities.tasks import Task, TaskList
-from coggrinder.entities.tree import Tree, TreeNode
-from coggrinder.core.test import ManagedFixturesTestCase
-from mockito import mock, when, unstub, any
+from coggrinder.entities.tree import Tree
+from coggrinder.core.test import ManagedFixturesTestSupport
+from mockito import mock, when, any
+import copy
 
 class TaskTreeService(object):
     def __init__(self, auth_service=None, tasklist_service=None,
@@ -23,6 +24,10 @@ class TaskTreeService(object):
 
         self._tree = TaskTree()
 
+    """
+    TODO: How do I give this a setter that can only be accessed via this
+    class or descendants?
+    """
     @property
     def tree(self):
         return self._tree
@@ -40,7 +45,7 @@ class TaskTreeService(object):
         self.tasklist_service = self._create_tasklist_service()
         self.task_service = self._create_task_service()
 
-    def refresh_tasktree(self):
+    def refresh_task_data(self):
         # Get refreshed task data from the TaskList and Task services.
         tasklists = self.tasklist_service.get_all_tasklists()
         all_tasks = dict()
@@ -67,9 +72,18 @@ class TaskTreeService(object):
         task_service = TaskService(self.gtasks_service_proxy.tasks())
 
         return task_service
+
+    def get_tasklist(self, tasklist_id):
+        return self.tree.get_entity(tasklist_id)
+
+    def get_task(self, task_id):
+        return self.tree.get_entity(task_id)
+
+    def update_tasklist(self, tasklist):
+        pass
 #------------------------------------------------------------------------------
 
-class TaskTreeServiceTest(ManagedFixturesTestCase):
+class TaskTreeServiceTestCommon(object):
     def setUp(self):
         """Set up basic test fixtures.
 
@@ -86,8 +100,10 @@ class TaskTreeServiceTest(ManagedFixturesTestCase):
 
         self._register_fixtures(self.tasktree_srvc, self.mock_task_srvc,
             self.mock_tasklist_srvc)
+#------------------------------------------------------------------------------ 
 
-    def test_blank_tree(self):
+class TaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):
+    def test_no_task_data(self):
         """Test creating an empty tree.
 
         This would be the case if the GTasks services returned no TaskLists
@@ -108,23 +124,71 @@ class TaskTreeServiceTest(ManagedFixturesTestCase):
         expected_tasktree = TaskTree()
 
         ### Act ###
-        self.tasktree_srvc.refresh_tasktree()
+        self.tasktree_srvc.refresh_task_data()
 
         ### Assert ###
         self.assertIsNotNone(self.tasktree_srvc.tree)
         self.assertEqual(expected_tasktree, self.tasktree_srvc.tree)
+#------------------------------------------------------------------------------ 
+
+class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):
+    def setUp(self):
+        # Create a basic, blank TaskTreeService with TaskService and 
+        # TaskListService mocks.
+        TaskTreeServiceTestCommon.setUp(self)
+
+        # Create the expected task data containers.
+        self.expected_tasklists = self._create_expected_tasklists()
+        self.expected_all_tasks = self._create_expected_all_tasks(
+            self.expected_tasklists)
+
+        # Wire the mock services to return the expected task data when
+        # queried.                
+#        when(self.mock_tasklist_srvc).get_all_tasklists().thenReturn(
+#            copy.deepcopy(self.expected_tasklists))
+#        for expected_tasklist in self.expected_tasklists.values():
+#            when(self.mock_task_srvc).get_tasks_in_tasklist(expected_tasklist).thenReturn(
+#                copy.deepcopy(self.expected_all_tasks[expected_tasklist.entity_id]))
+
+        cloned_expected_tasklists = copy.deepcopy(self.expected_tasklists)
+        when(self.mock_tasklist_srvc).get_all_tasklists().thenReturn(
+            cloned_expected_tasklists)
+        for expected_tasklist in cloned_expected_tasklists.values():
+            cloned_expected_tasks_in_tasklist = copy.deepcopy(
+                self.expected_all_tasks[expected_tasklist.entity_id])
+            when(self.mock_task_srvc).get_tasks_in_tasklist(expected_tasklist).thenReturn(
+                cloned_expected_tasks_in_tasklist)
+            print
+
+        # Update the TaskTreeService task data.
+        self.tasktree_srvc.refresh_task_data()
+
+    def _create_expected_tasklists(self):
+        expected_tasklists = {"tl-" + str(x):
+            TaskList(entity_id="tl-" + str(x), title='Tasklist ' + str(x))
+            for x in range(0, 3)}
+
+        return expected_tasklists
+
+    def _create_expected_all_tasks(self, expected_tasklists):
+        expected_all_tasks = dict()
+        for expected_tasklist in expected_tasklists.values():
+            t_a = Task(entity_id=expected_tasklist.entity_id + "-t-a",
+                tasklist_id=expected_tasklist.entity_id, title="Task A")
+            t_b = Task(entity_id=expected_tasklist.entity_id + "-t-b",
+                tasklist_id=expected_tasklist.entity_id, title="Task B",
+                parent_id=t_a.entity_id)
+            t_c = Task(entity_id=expected_tasklist.entity_id + "-t-c",
+                tasklist_id=expected_tasklist.entity_id, title="Task C",
+                parent_id=t_a.entity_id)
+
+            expected_all_tasks[expected_tasklist.entity_id] = {t_a.entity_id:t_a,
+                t_b.entity_id:t_b, t_c.entity_id:t_c}
+
+        return expected_all_tasks
 
     def test_refresh_tasktree(self):
         """Test creating a tree with a list of TaskLists (and no Tasks).
-
-        The expected TaskTree architecture:
-        TaskTree root
-            - TaskList 0
-                - Task A
-                    - Task B
-                    - Task C
-            - TaskList 1, 2
-                [...]
 
         Arrange:
             Create TaskTreeService.
@@ -139,40 +203,113 @@ class TaskTreeServiceTest(ManagedFixturesTestCase):
             children of the root) in the TaskTreeService's TaskTree.
         """
         ### Arrange ###
-        expected_tasklists = {"tl-" + str(x):
-            TaskList(entity_id="tl-" + str(x), title='Tasklist ' + str(x))
-            for x in range(0, 3)}
-
-        expected_all_tasks = dict()
-        for expected_tasklist in expected_tasklists.values():
-            expected_all_tasks[expected_tasklist] = list()
-            t_a = Task(entity_id=expected_tasklist.entity_id + "-t-a",
-                tasklist_id=expected_tasklist.entity_id, title="Task A")
-            t_b = Task(entity_id=expected_tasklist.entity_id + "-t-b",
-                tasklist_id=expected_tasklist.entity_id, title="Task B",
-                parent_id=t_a.entity_id)
-            t_c = Task(entity_id=expected_tasklist.entity_id + "-t-c",
-                tasklist_id=expected_tasklist.entity_id, title="Task C",
-                parent_id=t_a.entity_id)
-
-        expected_tasktree = TaskTree(tasklists=expected_tasklists,
-            all_tasks=expected_all_tasks)
-
-        when(self.mock_tasklist_srvc).get_all_tasklists().thenReturn(
-            expected_tasklists)
-        for expected_tasklist in expected_tasklists:
-            when(self.mock_task_srvc).get_tasks_in_tasklist().thenReturn(
-                expected_all_tasks)
+        expected_tasktree = TaskTree(tasklists=self.expected_tasklists,
+            all_tasks=self.expected_all_tasks)
 
         ### Act ###
-        self.tasktree_srvc.refresh_tasktree()
+        self.tasktree_srvc.refresh_task_data()
 
         ### Assert ###
-        print "Expected:"
-        print expected_tasktree._full_tree_as_str()
-        print "Actual:"
-        print self.tasktree_srvc.tree._full_tree_as_str()
         self.assertEqual(expected_tasktree, self.tasktree_srvc.tree)
+
+    def test_get_tasklist(self):
+        """Test that retrieving ("getting") a TaskList from the TaskTreeService
+        returns the expected instance.
+
+        Arrange:
+            Find the expected TaskList in the expected TaskList data.
+        Act:
+            Retrieve the actual TaskList from the TaskTreeService.
+        Assert:
+            That the actual and expected TaskLists are identical.
+        """
+        ### Arrange ###
+        expected_tasklist_id = "tl-0"
+        expected_tasklist = self.expected_tasklists[expected_tasklist_id]
+
+        ### Act ###   
+        actual_tasklist = self.tasktree_srvc.get_tasklist(expected_tasklist_id)
+
+        ### Assert ###
+        self.assertEqual(expected_tasklist, actual_tasklist)
+
+    def test_get_task(self):
+        """Test that retrieving ("getting") a Task from the TaskTreeService
+        returns the expected instance.
+
+        Arrange:
+            Find the expected Task in the expected Task data.
+        Act:
+            Retrieve the actual Task from the TaskTreeService.
+        Assert:
+            That the actual and expected Tasks are identical.
+        """
+        ### Arrange ###
+        expected_tasklist_id = "tl-1"
+        expected_task_id = expected_tasklist_id + "-t-b"
+        expected_task = self.expected_all_tasks[expected_tasklist_id][expected_task_id]
+
+
+        self.tasktree_srvc.refresh_task_data()
+
+        ### Act ###   
+        actual_task = self.tasktree_srvc.get_task(expected_task_id)
+
+        ### Assert ###
+        self.assertEqual(expected_task, actual_task)
+
+    @unittest.skip("This shouldn't work, as the test isn't written properly...")
+    def test_update_tasklist(self):
+        """Test that updating a TaskList properly changes the target TaskList
+        properties, and that subsequent searches for that TaskList retrieve an
+        instance that has the updated properties.
+
+        Arrange:
+            - Create an expected updated TaskList based on the properties of the
+            existing expected TaskList (created in setUp()).
+        Act:
+            - Retrieve the actual TaskList from the TaskTreeService.
+            Update the actual TaskList title.
+            - Refresh the TaskTreeService data (this ensures that the backend
+            services were actually called, and the server has the updated
+            information).
+            - Retrieve the actual, updated TaskList from the TaskTreeService.
+        Assert:
+
+        """
+        ### Arrange ###
+        expected_updated_title = "updated"
+        expected_updated_tasklist = copy.deepcopy(
+            self.expected_tasklists.values()[0])
+        expected_updated_tasklist.title = expected_updated_title
+
+        '''
+        Needs to call .refresh_task_data
+
+        Changing the expected_tasklists is problematic without making copies of
+        the entities.
+
+        Use this as a test of the intermediate/local task data area.
+        Need to see if the task tree has been updated, I guess? Is that the
+        correct test?
+        Should use other tests to find out if the staging/persisting works
+        appropriately, right?
+            - This test would validate that update_tasklist updates the
+            service's TaskTree.
+            - A second test would use update_tasklist (assuming that it's
+            operating appropriately because the method is covered in this test)
+            to modify the local task data, while then going on to test the
+            persist/revert/refresh/etc. method(s).
+        '''
+
+        ### Act ###   
+        actual_tasklist = self.tasktree_srvc.get_tasklist(expected_updated_tasklist.entity_id)
+        actual_tasklist.title = expected_updated_title
+        self.tasktree_srvc.update_tasklist(actual_tasklist)
+        acutal_tasklist = self.tasktree_srvc.get_task(actual_tasklist.entity_id)
+
+        ### Assert ###
+        self.assertEqual(expected_updated_tasklist, actual_tasklist)
 #------------------------------------------------------------------------------ 
 
 class TaskTree(Tree):
@@ -250,23 +387,23 @@ class TaskTree(Tree):
         entity = None
         try:
             entity = self._tasklists[entity_id]
-            print
         except KeyError:
             for tasklist_id in self._tasklists.keys():
                 tasklist_tasks = self._all_tasks[tasklist_id]
-                
-                try:
-                    entity = tasklist_tasks[entity_id]
-                except KeyError:
-                    pass
-            
+
+                if tasklist_tasks:
+                    try:
+                        entity = tasklist_tasks[entity_id]
+                    except KeyError:
+                        pass
+
         if entity is None:
             raise ValueError("Could not find entity with ID {id}".format(id=entity_id))
-        
+
         return entity
 #------------------------------------------------------------------------------ 
 
-class TaskTreeTest(ManagedFixturesTestCase):
+class TaskTreeTest(unittest.TestCase):
     """
     If there are going to be tests for this class, they need to be ones that
     stress the unique features of a TaskTree, rather than just duplicating
@@ -289,27 +426,31 @@ class TaskTreeTest(ManagedFixturesTestCase):
         ### Assert ###
         self.assertEqual(tasktree_one, tasktree_two)
 
-    @unittest.skip("Not sure if this test is actually necessary.")
-    def test_equality_empty_vs_populated(self):
-        """Test that an empty TaskTree is not equal to a populated TaskTree.
+    def test_tree_creation_bad_data(self):
+        """Test creating a TaskTree without providing an adequate Tasks data
+        collection.
+
+        If a TaskList collection is supplied, then there must be a Tasks dict
+        provided that has a key for every TaskList ID.
+
+        Arrange:
 
         Act:
-            Create empty TaskTree.
-            Create populated TaskTree.
-            Add ... to populated TaskTree.
+
         Assert:
-            That the two TaskTrees are _not_ equal.
+
         """
+        ### Arrange ###
+
         ### Act ###
-        empty = TaskTree()
-        populated = TaskTree()
-#        populated.add_tasklist(tasklist)
 
         ### Assert ###
-        self.assertEqual(empty, populated)
+
+        pass
+
 #------------------------------------------------------------------------------ 
 
-class SimplePopulatedTaskTreeTest(ManagedFixturesTestCase):
+class SimplePopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
     def setUp(self):
         """Set up basic test fixtures.
 
@@ -331,27 +472,25 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestCase):
             self.expected_t_1.entity_id:self.expected_t_1}
         self.all_tasks = {self.expected_tl_0.entity_id: tl_0_tasks}
 
+        self.tasktree = TaskTree(tasklists=self.tasklists,
+            all_tasks=self.all_tasks)
+
         self._register_fixtures(self.expected_tl_0, self.expected_t_0,
-            self.expected_t_1, self.tasklists, self.all_tasks)
+            self.expected_t_1, self.tasklists, self.all_tasks, self.tasktree)
 
     def test_init_provided_data(self):
         """Test that providing TaskList and Task data through the constructor
         correctly populates the TaskTree.
 
         Act:
-            Create a new TaskTree, providing it the TaskList and Task data
-            through init arguments.
             Retrieve the actual TaskList and Task entities from the TaskTree.
         Assert:
             That the TaskTree has the expected TaskList and Task elements.
         """
-        ### Arrange ###
-        tasktree = TaskTree(tasklists=self.tasklists, all_tasks=self.all_tasks)
-
         ### Act ###
-        actual_tl_0 = tasktree.get((0,))
-        actual_t_0 = tasktree.get((0, 0))
-        actual_t_1 = tasktree.get((0, 1))
+        actual_tl_0 = self.tasktree.get((0,))
+        actual_t_0 = self.tasktree.get((0, 0))
+        actual_t_1 = self.tasktree.get((0, 1))
 
         ### Assert ###
         self.assertEqual(self.expected_tl_0, actual_tl_0)
@@ -363,8 +502,6 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestCase):
         TaskList.
 
         Arrange:
-            Create a new TaskTree, providing it the TaskList and Task data
-            through init arguments.
             Acquire the expected list of Tasks.
         Act:
             Retrieve the actual Tasks associated with the expected TaskList via
@@ -373,11 +510,10 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestCase):
             That the expected and actual Task lists are identical.
         """
         ### Arrange ###        
-        tasktree = TaskTree(tasklists=self.tasklists, all_tasks=self.all_tasks)
         expected_tasks = self.all_tasks[self.expected_tl_0.entity_id]
 
         ### Act ###
-        actual_tasks = tasktree.get_tasks_for_tasklist(self.expected_tl_0)
+        actual_tasks = self.tasktree.get_tasks_for_tasklist(self.expected_tl_0)
 
         ### Assert ###
         self.assertEqual(expected_tasks, actual_tasks)
@@ -386,19 +522,13 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestCase):
         """Test that searching the TaskTree for an entity ID belonging to a
         TaskList will return that TaskList instance.
 
-        Arrange:
-            Create a new TaskTree, providing it the TaskList and Task data
-            through init arguments.
         Act:
             Search for a TaskList with the entity ID of the expected TaskList.
         Assert:
             That the found TaskList is equal to the expected TaskList.
         """
-        ### Arrange ###
-        tasktree = TaskTree(tasklists=self.tasklists, all_tasks=self.all_tasks)
-
         ### Act ###
-        actual_tl_0 = tasktree.get_entity(self.expected_tl_0.entity_id)
+        actual_tl_0 = self.tasktree.get_entity(self.expected_tl_0.entity_id)
 
         ### Assert ###
         self.assertEqual(self.expected_tl_0, actual_tl_0)
@@ -407,19 +537,13 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestCase):
         """Test that searching the TaskTree for an entity ID belonging to a
         Task will return that Task instance.
 
-        Arrange:
-            Create a new TaskTree, providing it the TaskList and Task data
-            through init arguments.
         Act:
             Search for a Task with the entity ID of the expected Task (t-1).
         Assert:
             That the found Task is equal to the expected Task.
         """
-        ### Arrange ###
-        tasktree = TaskTree(tasklists=self.tasklists, all_tasks=self.all_tasks)
-
         ### Act ###
-        actual_t_1 = tasktree.get_entity(self.expected_t_1.entity_id)
+        actual_t_1 = self.tasktree.get_entity(self.expected_t_1.entity_id)
 
         ### Assert ###
         self.assertEqual(self.expected_t_1, actual_t_1)
@@ -429,20 +553,17 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestCase):
         raise an error.
 
         Arrange:
-            Create a new TaskTree, providing it the TaskList and Task data
-            through init arguments.
             Create a bogus Task ID.
         Assert:
             That searching the TaskTree for the bogus Task ID raises a
             ValueError.
         """
         ### Arrange ###
-        tasktree = TaskTree(tasklists=self.tasklists, all_tasks=self.all_tasks)
         expected_bogus_id = "bogus-task-id"
 
         ### Assert ###
         with self.assertRaises(ValueError):
-            tasktree.get_entity(expected_bogus_id)
+            self.tasktree.get_entity(expected_bogus_id)
 #------------------------------------------------------------------------------ 
 
 '''

@@ -378,14 +378,25 @@ class Tree(DeclaredPropertiesComparable):
     def _get_comparable_properties(self):
         return ("children", "path")
 
-    def _full_tree_as_str(self, node=None, depth=0):
+    def __str__(self):
+        return self._create_branch_str()
+
+    def __repr__(self):
+        return self.__str__()
+
+    def _create_branch_str(self, node=None, depth=0, indent=4):
         if node is None:
             node = self.get_node(Tree.ROOT_PATH)
 
-        print "{indent} - {path} - {value}".format(
-            indent="".center(depth * 4), path=node.path, value=node.value)
+        node_str = "{indent} - {path} - {value}\n".format(
+            indent="".center(depth * indent), path=node.path, value=node.value)
+
+        branch_str = list(node_str)
         for child_node in node.children:
-            self._full_tree_as_str(node=child_node, depth=depth+1)
+            branch_str.append(self._create_branch_str(
+                node=child_node, depth=depth + 1, indent=indent))
+
+        return "".join(branch_str)
 #------------------------------------------------------------------------------ 
 
 class TreeNode(DeclaredPropertiesComparable):

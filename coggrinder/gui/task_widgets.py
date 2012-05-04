@@ -53,7 +53,7 @@ class TaskTreeWindowController(object):
         task tree.
         """
         # Pull updated task data (tasklists and tasks) from the services.
-        self._tasktree_service.refresh_tasktree()
+        self._tasktree_service.refresh_task_data()
                 
         # Update the UI task tree.
         self.view.update_tasktree(self._tasktree_service.tree)
@@ -207,10 +207,10 @@ class TaskTreeWindowController(object):
         # Determine the entity type (task or tasklist).
         if isinstance(target_entity, TaskList):            
             # Send the updated tasklist to the server.
-            target_entity = self.tasklist_service.update_tasklist(target_entity)
+            target_entity = self.tasktree_service.update_tasklist(target_entity)
         elif isinstance(target_entity, Task):     
             # Send the updated task to the server.
-            target_entity = self.task_service.update_task(target_entity)
+            target_entity = self.tasktree_service.update_task(target_entity)
         else:
             raise ValueError("Target entity must be of type TaskList or Task, was instead {0}".format(type(target_entity)))
         
