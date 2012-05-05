@@ -42,6 +42,11 @@ class DeclaredPropertiesComparable(object):
             comparable properties; false otherwise.
         """
         are_equal = True
+        
+        # Test if one or both of the comparable objects are None. If both are, 
+        # return True, otherwise the objects are different.
+        if self is None or other is None:
+            return self is other
 
         # TODO: Can this be accomplished without setting a comparing flag on 
         # other?
