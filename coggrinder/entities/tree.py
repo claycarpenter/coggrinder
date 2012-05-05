@@ -456,7 +456,7 @@ class NodeMoveTargetError(Exception):
         self.node = node
 #------------------------------------------------------------------------------
 
-class TreePopulateTest(unittest.TestCase):
+class PopulatedTreeTest(unittest.TestCase):
     """Test creating, populating, and addressing paths in trees."""
     def test_create_empty_tree(self):
         """Create an empty tree, lacking even a root node.
@@ -839,8 +839,8 @@ class TreePopulateTest(unittest.TestCase):
         Act:
             Remove root node.
         Assert:
-            Accessing leaf node raises NodeNotFoundError.
             Accessing root node raises NodeNotFoundError.
+            Accessing leaf node raises NodeNotFoundError.
         """
         ### Arrange ###########################################################
         tree = Tree()
@@ -852,8 +852,9 @@ class TreePopulateTest(unittest.TestCase):
 
         ### Assert ############################################################
         with self.assertRaises(NodeNotFoundError):
-            tree.get(Tree.ROOT_PATH + (0,))
             tree.get(Tree.ROOT_PATH)
+        with self.assertRaises(NodeNotFoundError):
+            tree.get(Tree.ROOT_PATH + (0,))
 
     def test_remove_nonexistent_node(self):
         """Test removing a nonexistent node.
