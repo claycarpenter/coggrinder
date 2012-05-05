@@ -51,11 +51,11 @@ class TaskTreeStore(Gtk.TreeStore):
 
             # Add all of the TaskList Tasks to the tree as nodes under the 
             # TaskList.
-            self._build_tasklist_tree(tasklist_tasks, tasklist_iter)
+            self._build_task_tree(tasklist_tasks, tasklist_iter)
 
         return self.entity_path_index
 
-    def _build_tasklist_tree(self, tasks, parent_iter, parent_id=None):
+    def _build_task_tree(self, tasks, parent_iter, parent_id=None):
         """Build a tree for a particular TaskList."""
         for task in tasks.values():
             if task.parent_id == parent_id:
@@ -65,7 +65,7 @@ class TaskTreeStore(Gtk.TreeStore):
                 self.entity_path_index[task.entity_id] = self.get_string_from_iter(task_iter)
 
                 # Recursively build the tree below this Task.
-                self._build_tasklist_tree(tasks, task_iter,
+                self._build_task_tree(tasks, task_iter,
                     parent_id=task.entity_id)
 
     def get_entity(self, tree_path):
@@ -132,7 +132,7 @@ class TaskTreeStoreTest(unittest.TestCase):
         tasktree.add_entity(tasklist)
 
         ### Assert ############################################################
-        self.assertIsNotNone(tasktree.get_entity("0"))
+        self.assertIsNotNone(tasktree.get_entity_for_id("0"))
 
     @unittest.expectedFailure
     def test_create_blank_tree(self):
@@ -148,7 +148,7 @@ class TaskTreeStoreTest(unittest.TestCase):
         tasktree = TaskTreeStore()
 
         ### Assert ############################################################
-        self.assertIsNone(tasktree.get_entity("0"))
+        self.assertIsNone(tasktree.get_entity_for_id("0"))
 
     @unittest.expectedFailure
     def test_create_new_tree_from_tasklist(self):
@@ -210,10 +210,10 @@ class TaskTreeStoreTest(unittest.TestCase):
 
         # Retrieve the tasklist and tasks by using their expected tree path 
         # strings.
-        actual_tasklist = tasktree.get_entity("0")
-        actual_task_a = tasktree.get_entity("0:0")
-        actual_task_b = tasktree.get_entity("0:1")
-        actual_task_c = tasktree.get_entity("0:0:0")
+        actual_tasklist = tasktree.get_entity_for_id("0")
+        actual_task_a = tasktree.get_entity_for_id("0:0")
+        actual_task_b = tasktree.get_entity_for_id("0:1")
+        actual_task_c = tasktree.get_entity_for_id("0:0:0")
 
         ### Assert ############################################################
         self.assertEqual(
@@ -235,7 +235,7 @@ class TaskTreeStoreTest(unittest.TestCase):
 
         actual_tasklists = dict()
         for i in range(tasklist_count):
-            actual_tasklist = task_treestore.get_entity(str(i))
+            actual_tasklist = task_treestore.get_entity_for_id(str(i))
             self.assertIsNotNone(actual_tasklist)
 
             actual_tasklists[actual_tasklist.entity_id] = actual_tasklist
@@ -258,10 +258,10 @@ class TaskTreeStoreTest(unittest.TestCase):
 
         task_treestore = TaskTreeStore(expected_tasklists, expected_tasks)
 
-        actual_task_l1 = task_treestore.get_entity("0:0")
+        actual_task_l1 = task_treestore.get_entity_for_id("0:0")
         self.assertEqual(expected_task_l1, actual_task_l1)
 
-        actual_task_l2 = task_treestore.get_entity("0:0:0")
+        actual_task_l2 = task_treestore.get_entity_for_id("0:0:0")
         self.assertEqual(expected_task_l2, actual_task_l2)
 #------------------------------------------------------------------------------ 
 

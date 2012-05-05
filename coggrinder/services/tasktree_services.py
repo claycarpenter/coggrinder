@@ -74,13 +74,19 @@ class TaskTreeService(object):
         return task_service
 
     def get_tasklist(self, tasklist_id):
-        return self.tree.get_entity(tasklist_id)
+        return self.tree.get_entity_for_id(tasklist_id)
 
     def get_task(self, task_id):
-        return self.tree.get_entity(task_id)
+        return self.tree.get_entity_for_id(task_id)
 
     def update_tasklist(self, tasklist):
         pass
+
+    def update_task(self, task):
+        pass
+
+    def delete_tasklist(self, tasklist):
+        self.tree.remove_entity(tasklist.entity_id)
 #------------------------------------------------------------------------------
 
 class TaskTreeServiceTestCommon(object):
@@ -165,13 +171,13 @@ class TaskDataTestSupport(object):
     def create_expected_all_tasks(cls, expected_tasklists):
         expected_all_tasks = dict()
         for expected_tasklist in expected_tasklists.values():
-            t_a = Task(entity_id=expected_tasklist.entity_id + "-t-a",
-                tasklist_id=expected_tasklist.entity_id, title="Task A")
-            t_b = Task(entity_id=expected_tasklist.entity_id + "-t-b",
-                tasklist_id=expected_tasklist.entity_id, title="Task B",
+            t_a = Task(entity_id=expected_tasklist.entity_id + "-t-0",
+                tasklist_id=expected_tasklist.entity_id, title="Task 0")
+            t_b = Task(entity_id=expected_tasklist.entity_id + "-t-1",
+                tasklist_id=expected_tasklist.entity_id, title="Task 1",
                 parent_id=t_a.entity_id)
-            t_c = Task(entity_id=expected_tasklist.entity_id + "-t-c",
-                tasklist_id=expected_tasklist.entity_id, title="Task C",
+            t_c = Task(entity_id=expected_tasklist.entity_id + "-t-2",
+                tasklist_id=expected_tasklist.entity_id, title="Task 2",
                 parent_id=t_a.entity_id)
 
             expected_all_tasks[expected_tasklist.entity_id] = {t_a.entity_id:t_a,
@@ -181,9 +187,9 @@ class TaskDataTestSupport(object):
 #------------------------------------------------------------------------------ 
 
 class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):
-    """This collection of tests examines the TaskTreeService's ability to 
-    manage and synchronize the task data it holds with the remote Google 
-    services.    
+    """This collection of tests examines the TaskTreeService's ability to
+    manage and synchronize the task data it holds with the remote Google
+    services.
     """
     # TODO: This setUp is currently duplicated with the 
     # PopulatedTaskTreeServiceTest.
@@ -295,7 +301,7 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         """
         ### Arrange ###
         expected_tasklist_id = "tl-1"
-        expected_task_id = expected_tasklist_id + "-t-b"
+        expected_task_id = expected_tasklist_id + "-t-1"
         expected_task = self.expected_all_tasks[expected_tasklist_id][expected_task_id]
 
 
@@ -307,7 +313,9 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         ### Assert ###
         self.assertEqual(expected_task, actual_task)
 
-    def test_update_tasklist(self):
+    # TODO: This test is currently being passed despite the fact that 
+    # TaskTreeService.update_tasklist is effectively a no-op. 
+    def test_update_tasklist_title(self):
         """Test that updating a TaskList properly changes the target TaskList
         properties in the TaskTreeService's task data (TaskTree).
 
@@ -316,13 +324,11 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
             existing expected TaskList (created in setUp()).
         Act:
             - Retrieve the actual TaskList from the TaskTreeService.
-            Update the actual TaskList title.
-            - Refresh the TaskTreeService data (this ensures that the backend
-            services were actually called, and the server has the updated
-            information).
-            - Retrieve the actual, updated TaskList from the TaskTreeService.
+            - Update the actual TaskList title.
         Assert:
-
+            - Retrieve the actual, updated TaskList from the TaskTree.
+            - That the TaskList from the TaskTree is identical to the expected
+            TaskList.
         """
         ### Arrange ###
         expected_updated_title = "updated"
@@ -336,9 +342,74 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         self.tasktree_srvc.update_tasklist(actual_tasklist)
 
         ### Assert ###
-        tasktree_tasklist = self.tasktree_srvc.tree.get_entity(
+        tasktree_tasklist = self.tasktree_srvc.tree.get_entity_for_id(
                 actual_tasklist.entity_id)
         self.assertEqual(expected_updated_tasklist, tasktree_tasklist)
+
+    # TODO: This test is currently being passed despite the fact that 
+    # TaskTreeService.update_task is effectively a no-op. 
+    def test_update_task_title(self):
+        """Test that updating a Task properly changes the target Task
+        properties in the TaskTreeService's task data (TaskTree).
+
+        Arrange:
+            - Create an expected updated Task based on the properties of the
+            existing expected Task (created in setUp()).
+        Act:
+            - Retrieve the actual Task from the TaskTreeService.
+            - Update the actual Task title.
+        Assert:
+            - Retrieve the actual, updated Task from the TaskTree.
+            - That the Task from the TaskTree is identical to the expected
+            Task.
+        """
+        ### Arrange ###
+        expected_updated_title = "updated"
+        expected_updated_task = copy.deepcopy(
+            self.expected_all_tasks["tl-0"]["tl-0-t-1"])
+        expected_updated_task.title = expected_updated_title
+
+        ### Act ###   
+        actual_task = self.tasktree_srvc.get_tasklist(expected_updated_task.entity_id)
+        actual_task.title = expected_updated_title
+        self.tasktree_srvc.update_task(actual_task)
+
+        ### Assert ###
+        tasktree_task = self.tasktree_srvc.tree.get_entity_for_id(
+                actual_task.entity_id)
+        self.assertEqual(expected_updated_task, tasktree_task)
+
+    @unittest.expectedFailure
+    def test_delete_tasklist(self):
+        """Test that deleting a TaskList removes the TaskList and any child
+        Tasks from the TaskTree.
+
+        Arrange:
+            -
+        Act:
+            - Retrieve the actual TaskList from the TaskTreeService.
+            - Delete the actual TaskList title.
+        Assert:
+            - Retrieve the actual, updated TaskList from the TaskTree.
+            - That the TaskList from the TaskTree is identical to the expected
+            TaskList.
+        """
+        ### Arrange ###
+        expected_deleted_tasklist_id = "tl-0"
+
+        ### Act ###   
+        actual_tasklist = self.tasktree_srvc.get_tasklist(expected_deleted_tasklist_id)
+        self.tasktree_srvc.delete_tasklist(actual_tasklist)
+
+        ### Assert ###
+        with self.assertRaises(ValueError):
+            self.tasktree_srvc.tree.get_entity_for_id(actual_tasklist.entity_id)
+
+        for x in range(0, 3):
+            task_id = expected_deleted_tasklist_id + "-t-" + str(x)
+
+            with self.assertRaises(ValueError):
+                self.tasktree_srvc.tree.get_entity_for_id(task_id)
 #------------------------------------------------------------------------------ 
 
 class TaskTree(Tree):
@@ -355,6 +426,10 @@ class TaskTree(Tree):
         self._tasklists = tasklists
         self._all_tasks = all_tasks
 
+        # Allows for a quick lookup of the TreeNode associated with a 
+        # particular entity.        
+        self._entity_node_map = None
+
         self._build_tree()
 
     @property
@@ -362,8 +437,13 @@ class TaskTree(Tree):
         return self._tasklists
 
     def _build_tree(self):
+        """Build the full tree from the task data."""
+
         # Clear the existing tree architecture.
         self.clear()
+
+        # Reset the entity to node indices address map.
+        self._entity_node_map = dict()
 
         # Create a new root node. The value of this node ("root") is arbitrary
         # and shouldn't be relevant outside of human readability.
@@ -373,24 +453,40 @@ class TaskTree(Tree):
         # any associated Tasks to the branch.
         for tasklist in self._tasklists.values():
             tasklist_node = self.append(root_node, tasklist)
+            
+            # Save the entity-node mapping.
+            self._entity_node_map[tasklist] = tasklist_node
 
             try:
                 tasklist_tasks = self._all_tasks[tasklist.entity_id]
                 if tasklist_tasks:
-                    self._build_tasklist_tree(tasklist_tasks, tasklist_node)
+                    self._build_task_tree(tasklist_tasks, tasklist_node)
             except KeyError:
                 # Ignore, this error should indicate that the current TaskList
                 # simply doesn't have any associated Task data.
                 pass
         pass
 
-    def _build_tasklist_tree(self, tasks, parent_node, parent_id=None):
-        for task in tasks.values():
-            if task.parent_id == parent_id:
-                task_node = self.append(parent_node, task)
+    def _build_task_tree(self, tasks, parent_node):
+        """Recursively build a branch out under the parent node that includes
+        all descendant Tasks.
 
-                self._build_tasklist_tree(tasks, task_node,
-                    parent_id=task.entity_id)
+        Args:
+            tasks: All Tasks for consideration in the branch creation.
+            parent_node: The TreeNode that owns all of the descendant
+                TreeNodes (each of which will contain a Task value).
+        """
+        for task in tasks.values():
+            if (task.parent_id == parent_node.value.entity_id
+                or task.tasklist_id == parent_node.value.entity_id):
+                # Create a new TreeNode to hold the Task.
+                task_node = self.append(parent_node, task)
+                
+                # Save the entity-node mapping.
+                self._entity_node_map[task] = task_node
+
+                # Recursively build out the branch below the current node/Task.
+                self._build_task_tree(tasks, task_node)
 
     def get(self, node_indices):
         """Overrides the default get() implementation by prefixing the provided
@@ -412,7 +508,7 @@ class TaskTree(Tree):
     def get_tasks_for_tasklist(self, tasklist):
         return self._all_tasks[tasklist.entity_id]
 
-    def get_entity(self, entity_id):
+    def get_entity_for_id(self, entity_id):
         entity = None
         try:
             entity = self._tasklists[entity_id]
@@ -430,6 +526,31 @@ class TaskTree(Tree):
             raise ValueError("Could not find entity with ID {id}".format(id=entity_id))
 
         return entity
+
+    def find_node_for_entity(self, entity):
+        # Lookup the node in the entity-node mapping.
+        return self._entity_node_map[entity]
+
+    def remove_entity(self, entity):
+        # Lookup the node in the entity-node mapping.         
+        entity_node = self._entity_node_map[entity]
+        
+        # Remove the node from the tree. It is not necessary to check first if
+        # the node exists, as the remove_node method will raise an error if 
+        # that is the case.
+        self.remove_node(entity_node)
+        
+        # Remove the entity from the task data collection.
+        try:
+            del self._tasklists[entity.entity_id]
+        except KeyError:
+            for tasklist_id in self._tasklists.keys():
+                tasklist_tasks = self._all_tasks[tasklist_id]
+
+                if tasklist_tasks:
+                    del tasklist_tasks[entity.entity_id]
+                    break
+                        
 #------------------------------------------------------------------------------ 
 
 class TaskTreeTest(unittest.TestCase):
@@ -455,6 +576,8 @@ class TaskTreeTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(tasktree_one, tasktree_two)
 
+    # TODO: Finish this test.
+    @unittest.skip("Test yet to be completed.")
     def test_tree_creation_bad_data(self):
         """Test creating a TaskTree without providing an adequate Tasks data
         collection.
@@ -474,12 +597,10 @@ class TaskTreeTest(unittest.TestCase):
         ### Act ###
 
         ### Assert ###
-
-        pass
-
+        self.assertTrue(False)
 #------------------------------------------------------------------------------ 
 
-class SimplePopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
+class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
     def setUp(self):
         """Set up basic test fixtures.
 
@@ -492,10 +613,11 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase)
             - t-1
         """
         self.expected_tl_0 = TaskList(entity_id="tl-0", title="tl-0")
-        self.expected_t_0 = Task(entity_id="t-0", title="t-0", tasklist_id=self.expected_tl_0.entity_id,
-            position="0")
-        self.expected_t_1 = Task(entity_id="t-1", title="t-1", tasklist_id=self.expected_tl_0.entity_id,
-            position="1")
+        self.expected_t_0 = Task(entity_id="t-0", title="t-0",
+            tasklist_id=self.expected_tl_0.entity_id, position="0")
+        self.expected_t_1 = Task(entity_id="t-1", title="t-1",
+            tasklist_id=self.expected_tl_0.entity_id, position="1")
+
         self.tasklists = {self.expected_tl_0.entity_id: self.expected_tl_0}
         tl_0_tasks = {self.expected_t_0.entity_id:self.expected_t_0,
             self.expected_t_1.entity_id:self.expected_t_1}
@@ -557,7 +679,7 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase)
             That the found TaskList is equal to the expected TaskList.
         """
         ### Act ###
-        actual_tl_0 = self.tasktree.get_entity(self.expected_tl_0.entity_id)
+        actual_tl_0 = self.tasktree.get_entity_for_id(self.expected_tl_0.entity_id)
 
         ### Assert ###
         self.assertEqual(self.expected_tl_0, actual_tl_0)
@@ -572,7 +694,7 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase)
             That the found Task is equal to the expected Task.
         """
         ### Act ###
-        actual_t_1 = self.tasktree.get_entity(self.expected_t_1.entity_id)
+        actual_t_1 = self.tasktree.get_entity_for_id(self.expected_t_1.entity_id)
 
         ### Assert ###
         self.assertEqual(self.expected_t_1, actual_t_1)
@@ -592,5 +714,46 @@ class SimplePopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase)
 
         ### Assert ###
         with self.assertRaises(ValueError):
-            self.tasktree.get_entity(expected_bogus_id)
+            self.tasktree.get_entity_for_id(expected_bogus_id)
+
+    def test_remove_entity_tasklist(self):
+        """Test that removing a TaskList from the tree removes both the
+        TaskList and any child Tasks.
+
+        Act:
+            - Delete a TaskList with the entity ID of the expected TaskList.
+        Assert:
+            - That the TaskList cannot be found via get_entity_for_id.
+            - That the two child Tasks cannot be found via get_entity_for_id.
+        """
+        ### Act ###
+        self.tasktree.remove_entity(self.expected_tl_0)
+
+        ### Assert ###
+        with self.assertRaises(ValueError):
+            self.tasktree.get_entity_for_id(self.expected_tl_0.entity_id)
+        with self.assertRaises(ValueError):
+            self.tasktree.get_entity_for_id(self.expected_t_0.entity_id)
+        with self.assertRaises(ValueError):
+            self.tasktree.get_entity_for_id(self.expected_t_1.entity_id)
+
+    def test_find_node_for_entity(self):
+        """Test that...
+
+        Act:
+            - Delete a TaskList with the entity ID of the expected TaskList.
+        Assert:
+            - That the TaskList cannot be found via get_entity_for_id.
+            - That the two child Tasks cannot be found via get_entity_for_id.
+        """
+        ### Arrange ###
+#        expected_entity_node = TreeNode(parent=self.tasktree, path=(0,0),value=self.expected_tl_0)
+        expected_entity_node = self.tasktree.get_node((0, 0))
+
+        ### Act ###
+        actual_entity_node = self.tasktree.find_node_for_entity(
+            self.expected_tl_0)
+
+        ### Assert ###
+        self.assertEqual(expected_entity_node, actual_entity_node)
 #------------------------------------------------------------------------------ 
