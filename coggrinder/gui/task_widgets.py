@@ -90,7 +90,7 @@ class TaskTreeWindowController(object):
         self._tasktree_service.delete_tasklist(tasklist)
 
         # Refresh the task data, tree.
-        self.refresh_task_data()
+        self.refresh_task_view()
 
     def _handle_add_task_event(self, button):
         # Find selected entity. This will determine the new tasks's parent 
@@ -136,6 +136,7 @@ class TaskTreeWindowController(object):
         assert len(selected_entities) > 0
 
         # Collect all of the selected entities that are tasks.
+        # TODO: This filtering may not really be necessary.
         selected_tasks = list()
         for selected_entity in selected_entities:
             if isinstance(selected_entity, Task):
@@ -143,49 +144,16 @@ class TaskTreeWindowController(object):
         assert len(selected_tasks) > 0
 
         # TODO: Should this code be moved to the services layer? I think so.
-
+        # TODO: Fix or remove the following comment.
         # For each task, delete the task. Promote any children of the task to 
         # be children of the task's parent (task or tasklist).
         # Keep track of the child tasks that have their parent updated, as 
-        # they will need 
-        update_tasks = dict()
+        # they will need to be updated as well.
         for selected_task in selected_tasks:
-            # Remove the selected task from the local tasks dict, and from the 
-            # update-pending tasks list, if it's present there.
-            assert self._tasks.has_key(selected_task.entity_id)
-            del self._tasks[selected_task.entity_id]
-            if update_tasks.has_key(selected_task.entity_id):
-                del update_tasks[selected_task.entity_id]
+            self._tasktree_service.delete_task(selected_task)
 
-            child_tasks = self._find_child_tasks(selected_task)
-
-            for child_task in child_tasks:
-                # If the selected task has another task as a parent, then 
-                # this will move the child task up to be a child task of the 
-                # selected task's parent. Otherwise, the child task will 
-                # receive a None value from the selected task's parent ID
-                # and will be moved up to a top-level task (direct child of the
-                # tasklist).
-                child_task.parent_id = selected_task.parent_id
-
-                # Include the child task in the list of tasks to be updated.
-                update_tasks[child_task.entity_id] = child_task
-
-        # Execute the updates.
-        for update_task_id in update_tasks:
-            # TODO: This needs to be a move operation, not a parent operation.
-            # According to the Google Tasks service docs, it doesn't look like
-            # this operation has much chance of succeeding without adding
-            # a concept of ordering locally and sending that information along
-            # with the move operation request.
-            self.task_service.update_task(update_tasks[update_task_id])
-
-        # Execute the deletions.
-        for deleted_task in selected_tasks:
-            self.task_service.delete_task(deleted_task)
-
-        # Refresh the data from the server and update the UI.
-        self.refresh_task_data()
+        # Update the UI.
+        self.refresh_task_view()
 
     def _handle_promote_task_event(self, button):
         raise NotImplementedError

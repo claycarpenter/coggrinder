@@ -86,7 +86,12 @@ class TaskTreeService(object):
         pass
 
     def delete_tasklist(self, tasklist):
-        self.tree.remove_entity(tasklist.entity_id)
+        # Child Tasks are deleted along with the TaskList, apparently. At the 
+        # very least, they're apparently inaccessible. 
+        self.tree.remove_entity(tasklist, remove_children=True)
+        
+    def delete_task(self,task):
+        self.tree.remove_entity(task)
 #------------------------------------------------------------------------------
 
 class TaskTreeServiceTestCommon(object):
