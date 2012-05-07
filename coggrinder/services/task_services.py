@@ -13,12 +13,12 @@ from coggrinder.entities.properties import TaskStatus, IntConverter, \
     TaskStatusConverter, StrConverter, RFC3339Converter, BooleanConverter
 from coggrinder.utilities import GoogleKeywords
 
-class AuthenticatedService(object):
+class ProxiedService(object):
     def __init__(self, service_proxy):
         self.service_proxy = service_proxy
 #------------------------------------------------------------------------------ 
 
-class TaskService(AuthenticatedService):
+class TaskService(ProxiedService):
     def get_task(self, tasklist_id, task_id):   
         assert (task_id is not None 
             and tasklist_id is not None)  
@@ -390,7 +390,7 @@ class TaskServiceTest(unittest.TestCase):
         self.assertTrue(False)
 #------------------------------------------------------------------------------
 
-class TaskListService(AuthenticatedService):    
+class TaskListService(ProxiedService):    
     def get_all_tasklists(self):     
         """
         Return a dictionary of all tasklists available. Dictionary keys will be
