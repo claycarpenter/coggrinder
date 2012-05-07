@@ -24,6 +24,7 @@ class TaskTreeService(object):
         self.task_service = task_service
 
         self._tree = TaskTree()
+        self._original_tasktree = None
 
     """
     TODO: How do I give this a setter that can only be accessed via this
@@ -57,6 +58,9 @@ class TaskTreeService(object):
         # Replace the current TaskTree with a new instance built from the 
         # fresh task data.
         self._tree = TaskTree(tasklists=tasklists, all_tasks=all_tasks)
+        
+        # Make a local copy of the clean (unmodified by the user) task data.
+        self._original_tasktree = copy.deepcopy(self._tree)
 
     def _create_tasklist_service(self):
         assert self.gtasks_service_proxy is not None
@@ -93,6 +97,9 @@ class TaskTreeService(object):
 
     def delete_task(self, task):
         self.tree.remove_entity(task)
+        
+    def revert_task_data(self):
+        self._tree = copy.deepcopy(self._original_tasktree)
 #------------------------------------------------------------------------------
 
 class TaskTreeServiceTestCommon(object):
@@ -258,13 +265,26 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         they were after the last data refresh from the remote server.
 
         Arrange:
-            - Create a full clone (deep copy) of the TaskService's original
-            TaskTree.
+            - Create the expected result TaskTree by making a full clone 
+            (deep copy) of the TaskService's original TaskTree.
         Act:
-            - Update the title of
+            - Update the title of tl-A.
+            - Revert the task data.
         Assert:
-
+            - That the expected TaskTree and the TaskTree currently held by the
+            TaskTreeService are identical.
         """
+        ### Arrange ###
+        expected_tasktree = copy.deepcopy(self.tasktree_srvc.tree)
+        
+        ### Act ###
+        tasklist_A = self.tasktree_srvc.get_tasklist("tl-A")
+        tasklist_A.title = "updated"
+        
+        self.tasktree_srvc.revert_task_data()
+        
+        ### Assert ###
+        self.assertEqual(expected_tasktree,self.tasktree_srvc.tree)
 #------------------------------------------------------------------------------ 
 
 class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):

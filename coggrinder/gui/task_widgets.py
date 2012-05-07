@@ -64,16 +64,22 @@ class TaskTreeWindowController(object):
 
     def _handle_save_event(self, button):
         raise NotImplementedError
+#        self._tasktree_service.push_task_data()
 
     def _handle_sync_event(self, button):
-        self.refresh_task_data()
+        raise NotImplementedError
+#        self._tasktree_service.pull_task_data()
 
     def _handle_revert_event(self, button):
-        raise NotImplementedError
+        # Clear away any user changes.
+        self._tasktree_service.revert_task_data()
+        
+        # Update the UI with the scrubbed task data.
+        self.refresh_task_view()
 
     def _handle_add_list_event(self, button):
         # Create the new (blank) tasklist, and add it to the task tree.
-        new_tasklist = self.tasklist_service.add_tasklist(TaskList(title=""))
+        new_tasklist = self._tasktree_service.add_tasklist(TaskList(title=""))
         self.refresh_task_data()
 
         # Find the new tasklist, select it (wiping out other selections), and
@@ -408,13 +414,19 @@ class TaskToolbarView(Gtk.HBox):
         """
         button_box = Gtk.HBox(spacing=5)
 
-        self.save_button = BinaryIconButton(buttons.FILES["save.png"], is_enabled=False)
+        """
+        TODO: Currently setting the revert and save buttons to be enabled by
+        default.
+        In the future, these should only be enabled when there are outstanding
+        changes on the current task data set.
+        """
+        self.save_button = BinaryIconButton(buttons.FILES["save.png"], is_enabled=True)
         button_box.add(self.save_button)
 
         self.sync_button = BinaryIconButton(buttons.FILES["sync.png"])
         button_box.add(self.sync_button)
 
-        self.revert_button = BinaryIconButton(buttons.FILES["revert.png"], is_enabled=False)
+        self.revert_button = BinaryIconButton(buttons.FILES["revert.png"], is_enabled=True)
         button_box.add(self.revert_button)
 
         return button_box
