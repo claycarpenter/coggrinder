@@ -58,7 +58,7 @@ class TaskTreeService(object):
         # Replace the current TaskTree with a new instance built from the 
         # fresh task data.
         self._tree = TaskTree(tasklists=tasklists, all_tasks=all_tasks)
-        
+
         # Make a local copy of the clean (unmodified by the user) task data.
         self._original_tasktree = copy.deepcopy(self._tree)
 
@@ -97,9 +97,12 @@ class TaskTreeService(object):
 
     def delete_task(self, task):
         self.tree.remove_entity(task)
-        
+
     def revert_task_data(self):
         self._tree = copy.deepcopy(self._original_tasktree)
+
+    def save_task_data(self):
+        pass
 #------------------------------------------------------------------------------
 
 class TaskTreeServiceTestCommon(object):
@@ -205,8 +208,10 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
     manage and synchronize the task data it holds with the remote Google
     services.
     """
-    # TODO: This setUp is currently duplicated with the 
-    # PopulatedTaskTreeServiceTest.
+    """
+    TODO: This setUp is currently duplicated with the 
+    PopulatedTaskTreeServiceTest.
+    """
     def setUp(self):
         """Establish test fixtures common to all tests within this test case.
 
@@ -226,12 +231,16 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
             self.expected_tasklists)
 
         # Wire the mock services to return the expected task data when
-        # queried.                        
+        # queried. Use cloned copies of the expected task data so that 
+        # modifying the expected TaskLists and expected Tasks fixtures doesn't
+        # also changes the data held by the TaskTreeService under test.
+        cloned_tasklists = copy.deepcopy(self.expected_tasklists)
         when(self.mock_tasklist_srvc).get_all_tasklists().thenReturn(
-            self.expected_tasklists)
-        for expected_tasklist in self.expected_tasklists.values():
-            when(self.mock_task_srvc).get_tasks_in_tasklist(expected_tasklist).thenReturn(
-                self.expected_all_tasks[expected_tasklist.entity_id])
+            cloned_tasklists)
+        for tasklist in self.expected_tasklists.values():
+            cloned_tasks = self.expected_all_tasks[tasklist.entity_id]
+            when(self.mock_task_srvc).get_tasks_in_tasklist(tasklist).thenReturn(
+                cloned_tasks)
 
         # Update the TaskTreeService task data.
         self.tasktree_srvc.refresh_task_data()
@@ -265,7 +274,7 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         they were after the last data refresh from the remote server.
 
         Arrange:
-            - Create the expected result TaskTree by making a full clone 
+            - Create the expected result TaskTree by making a full clone
             (deep copy) of the TaskService's original TaskTree.
         Act:
             - Update the title of tl-A.
@@ -276,15 +285,95 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         """
         ### Arrange ###
         expected_tasktree = copy.deepcopy(self.tasktree_srvc.tree)
-        
+
         ### Act ###
         tasklist_A = self.tasktree_srvc.get_tasklist("tl-A")
         tasklist_A.title = "updated"
-        
+
         self.tasktree_srvc.revert_task_data()
-        
+
         ### Assert ###
-        self.assertEqual(expected_tasktree,self.tasktree_srvc.tree)
+        self.assertEqual(expected_tasktree, self.tasktree_srvc.tree)
+
+    """
+    TODO: Complete this test.
+    """
+    @unittest.skip("TODO item, incomplete.")
+    def test_revert_no_task_data(self):
+        """Test asking the TaskTree to revert changes when there hasn't been
+        a refresh task data call raises an exception.
+
+        This test ensures that the local task data copy default initialization
+        value of None will never be used as the working tree value.
+
+        Arrange:
+        Act:
+        Assert:
+        """
+        self.assertTrue(False)
+    
+    """
+    TODO: Complete this test.
+    """
+    @unittest.skip("TODO item, incomplete.")
+    def test_save_task_data_tasklist_task_titles_updated(self):
+        """Test that saving the task data will persist updated TaskList and
+        Task titles to the remote services.
+
+        Arrange:
+            - Clone the expected task data.
+            - Update titles of TaskList A and TaskList A Task B on the clone
+            task data.
+            - Set up TaskService and TaskListService mocks to return updated
+            results (the cloned task data) on a second query.
+        Act:
+            - Save the task tree data.
+            - Refresh the task data.
+        Assert:
+            - That the post-refresh task data still reflects the updated
+            TaskList and Task titles. (by querying for TaskList A and TaskList
+            A Task B and checking their titles?)
+        """
+        ### Arrange ###
+        cloned_tasklists = copy.deepcopy(self.expected_tasklists)
+        cloned_all_tasks = copy.deepcopy(self.expected_all_tasks)
+
+        updated_title = "Updated!"
+
+        cloned_tasklist_A = cloned_tasklists["tl-A"]
+        cloned_tasklist_A.title = updated_title
+        cloned_task_A = cloned_all_tasks["tl-A"]["tl-A-t-A"]
+        cloned_task_A.title = updated_title
+
+        when(self.mock_tasklist_srvc).get_all_tasklists().thenReturn(
+            cloned_tasklists)
+        for tasklist in cloned_tasklists.values():
+            when(self.mock_task_srvc).get_tasks_in_tasklist(tasklist).thenReturn(
+                cloned_all_tasks[tasklist.entity_id])
+
+        """
+        TODO: Not sure that both cloned and expected versions of TaskList A
+        and Task A are necessary.
+        """
+        expected_tasklist_A = self.tasktree_srvc.get_tasklist("tl-A")
+        expected_tasklist_A.title = updated_title
+
+        expected_task_A = self.tasktree_srvc.get_task("tl-A-t-A")
+        expected_task_A.title = updated_title
+
+        ### Act ###
+        self.tasktree_srvc.save_task_data()
+        self.tasktree_srvc.refresh_task_data()
+
+        ### Assert ###
+        actual_tasklist_A = self.tasktree_srvc.get_tasklist("tl-A")
+        self.assertEqual(expected_tasklist_A, actual_tasklist_A)
+
+        actual_task_A = self.tasktree_srvc.get_task("tl-A-t-A")
+        self.assertEqual(expected_task_A, actual_task_A)
+
+        # Test is designed incorrectly; passes without implementing save task data.
+        self.assertTrue(False)
 #------------------------------------------------------------------------------ 
 
 class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):
