@@ -27,7 +27,7 @@ class BaseTaskEntity(object):
                 BaseTaskEntity._ARGUMENT_FAIL_MESSAGE.format("entity_id", "str")
         self.entity_id = entity_id
 
-        if entity_id is not None:
+        if title is not None:
             assert isinstance(title, str), \
                 BaseTaskEntity._ARGUMENT_FAIL_MESSAGE.format("title", "str")
         self.title = title
