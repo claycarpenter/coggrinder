@@ -6,7 +6,8 @@ Created on Apr 26, 2012
 
 import unittest
 import apiclient.discovery
-from coggrinder.services.task_services import TaskService, TaskListService
+from coggrinder.services.task_services import GoogleServicesTaskService, GoogleServicesTaskListService, AbstractTaskService, AbstractTaskListService,\
+    InMemoryTaskListService, InMemoryTaskService
 from coggrinder.entities.tasks import Task, TaskList
 from coggrinder.entities.tasktree import TaskTree
 from coggrinder.core.test import ManagedFixturesTestSupport
@@ -66,7 +67,7 @@ class TaskTreeService(object):
         assert self.gtasks_service_proxy is not None
         assert self.gtasks_service_proxy.tasklists() is not None
 
-        tasklist_service = TaskListService(self.gtasks_service_proxy.tasklists())
+        tasklist_service = GoogleServicesTaskListService(self.gtasks_service_proxy.tasklists())
 
         return tasklist_service
 
@@ -74,7 +75,7 @@ class TaskTreeService(object):
         assert self.gtasks_service_proxy is not None
         assert self.gtasks_service_proxy.tasks() is not None
 
-        task_service = TaskService(self.gtasks_service_proxy.tasks())
+        task_service = GoogleServicesTaskService(self.gtasks_service_proxy.tasks())
 
         return task_service
 
@@ -113,8 +114,8 @@ class TaskTreeServiceTestCommon(object):
         TaskServices, and configure the TaskTreeService to use both of those
         mocks for data storage.
         """
-        self.mock_tasklist_srvc = mock(TaskListService)
-        self.mock_task_srvc = mock(TaskService)
+        self.mock_tasklist_srvc = InMemoryTaskListService()
+        self.mock_task_srvc = InMemoryTaskService()
 
         self.tasktree_srvc = TaskTreeService(
             tasklist_service=self.mock_tasklist_srvc,
@@ -209,7 +210,7 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
     services.
     """
     """
-    TODO: This setUp is currently duplicated with the 
+    TODO: This setUp is currently duplicated with the
     PopulatedTaskTreeServiceTest.
     """
     def setUp(self):
@@ -311,7 +312,7 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         Assert:
         """
         self.assertTrue(False)
-    
+
     """
     TODO: Complete this test.
     """
