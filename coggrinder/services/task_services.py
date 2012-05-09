@@ -475,8 +475,11 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
 #------------------------------------------------------------------------------
 
 class InMemoryService(object):
-    def __init__(self):
-        self.data_store = dict()
+    def __init__(self, data_store = None):
+        if data_store is None:
+            data_store = dict()
+            
+        self.data_store = data_store
 #------------------------------------------------------------------------------ 
 
 class InMemoryTaskService(AbstractTaskService, InMemoryService):

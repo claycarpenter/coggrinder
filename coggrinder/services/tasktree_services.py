@@ -6,7 +6,7 @@ Created on Apr 26, 2012
 
 import unittest
 import apiclient.discovery
-from coggrinder.services.task_services import GoogleServicesTaskService, GoogleServicesTaskListService, AbstractTaskService, AbstractTaskListService,\
+from coggrinder.services.task_services import GoogleServicesTaskService, GoogleServicesTaskListService, AbstractTaskService, AbstractTaskListService, \
     InMemoryTaskListService, InMemoryTaskService
 from coggrinder.entities.tasks import Task, TaskList
 from coggrinder.entities.tasktree import TaskTree
@@ -107,15 +107,19 @@ class TaskTreeService(object):
 #------------------------------------------------------------------------------
 
 class TaskTreeServiceTestCommon(object):
-    def setUp(self):
+    def setUp(self, tasklists=None, all_tasks=None):
         """Set up basic test fixtures.
 
-        This will establish a TaskTreeService and mock TaskListService and
-        TaskServices, and configure the TaskTreeService to use both of those
-        mocks for data storage.
+        This will establish a TaskTreeService that is backed by in-memory
+        TaskListService and TaskServices.
         """
-        self.mock_tasklist_srvc = InMemoryTaskListService()
-        self.mock_task_srvc = InMemoryTaskService()
+        if tasklists is None:
+            tasklists = dict()
+        if all_tasks is None:
+            all_tasks = dict()
+
+        self.mock_tasklist_srvc = InMemoryTaskListService(tasklists)
+        self.mock_task_srvc = InMemoryTaskService(all_tasks)
 
         self.tasktree_srvc = TaskTreeService(
             tasklist_service=self.mock_tasklist_srvc,
@@ -222,26 +226,27 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         for each expected TaskList.
         """
 
-        # Create a basic, blank TaskTreeService with TaskService and 
-        # TaskListService mocks.
-        TaskTreeServiceTestCommon.setUp(self)
-
-        # Create the expected task data containers.
+        # Create the expected task data and their containers.
         self.expected_tasklists = TaskDataTestSupport.create_expected_tasklists()
         self.expected_all_tasks = TaskDataTestSupport.create_expected_all_tasks(
             self.expected_tasklists)
 
-        # Wire the mock services to return the expected task data when
-        # queried. Use cloned copies of the expected task data so that 
-        # modifying the expected TaskLists and expected Tasks fixtures doesn't
-        # also changes the data held by the TaskTreeService under test.
+        # Create cloned copies of the expected task data that can be given to 
+        # the mock task data services.
+        # This is done so that modifying the expected TaskLists and expected 
+        # Tasks fixtures doesn't also changes the data held by the 
+        # TaskTreeService under test.
         cloned_tasklists = copy.deepcopy(self.expected_tasklists)
-        when(self.mock_tasklist_srvc).get_all_tasklists().thenReturn(
-            cloned_tasklists)
-        for tasklist in self.expected_tasklists.values():
-            cloned_tasks = self.expected_all_tasks[tasklist.entity_id]
-            when(self.mock_task_srvc).get_tasks_in_tasklist(tasklist).thenReturn(
-                cloned_tasks)
+        cloned_all_tasks = copy.deepcopy(self.expected_all_tasks)
+
+        # Create a basic, blank TaskTreeService with TaskService and 
+        # TaskListService mocks.
+        TaskTreeServiceTestCommon.setUp(self, tasklists=cloned_tasklists,
+            all_tasks=cloned_all_tasks)
+
+        # Register test fixtures.
+        self._register_fixtures(self.expected_tasklists,
+            self.expected_all_tasks)
 
         # Update the TaskTreeService task data.
         self.tasktree_srvc.refresh_task_data()
