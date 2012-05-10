@@ -107,7 +107,8 @@ class TaskTree(Tree):
         return self._all_tasks[tasklist.entity_id]
 
     def get_entity_for_id(self, entity_id):
-        entity = self._entity_node_map[entity_id].value
+        node = self.find_node_for_entity_id(entity_id)
+        entity = node.value
 
         if entity is None:
             raise ValueError("Could not find entity with ID {id}".format(id=entity_id))
@@ -115,11 +116,15 @@ class TaskTree(Tree):
         return entity
 
     def find_node_for_entity(self, entity):
+        # Lookup the node in the entity-node mapping using the entity's ID.
+        return self.find_node_for_entity_id(entity.entity_id)
+        
+    def find_node_for_entity_id(self, entity_id):
         # Lookup the node in the entity-node mapping.
-        return self._entity_node_map[entity.entity_id]
+        return self._entity_node_map[entity_id]
 
     def remove_tasklist(self, entity):
-        # Lookup the node in the entity-node mapping.         
+        # Find the entity's node.        
         entity_node = self._entity_node_map[entity]
 
         # Remove the node from the tree. It is not necessary to check first if
