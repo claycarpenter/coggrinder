@@ -26,13 +26,20 @@ class TaskTree(Tree):
 
         # Allows for a quick lookup of the TreeNode associated with a 
         # particular entity.        
-        self._entity_node_map = None
+        self._entity_node_map = dict()
 
         self._build_tree()
 
     @property
     def tasklists(self):
         return self._tasklists
+    
+    @property
+    def all_entity_ids(self):
+        """A set of IDs representing all known entities held by the TaskTree."""
+        entity_ids = self._entity_node_map.keys()
+        
+        return set(entity_ids)
 
     def _build_tree(self):
         """Build the full tree from the task data."""
@@ -156,7 +163,23 @@ class TaskTreeTest(unittest.TestCase):
     If there are going to be tests for this class, they need to be ones that
     stress the unique features of a TaskTree, rather than just duplicating
     those already being performed on Tree.
-    """
+    """        
+    def test_all_entity_ids_empty(self):
+        """Test the all_entity_ids property of TaskTree, ensuring that it
+        accurately reflects the IDs of the entities held by an empty 
+        TaskTree.
+        
+        Act:
+            - Create a new TaskTree without providing any default data.
+        Assert:
+            - That TaskTree.all_entity_ids reports no entities (length of 0).
+        """
+        ### Act ###
+        empty_tasktree = TaskTree()
+        
+        ### Assert ###
+        self.assertEqual(set(), empty_tasktree.all_entity_ids)
+        
     def test_equality_empty(self):
         """Test the equality of two newly created, empty TaskTrees.
 
@@ -254,6 +277,29 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         self._register_fixtures(self.expected_tl_A, self.expected_t_B,
             self.expected_t_C, self.expected_t_D, self.expected_t_E,
             self.expected_t_F, self.tasklists, self.all_tasks, self.tasktree)
+        
+    def test_all_entity_ids(self):
+        """Test the all_entity_ids property of TaskTree, ensuring that it
+        accurately reflects the IDs of the entities held by a populated 
+        TaskTree.
+        
+        Arrange:
+            - Create a new set that includes all the IDs of the entities in 
+            the expected task data.
+        Assert:
+            - That the expected IDs set is equal to the test fixture's 
+            TaskTree.all_entity_ids property.
+        """
+        ### Arrange ###
+        expected_tasklist_keys = self.tasklists.keys()
+        expected_task_keys = list()
+        for expected_tasklist_key in expected_tasklist_keys:
+            tasklist_tasks = self.all_tasks[expected_tasklist_key]
+            expected_task_keys.extend(tasklist_tasks.keys())
+        expected_entity_ids = set(expected_tasklist_keys + expected_task_keys) 
+        
+        ### Assert ###
+        self.assertEqual(expected_entity_ids, self.tasktree.all_entity_ids)
 
     def test_init_provided_data(self):
         """Test that providing TaskList and Task data through the constructor
