@@ -7,10 +7,11 @@ Created on Mar 18, 2012
 from datetime import datetime
 import unittest
 import coggrinder.utilities
+from coggrinder.core.comparable import DeclaredPropertiesComparable
 from coggrinder.entities.properties import EntityProperty, RFC3339Converter, IntConverter, BooleanConverter, TaskStatus, TaskStatusConverter
 from coggrinder.utilities import GoogleKeywords
 
-class BaseTaskEntity(object):
+class BaseTaskEntity(DeclaredPropertiesComparable):
     _ARGUMENT_FAIL_MESSAGE = "Provided {0} argument must be of type {1}"
     _properties = (
             EntityProperty("entity_id", GoogleKeywords.ID),
@@ -43,8 +44,8 @@ class BaseTaskEntity(object):
                 updated_date.hour, updated_date.minute, updated_date.second)
 
         self.updated_date = updated_date
-        # TODO: Is this property actually used for anything? What does it mean?
-        self.is_updated = False
+        
+        self.e_tag = None
 
         # If children is None, initialize to an empty list.
         if children is None:
@@ -88,6 +89,7 @@ class BaseTaskEntity(object):
 
     @classmethod
     def _get_properties(cls):
+        cls._props_initialized = True
         return BaseTaskEntity._properties
 
     def to_str_dict(self, include_none_values=False):
@@ -132,40 +134,18 @@ class BaseTaskEntity(object):
 
         return filter_keys
 
+    def _get_comparable_properties(self):
+        comparable_properties = list()
+        for prop in self._get_properties():
+            comparable_properties.append(prop.entity_key)
+        
+        return comparable_properties
+    
     def __str__(self):
         return str(self.to_str_dict())
 
     def __repr__(self):
         return self.__str__()
-
-    def __eq__(self, other):
-        are_equal = False
-
-        if other is not None:
-            # TODO: I think I'm making this comparison too hard...
-
-            # Loop through each property, testing whether the values are the 
-            # same between the two objects.
-            are_equal = True
-            for prop in self._get_properties():
-                if self.__dict__.has_key(prop.entity_key):
-                    # If the key is defined for the current entity, make sure the
-                    # other entity also has the key defined and that those two
-                    # keys have the same value.
-                    if ((not other.__dict__.has_key(prop.entity_key)) 
-                        or (self.__dict__[prop.entity_key] != other.__dict__[prop.entity_key])):
-                        are_equal = False
-                        break
-                elif other.__dict__.has_key(prop.entity_key):
-                    # The key is not defined in self, but is in other. The two
-                    # objects are not equal.
-                    are_equal = False
-                    break
-
-        return are_equal
-    
-    def __ne__(self, other):
-        return not self.__eq__(other)
 #------------------------------------------------------------------------------ 
 
 class BaseTaskEntityTest(unittest.TestCase):
@@ -259,7 +239,6 @@ class Task(BaseTaskEntity):
             EntityProperty("is_deleted", GoogleKeywords.DELETED, BooleanConverter()),
             EntityProperty("is_hidden", GoogleKeywords.HIDDEN, BooleanConverter()),
         )
-    _props_initialized = False
 
     def __init__(self, tasklist_id=None, entity_id=None, title=None, updated_date=None,
             children=None, parent_id=None, task_status=TaskStatus.NEEDS_ACTION,
@@ -276,6 +255,7 @@ class Task(BaseTaskEntity):
         self.completed_date = None
         self.is_deleted = None
         self.is_hidden = None
+        self.position = 0
 
     def _get_filter_keys(self):
         base_keys = super(Task, self)._get_filter_keys()
@@ -299,7 +279,7 @@ class Task(BaseTaskEntity):
 
             # Aggregate those properties along with this class' particular
             # property definitions.
-            cls._properties = cls._properties + super_properties
+            cls._properties = cls._properties + super_properties            
 
         # Return combined properties. 
         return cls._properties

@@ -8,6 +8,7 @@ import unittest
 from coggrinder.entities.tasks import Task, TaskList
 from coggrinder.entities.tree import Tree
 from coggrinder.core.test import ManagedFixturesTestSupport
+import copy
 
 class TaskTree(Tree):
     def __init__(self, tasklists=None, all_tasks=None):
@@ -134,6 +135,15 @@ class TaskTree(Tree):
         # Remove the TaskList from the task data collection.
         del self._tasklists[entity.entity_id]
         del self._all_tasks[entity.entity_id]
+
+    def update(self, entity):
+        # Lookup the containing tree node.
+        node = self._entity_node_map[entity.entity_id]
+
+        # Replace the entity instance held by the containing tree node.
+        node.value = entity
+        
+        return entity
 #------------------------------------------------------------------------------ 
 
 class TaskTreeTest(unittest.TestCase):
@@ -223,8 +233,14 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
             self.expected_t_F.entity_id:self.expected_t_F}
         self.all_tasks = {self.expected_tl_A.entity_id: tl_A_tasks}
 
-        self.tasktree = TaskTree(tasklists=self.tasklists,
-            all_tasks=self.all_tasks)
+        # Make clones to ensure that modifying the expected task data doesn't
+        # also (directly) modify the task data held by the TaskTree.
+        cloned_tasklists = copy.deepcopy(self.tasklists)
+        cloned_all_tasks = copy.deepcopy(self.all_tasks)
+
+        # Use the cloned task data to build a TaskTree fixture.
+        self.tasktree = TaskTree(tasklists=cloned_tasklists,
+            all_tasks=cloned_all_tasks)
 
         """
         TODO: Is there a better way to register these fixtures? Listing each
@@ -311,7 +327,7 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         Arrange:
             Create a bogus Task ID.
         Assert:
-            That searching the TaskTree for the bogus Task ID raises an 
+            That searching the TaskTree for the bogus Task ID raises an
             error.
         """
         ### Arrange ###
@@ -399,4 +415,30 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
 
         ### Assert ###
         self.assertEqual(expected_entity_node, actual_entity_node)
+
+    def test_update_task(self):
+        """Test that updating a Task only updates the corresponding value in
+        the TaskTree after update() is called.
+
+        Arrange:
+            - Change title of expected Task C.
+        Act:
+            - Get pre-operation Task C.
+            - Update Task C through the TaskTree.
+            - Get post-operation Task C.
+        Assert:
+            - That pre-op Task C is not equal to expected Task C.
+            - That post-op Task C is equal to expected Task C.
+        """
+        ### Arrange ###
+        self.expected_t_C.title = "updated"
+
+        ### Act ###
+        preop_t_C = self.tasktree.get_entity_for_id(self.expected_t_C.entity_id)
+        self.tasktree.update(self.expected_t_C)
+        postop_t_C = self.tasktree.get_entity_for_id(self.expected_t_C.entity_id)
+
+        ### Assert ###
+        self.assertNotEqual(self.expected_t_C, preop_t_C)
+        self.assertEqual(self.expected_t_C, postop_t_C)
 #------------------------------------------------------------------------------ 
