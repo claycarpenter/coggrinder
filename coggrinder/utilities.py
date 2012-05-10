@@ -26,8 +26,13 @@ class GoogleKeywords(object):
     PARENT = "parent"
     STATUS = "status"
     
-# TODO: Should this class actually just be a FilteringDict class that extends
-# the builtin dict type?    
+"""
+TODO: Should this class actually just be a FilteringDict class that extends
+the builtin dict type?
+
+TODO: Is this class even necessary? Should be able to dict filtering by making
+sets from the dict keys and then finding the intersection of those sets.
+"""    
 class DictUtilities(object):    
     @classmethod
     def filter_dict(cls, orig_dict, keys, strict=False):
