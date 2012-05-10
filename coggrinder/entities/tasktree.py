@@ -134,30 +134,6 @@ class TaskTree(Tree):
         # Remove the TaskList from the task data collection.
         del self._tasklists[entity.entity_id]
         del self._all_tasks[entity.entity_id]
-
-
-
-#            # Remove the selected task from the local tasks dict, and from the 
-#            # update-pending tasks list, if it's present there.
-#            assert self._tasks.has_key(selected_task.entity_id)
-#            del self._tasks[selected_task.entity_id]
-#            if update_tasks.has_key(selected_task.entity_id):
-#                del update_tasks[selected_task.entity_id]
-#
-#            child_tasks = self._find_child_tasks(selected_task)
-#
-#            for child_task in child_tasks:
-#                # If the selected task has another task as a parent, then 
-#                # this will move the child task up to be a child task of the 
-#                # selected task's parent. Otherwise, the child task will 
-#                # receive a None value from the selected task's parent ID
-#                # and will be moved up to a top-level task (direct child of the
-#                # tasklist).
-#                child_task.parent_id = selected_task.parent_id
-#
-#                # Include the child task in the list of tasks to be updated.
-#                update_tasks[child_task.entity_id] = child_task
-
 #------------------------------------------------------------------------------ 
 
 class TaskTreeTest(unittest.TestCase):
