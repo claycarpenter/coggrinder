@@ -10,11 +10,10 @@ from datetime import datetime
 from coggrinder.services.task_services import GoogleServicesTaskService, GoogleServicesTaskListService, AbstractTaskService, AbstractTaskListService, \
     InMemoryTaskListService, InMemoryTaskService
 from coggrinder.entities.tasks import Task, TaskList
-from coggrinder.entities.tasktree import TaskTree
+from coggrinder.entities.tasktree import TaskTree, TaskDataTestSupport, UpdatedDateFilteredTask, UpdatedDateFilteredTaskList
 from coggrinder.core.test import ManagedFixturesTestSupport
 from mockito import mock, when, any
 import copy
-import string
 
 class TaskTreeService(object):
     def __init__(self, auth_service=None, tasklist_service=None,
@@ -113,7 +112,7 @@ class TaskTreeService(object):
 
     def save_task_data(self):
         # We need to determine what updates have been made to the tree here.
-        
+
         pass
 #------------------------------------------------------------------------------
 
@@ -169,62 +168,6 @@ class TaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon,
         self.assertEqual(expected_tasktree, self.tasktree_srvc.tree)
 #------------------------------------------------------------------------------ 
 
-class TaskDataTestSupport(object):
-    """Simple support class to make it more convenient to product mock TaskList
-    and Task data for use in testing."""
-    @classmethod
-    def create_expected_tasklists(cls, entity_id_prefix="tl-",
-        title_prefix="TaskList ", begin_count=0, end_count=3):
-        """Create a dictionary of TaskList objects.
-
-        Each TaskList object will be given a unique ID and title, beginning
-        with the associated prefixes and ending with an alphabetic character
-        corresponding to the creation order of the TaskList.
-        The method will create begin_count - end_count TaskLists.
-
-        Args:
-            entity_id_prefix: str prefix for the TaskList ID.
-            title_prefix: str prefix for the TaskList title.
-            begin_count: int for the index of the first character suffix.
-            end_count: int for the index of the final character suffix.
-        Returns:
-            A dictionary keyed with the TaskList IDs, with values mapping to
-            the corresponding TaskList instance.
-        """
-        assert begin_count < end_count
-
-        updated_date = datetime.now()
-        
-        expected_tasklists = {entity_id_prefix + string.ascii_uppercase[x]:
-            UpdatedDateFilteredTaskList(entity_id=entity_id_prefix + string.ascii_uppercase[x],
-            title=title_prefix + string.ascii_uppercase[x], 
-            updated_date=updated_date)
-            for x in range(begin_count, end_count)}
-
-        return expected_tasklists
-
-    @classmethod
-    def create_expected_all_tasks(cls, expected_tasklists):        
-        updated_date = datetime.now()
-        
-        expected_all_tasks = dict()
-        for expected_tasklist in expected_tasklists.values():
-            t_a = UpdatedDateFilteredTask(entity_id=expected_tasklist.entity_id + "-t-A",
-                tasklist_id=expected_tasklist.entity_id, title="Task A",
-                updated_date=updated_date)
-            t_b = UpdatedDateFilteredTask(entity_id=expected_tasklist.entity_id + "-t-B",
-                tasklist_id=expected_tasklist.entity_id, title="Task B",
-                parent_id=t_a.entity_id, updated_date=updated_date)
-            t_c = UpdatedDateFilteredTask(entity_id=expected_tasklist.entity_id + "-t-C",
-                tasklist_id=expected_tasklist.entity_id, title="Task C",
-                parent_id=t_a.entity_id, updated_date=updated_date)
-
-            expected_all_tasks[expected_tasklist.entity_id] = {t_a.entity_id:t_a,
-                t_b.entity_id:t_b, t_c.entity_id:t_c}
-
-        return expected_all_tasks
-#------------------------------------------------------------------------------ 
-
 class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):
     """This collection of tests examines the TaskTreeService's ability to
     manage and synchronize the task data it holds with the task data services
@@ -240,9 +183,10 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         """
 
         # Create the expected task data and their containers.
-        self.expected_tasklists = TaskDataTestSupport.create_expected_tasklists()
-        self.expected_all_tasks = TaskDataTestSupport.create_expected_all_tasks(
-            self.expected_tasklists)
+        self.expected_tasklists = TaskDataTestSupport.create_tasklists(
+            UpdatedDateFilteredTaskList)
+        self.expected_all_tasks = TaskDataTestSupport.create_all_tasks(
+            self.expected_tasklists, UpdatedDateFilteredTask)
 
         # Create cloned copies of the expected task data that can be given to 
         # the mock task data services.
@@ -389,20 +333,6 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         self.assertEqual(expected_task_a, actual_task_a)
 #------------------------------------------------------------------------------ 
 
-class UpdatedDateFilteredTask(Task):
-    def _get_comparable_properties(self):
-        comparable_props = Task._get_comparable_properties(self)
-
-        return set(comparable_props).difference(("updated_date",))
-#------------------------------------------------------------------------------ 
-
-class UpdatedDateFilteredTaskList(TaskList):
-    def _get_comparable_properties(self):
-        comparable_props = TaskList._get_comparable_properties(self)
-
-        return set(comparable_props).difference(("updated_date",))
-#------------------------------------------------------------------------------ 
-
 class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):
     """This collection of tests intends to ensure that the TaskTreeService
     properly updates the TaskTree task data.
@@ -422,9 +352,10 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         """
 
         # Create the expected task data and their containers.
-        self.expected_tasklists = TaskDataTestSupport.create_expected_tasklists()
-        self.expected_all_tasks = TaskDataTestSupport.create_expected_all_tasks(
-            self.expected_tasklists)
+        self.expected_tasklists = TaskDataTestSupport.create_tasklists(
+            UpdatedDateFilteredTaskList)
+        self.expected_all_tasks = TaskDataTestSupport.create_all_tasks(
+            self.expected_tasklists, UpdatedDateFilteredTask)
 
         # Create cloned copies of the expected task data that can be given to 
         # the mock task data services.

@@ -5,10 +5,12 @@ Created on May 5, 2012
 '''
 
 import unittest
+from datetime import datetime
 from coggrinder.entities.tasks import Task, TaskList
 from coggrinder.entities.tree import Tree
 from coggrinder.core.test import ManagedFixturesTestSupport
 import copy
+import string
 
 class TaskTree(Tree):
     def __init__(self, tasklists=None, all_tasks=None):
@@ -33,12 +35,12 @@ class TaskTree(Tree):
     @property
     def tasklists(self):
         return self._tasklists
-    
+
     @property
     def all_entity_ids(self):
         """A set of IDs representing all known entities held by the TaskTree."""
         entity_ids = self._entity_node_map.keys()
-        
+
         return set(entity_ids)
 
     def _build_tree(self):
@@ -125,7 +127,7 @@ class TaskTree(Tree):
     def find_node_for_entity(self, entity):
         # Lookup the node in the entity-node mapping using the entity's ID.
         return self.find_node_for_entity_id(entity.entity_id)
-        
+
     def find_node_for_entity_id(self, entity_id):
         # Lookup the node in the entity-node mapping.
         return self._entity_node_map[entity_id]
@@ -154,7 +156,7 @@ class TaskTree(Tree):
 
         # Replace the entity instance held by the containing tree node.
         node.value = entity
-        
+
         return entity
 #------------------------------------------------------------------------------ 
 
@@ -163,12 +165,12 @@ class TaskTreeTest(unittest.TestCase):
     If there are going to be tests for this class, they need to be ones that
     stress the unique features of a TaskTree, rather than just duplicating
     those already being performed on Tree.
-    """        
+    """
     def test_all_entity_ids_empty(self):
         """Test the all_entity_ids property of TaskTree, ensuring that it
-        accurately reflects the IDs of the entities held by an empty 
+        accurately reflects the IDs of the entities held by an empty
         TaskTree.
-        
+
         Act:
             - Create a new TaskTree without providing any default data.
         Assert:
@@ -176,10 +178,10 @@ class TaskTreeTest(unittest.TestCase):
         """
         ### Act ###
         empty_tasktree = TaskTree()
-        
+
         ### Assert ###
         self.assertEqual(set(), empty_tasktree.all_entity_ids)
-        
+
     def test_equality_empty(self):
         """Test the equality of two newly created, empty TaskTrees.
 
@@ -277,17 +279,17 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         self._register_fixtures(self.expected_tl_A, self.expected_t_B,
             self.expected_t_C, self.expected_t_D, self.expected_t_E,
             self.expected_t_F, self.tasklists, self.all_tasks, self.tasktree)
-        
+
     def test_all_entity_ids(self):
         """Test the all_entity_ids property of TaskTree, ensuring that it
-        accurately reflects the IDs of the entities held by a populated 
+        accurately reflects the IDs of the entities held by a populated
         TaskTree.
-        
+
         Arrange:
-            - Create a new set that includes all the IDs of the entities in 
+            - Create a new set that includes all the IDs of the entities in
             the expected task data.
         Assert:
-            - That the expected IDs set is equal to the test fixture's 
+            - That the expected IDs set is equal to the test fixture's
             TaskTree.all_entity_ids property.
         """
         ### Arrange ###
@@ -296,8 +298,8 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         for expected_tasklist_key in expected_tasklist_keys:
             tasklist_tasks = self.all_tasks[expected_tasklist_key]
             expected_task_keys.extend(tasklist_tasks.keys())
-        expected_entity_ids = set(expected_tasklist_keys + expected_task_keys) 
-        
+        expected_entity_ids = set(expected_tasklist_keys + expected_task_keys)
+
         ### Assert ###
         self.assertEqual(expected_entity_ids, self.tasktree.all_entity_ids)
 
@@ -493,3 +495,73 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         self.assertNotEqual(self.expected_t_C, preop_t_C)
         self.assertEqual(self.expected_t_C, postop_t_C)
 #------------------------------------------------------------------------------ 
+
+class UpdatedDateFilteredTask(Task):
+    def _get_comparable_properties(self):
+        comparable_props = Task._get_comparable_properties(self)
+
+        return set(comparable_props).difference(("updated_date",))
+#------------------------------------------------------------------------------ 
+
+class UpdatedDateFilteredTaskList(TaskList):
+    def _get_comparable_properties(self):
+        comparable_props = TaskList._get_comparable_properties(self)
+
+        return set(comparable_props).difference(("updated_date",))
+#------------------------------------------------------------------------------ 
+
+class TaskDataTestSupport(object):
+    """Simple support class to make it more convenient to product mock TaskList
+    and Task data for use in testing."""
+    @classmethod
+    def create_tasklists(cls, tasklist_type=TaskList, entity_id_prefix="tl-",
+        title_prefix="TaskList ", begin_count=0, end_count=3):
+        """Create a dictionary of TaskList objects.
+
+        Each TaskList object will be given a unique ID and title, beginning
+        with the associated prefixes and ending with an alphabetic character
+        corresponding to the creation order of the TaskList.
+        The method will create begin_count - end_count TaskLists.
+
+        Args:
+            entity_id_prefix: str prefix for the TaskList ID.
+            title_prefix: str prefix for the TaskList title.
+            begin_count: int for the index of the first character suffix.
+            end_count: int for the index of the final character suffix.
+        Returns:
+            A dictionary keyed with the TaskList IDs, with values mapping to
+            the corresponding TaskList instance.
+        """
+        assert begin_count < end_count
+
+        updated_date = datetime.now()
+
+        tasklists = {entity_id_prefix + string.ascii_uppercase[x]:
+            tasklist_type(entity_id=entity_id_prefix + string.ascii_uppercase[x],
+            title=title_prefix + string.ascii_uppercase[x],
+            updated_date=updated_date)
+            for x in range(begin_count, end_count)}
+
+        return tasklists
+
+    @classmethod
+    def create_all_tasks(cls, tasklists, task_type=Task):
+        updated_date = datetime.now()
+
+        all_tasks = dict()
+        for tasklist in tasklists.values():
+            t_a = task_type(entity_id=tasklist.entity_id + "-t-A",
+                tasklist_id=tasklist.entity_id, title="Task A",
+                updated_date=updated_date)
+            t_b = task_type(entity_id=tasklist.entity_id + "-t-B",
+                tasklist_id=tasklist.entity_id, title="Task B",
+                parent_id=t_a.entity_id, updated_date=updated_date)
+            t_c = task_type(entity_id=tasklist.entity_id + "-t-C",
+                tasklist_id=tasklist.entity_id, title="Task C",
+                parent_id=t_a.entity_id, updated_date=updated_date)
+
+            all_tasks[tasklist.entity_id] = {t_a.entity_id:t_a,
+                t_b.entity_id:t_b, t_c.entity_id:t_c}
+
+        return all_tasks
+#------------------------------------------------------------------------------
