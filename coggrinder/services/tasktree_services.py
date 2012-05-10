@@ -264,30 +264,6 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         # Update the TaskTreeService task data.
         self.tasktree_srvc.refresh_task_data()
 
-    """
-    TODO: This test may no longer be relevant due to refactoring.
-    """
-    def test_refresh_tasktree(self):
-        """Test creating a tree with a list of TaskLists (and no Tasks).
-
-        Arrange:
-            Create expected TaskTree from expected task data.
-        Act:
-            Ask TaskTreeService to populate the tree from the services' data.
-        Assert:
-            That all of the items in the TaskList list are 1-deep nodes (first
-            children of the root) in the TaskTreeService's TaskTree.
-        """
-        ### Arrange ###
-        expected_tasktree = TaskTree(tasklists=self.expected_tasklists,
-            all_tasks=self.expected_all_tasks)
-
-        ### Act ###
-        self.tasktree_srvc.refresh_task_data()
-
-        ### Assert ###
-        self.assertEqual(expected_tasktree, self.tasktree_srvc.tree)
-
     def test_revert_task_data(self):
         """Test reverting the changes on the current task data back to what
         they were after the last data refresh from the task data services.
