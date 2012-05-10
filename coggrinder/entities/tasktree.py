@@ -52,7 +52,7 @@ class TaskTree(Tree):
             tasklist_node = self.append(root_node, tasklist)
 
             # Save the entity-node mapping.
-            self._entity_node_map[tasklist] = tasklist_node
+            self._entity_node_map[tasklist.entity_id] = tasklist_node
 
             try:
                 tasklist_tasks = self._all_tasks[tasklist.entity_id]
@@ -80,7 +80,7 @@ class TaskTree(Tree):
                 task_node = self.append(parent_node, task)
 
                 # Save the entity-node mapping.
-                self._entity_node_map[task] = task_node
+                self._entity_node_map[task.entity_id] = task_node
 
                 # Recursively build out the branch below the current node/Task.
                 self._build_task_tree(tasks, task_node)
@@ -106,18 +106,7 @@ class TaskTree(Tree):
         return self._all_tasks[tasklist.entity_id]
 
     def get_entity_for_id(self, entity_id):
-        entity = None
-        try:
-            entity = self._tasklists[entity_id]
-        except KeyError:
-            for tasklist_id in self._all_tasks.keys():
-                tasklist_tasks = self._all_tasks[tasklist_id]
-
-                if tasklist_tasks:
-                    try:
-                        entity = tasklist_tasks[entity_id]
-                    except KeyError:
-                        pass
+        entity = self._entity_node_map[entity_id].value
 
         if entity is None:
             raise ValueError("Could not find entity with ID {id}".format(id=entity_id))
@@ -126,7 +115,7 @@ class TaskTree(Tree):
 
     def find_node_for_entity(self, entity):
         # Lookup the node in the entity-node mapping.
-        return self._entity_node_map[entity]
+        return self._entity_node_map[entity.entity_id]
 
     def remove_tasklist(self, entity):
         # Lookup the node in the entity-node mapping.         
@@ -346,14 +335,14 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         Arrange:
             Create a bogus Task ID.
         Assert:
-            That searching the TaskTree for the bogus Task ID raises a
-            ValueError.
+            That searching the TaskTree for the bogus Task ID raises an 
+            error.
         """
         ### Arrange ###
         expected_bogus_id = "bogus-task-id"
 
         ### Assert ###
-        with self.assertRaises(ValueError):
+        with self.assertRaises(KeyError):
             self.tasktree.get_entity_for_id(expected_bogus_id)
 
     @unittest.expectedFailure
