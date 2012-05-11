@@ -37,6 +37,10 @@ class TaskTree(Tree):
         return self._tasklists
 
     @property
+    def all_tasks(self):
+        return self._all_tasks
+
+    @property
     def all_entity_ids(self):
         """A set of IDs representing all known entities held by the TaskTree."""
         entity_ids = self._entity_node_map.keys()
@@ -225,60 +229,11 @@ class TaskTreeTest(unittest.TestCase):
 
 class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
     def setUp(self):
-        """Set up basic test fixtures.
+        """Set up basic test fixtures."""
+        self.expected_tasktree = TaskDataTestSupport.create_tasktree()
+        self.tasktree = TaskDataTestSupport.create_tasktree()
 
-        This will establish a simple set of task data that includes a single
-        TaskList (tl-A) and a two-level tree of child Tasks (t-B..t-F). The
-        data should create a simple tree with the following architecture:
-
-        - tl-A
-            - t-B
-            - t-C
-                - t-E
-                - t-F
-            - t-D
-        """
-        self.expected_tl_A = TaskList(entity_id="tl-A", title="tl-A")
-
-        self.expected_t_B = Task(entity_id="t-B", title="t-B",
-            tasklist_id=self.expected_tl_A.entity_id, position="0")
-
-        self.expected_t_C = Task(entity_id="t-C", title="t-C",
-            tasklist_id=self.expected_tl_A.entity_id, position="1")
-        self.expected_t_E = Task(entity_id="t-E", title="t-E",
-            tasklist_id=self.expected_tl_A.entity_id, position="1",
-            parent_id=self.expected_t_C.entity_id)
-        self.expected_t_F = Task(entity_id="t-F", title="t-F",
-            tasklist_id=self.expected_tl_A.entity_id, position="2",
-            parent_id=self.expected_t_C.entity_id)
-
-        self.expected_t_D = Task(entity_id="t-D", title="t-D",
-            tasklist_id=self.expected_tl_A.entity_id, position="2")
-
-        self.tasklists = {self.expected_tl_A.entity_id: self.expected_tl_A}
-        tl_A_tasks = {self.expected_t_B.entity_id:self.expected_t_B,
-            self.expected_t_C.entity_id:self.expected_t_C,
-            self.expected_t_D.entity_id:self.expected_t_D,
-            self.expected_t_E.entity_id:self.expected_t_E,
-            self.expected_t_F.entity_id:self.expected_t_F}
-        self.all_tasks = {self.expected_tl_A.entity_id: tl_A_tasks}
-
-        # Make clones to ensure that modifying the expected task data doesn't
-        # also (directly) modify the task data held by the TaskTree.
-        cloned_tasklists = copy.deepcopy(self.tasklists)
-        cloned_all_tasks = copy.deepcopy(self.all_tasks)
-
-        # Use the cloned task data to build a TaskTree fixture.
-        self.tasktree = TaskTree(tasklists=cloned_tasklists,
-            all_tasks=cloned_all_tasks)
-
-        """
-        TODO: Is there a better way to register these fixtures? Listing each
-        individually is getting somewhat cumbersome.
-        """
-        self._register_fixtures(self.expected_tl_A, self.expected_t_B,
-            self.expected_t_C, self.expected_t_D, self.expected_t_E,
-            self.expected_t_F, self.tasklists, self.all_tasks, self.tasktree)
+        self._register_fixtures(self.expected_tasktree, self.tasktree)
 
     def test_all_entity_ids(self):
         """Test the all_entity_ids property of TaskTree, ensuring that it
@@ -293,10 +248,10 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
             TaskTree.all_entity_ids property.
         """
         ### Arrange ###
-        expected_tasklist_keys = self.tasklists.keys()
+        expected_tasklist_keys = self.expected_tasktree.tasklists.keys()
         expected_task_keys = list()
         for expected_tasklist_key in expected_tasklist_keys:
-            tasklist_tasks = self.all_tasks[expected_tasklist_key]
+            tasklist_tasks = self.expected_tasktree.all_tasks[expected_tasklist_key]
             expected_task_keys.extend(tasklist_tasks.keys())
         expected_entity_ids = set(expected_tasklist_keys + expected_task_keys)
 
@@ -312,15 +267,20 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         Assert:
             That the TaskTree has the expected TaskList and Task elements.
         """
+        ### Arrange ###        
+        expected_tasklist_a = self.expected_tasktree.tasklists.values()[0]
+        expected_task_b = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["t-B"]
+        expected_task_c = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["t-C"]
+
         ### Act ###
-        actual_tl_A = self.tasktree.get((0,))
-        actual_t_B = self.tasktree.get((0, 0))
-        actual_t_C = self.tasktree.get((0, 1))
+        actual_tasklist_a = self.tasktree.get((0,))
+        actual_task_b = self.tasktree.get((0, 0))
+        actual_task_c = self.tasktree.get((0, 1))
 
         ### Assert ###
-        self.assertEqual(self.expected_tl_A, actual_tl_A)
-        self.assertEqual(self.expected_t_B, actual_t_B)
-        self.assertEqual(self.expected_t_C, actual_t_C)
+        self.assertEqual(expected_tasklist_a, actual_tasklist_a)
+        self.assertEqual(expected_task_b, actual_task_b)
+        self.assertEqual(expected_task_c, actual_task_c)
 
     def test_get_tasks_for_tasklist(self):
         """Test that provided Task data can be retrieved by the parent
@@ -335,10 +295,12 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
             That the expected and actual Task lists are identical.
         """
         ### Arrange ###        
-        expected_tasks = self.all_tasks[self.expected_tl_A.entity_id]
+        expected_tasklist_a = self.expected_tasktree.tasklists.values()[0]
+        expected_tasks = self.expected_tasktree.all_tasks[
+            expected_tasklist_a.entity_id]
 
         ### Act ###
-        actual_tasks = self.tasktree.get_tasks_for_tasklist(self.expected_tl_A)
+        actual_tasks = self.tasktree.get_tasks_for_tasklist(expected_tasklist_a)
 
         ### Assert ###
         self.assertEqual(expected_tasks, actual_tasks)
@@ -352,26 +314,33 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         Assert:
             That the found TaskList is equal to the expected TaskList.
         """
+        ### Arrange ###
+        expected_tasklist_a = self.expected_tasktree.tasklists.values()[0]
+
         ### Act ###
-        actual_tl_A = self.tasktree.get_entity_for_id(self.expected_tl_A.entity_id)
+        actual_tasklist_a = self.tasktree.get_entity_for_id(expected_tasklist_a.entity_id)
 
         ### Assert ###
-        self.assertEqual(self.expected_tl_A, actual_tl_A)
+        self.assertEqual(expected_tasklist_a, actual_tasklist_a)
 
     def test_get_entity_task(self):
         """Test that searching the TaskTree for an entity ID belonging to a
         Task will return that Task instance.
 
         Act:
-            Search for a Task with the entity ID of the expected Task (t-C).
+            Search for a Task with the entity ID of the expected Task C.
         Assert:
             That the found Task is equal to the expected Task.
         """
+        ### Arrange ###        
+        expected_tasklist_a = self.expected_tasktree.tasklists.values()[0]
+        expected_task_c = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["t-C"]
+
         ### Act ###
-        actual_t_C = self.tasktree.get_entity_for_id(self.expected_t_C.entity_id)
+        actual_task_c = self.tasktree.get_entity_for_id(expected_task_c.entity_id)
 
         ### Assert ###
-        self.assertEqual(self.expected_t_C, actual_t_C)
+        self.assertEqual(expected_task_c, actual_task_c)
 
     def test_get_entity_missing(self):
         """Test that searching for an entity that is not in the TaskTree will
@@ -460,11 +429,12 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
             that retrieved from the TaskTree via get_node.
         """
         ### Arrange ###
+        expected_tasklist_a = self.expected_tasktree.tasklists.values()[0]
         expected_entity_node = self.tasktree.get_node((0, 0))
 
         ### Act ###
         actual_entity_node = self.tasktree.find_node_for_entity(
-            self.expected_tl_A)
+            expected_tasklist_a)
 
         ### Assert ###
         self.assertEqual(expected_entity_node, actual_entity_node)
@@ -484,16 +454,18 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
             - That post-op Task C is equal to expected Task C.
         """
         ### Arrange ###
-        self.expected_t_C.title = "updated"
+        expected_task_c = copy.deepcopy(
+            self.expected_tasktree.get_entity_for_id("t-C"))
+        expected_task_c.title = "updated"
 
         ### Act ###
-        preop_t_C = self.tasktree.get_entity_for_id(self.expected_t_C.entity_id)
-        self.tasktree.update(self.expected_t_C)
-        postop_t_C = self.tasktree.get_entity_for_id(self.expected_t_C.entity_id)
+        preop_task_c = self.tasktree.get_entity_for_id(expected_task_c.entity_id)
+        self.tasktree.update(expected_task_c)
+        postop_task_c = self.tasktree.get_entity_for_id(expected_task_c.entity_id)
 
         ### Assert ###
-        self.assertNotEqual(self.expected_t_C, preop_t_C)
-        self.assertEqual(self.expected_t_C, postop_t_C)
+        self.assertNotEqual(expected_task_c, preop_task_c)
+        self.assertEqual(expected_task_c, postop_task_c)
 #------------------------------------------------------------------------------ 
 
 class UpdatedDateFilteredTask(Task):
@@ -508,6 +480,157 @@ class UpdatedDateFilteredTaskList(TaskList):
         comparable_props = TaskList._get_comparable_properties(self)
 
         return set(comparable_props).difference(("updated_date",))
+#------------------------------------------------------------------------------ 
+
+class TestDataTaskList(TaskList):
+    def __init__(self, short_title):
+        # Create a full title from the provided short title.
+        title = TestDataEntitySupport.create_full_title(short_title, self)
+
+        # Create an entity id from the full title.
+        entity_id = TestDataEntitySupport.convert_title_to_id(title)
+
+        TaskList.__init__(self, entity_id=entity_id, title=title,
+            updated_date=datetime.now())
+#------------------------------------------------------------------------------ 
+
+class TestDataTaskListTest(unittest.TestCase):
+    def test_create_test_tasklist(self):
+        """Test the creation of a simple TestDataTaskList.
+
+        Ensure that the provided short title is properly converted into a
+        long title, and the ID is automatically generated from the full title.
+
+        Arrange:
+            - Create expected long title "TestDataTaskList A".
+            - Create expected entity ID "testdatatasklist-A".
+        Act:
+            - Create new TestDataTaskList A with short title of "A".
+        Assert:
+            - That TestDataTaskList A has the expected long title and entity
+            ID.
+        """
+        ### Arrange ###
+        expected_long_title = "TestDataTaskList A"
+        expected_id = "testdatatasklist-a"
+
+        ### Act ###
+        actual_tasklist_a = TestDataTaskList("A")
+
+        ### Assert ###
+        self.assertEqual(expected_long_title, actual_tasklist_a.title)
+        self.assertEqual(expected_id, actual_tasklist_a.entity_id)
+#------------------------------------------------------------------------------ 
+
+class TestDataTask(Task):
+    def __init__(self, short_title):
+        # Create a full title from the provided short title.
+        title = TestDataEntitySupport.create_full_title(short_title, self)
+
+        # Create an entity id from the full title.
+        entity_id = TestDataEntitySupport.convert_title_to_id(title)
+
+        Task.__init__(self, entity_id=entity_id, title=title,
+            updated_date=datetime.now())
+#------------------------------------------------------------------------------ 
+
+class TestDataTaskTest(unittest.TestCase):
+    def test_create_test_task(self):
+        """Test the creation of a simple TestDataTask.
+
+        Ensure that the provided short title is properly converted into a
+        long title, and the ID is automatically generated from the full title.
+
+        Arrange:
+            - Create expected long title "TestDataTask A".
+            - Create expected entity ID "testdatatask-A".
+        Act:
+            - Create new TestDataTask A with short title of "A".
+        Assert:
+            - That TestDataTask A has the expected long title and entity
+            ID.
+        """
+        ### Arrange ###
+        expected_long_title = "TestDataTask A"
+        expected_id = "testdatatask-a"
+
+        ### Act ###
+        actual_task_a = TestDataTask("A")
+
+        ### Assert ###
+        self.assertEqual(expected_long_title, actual_task_a.title)
+        self.assertEqual(expected_id, actual_task_a.entity_id)
+#------------------------------------------------------------------------------ 
+
+class TestDataEntitySupport(object):
+    @staticmethod
+    def convert_title_to_id(title):
+        # Convert to lowercase.
+        entity_id = title.lower()
+
+        # Replace spaces with dashes.
+        entity_id = entity_id.replace(" ", "-")
+
+        return entity_id
+
+    @staticmethod
+    def create_full_title(short_title, entity):
+        # Get the short name of the entity.
+        entity_class_name = entity.__class__.__name__
+
+        # Create a full title by combining the entity's class name and the
+        # short title provided.
+        full_title = "{class_name} {short_title}".format(
+            class_name=entity_class_name, short_title=short_title)
+
+        return full_title
+#------------------------------------------------------------------------------ 
+
+class TestDataEntitySupportTest(unittest.TestCase):
+    def test_convert_title_to_id(self):
+        """Test converting a simple Task title to an entity ID.
+
+        Will attempt to convert "Task A" to "task-a".
+
+        Arrange:
+            - Create title "Task A".
+            - Create expected ID "task-a".
+        Act:
+            - Convert title to actual ID.
+        Assert:
+            - That the expected and actual converted IDs are the same.
+        """
+        ### Arrange ###
+        expected_title = "Task A"
+        expected_id = "task-a"
+
+        ### Act ###
+        actual_id = TestDataEntitySupport.convert_title_to_id(expected_title)
+
+        ### Assert ###
+        self.assertEqual(expected_id, actual_id)
+
+    def test_create_full_title_task(self):
+        """Test creating a full title for a Task entity.
+
+        Should produce a full title of "Task A" from a short title of
+        "A".
+
+        Arrange:
+            - Create expected full title "Task A".
+        Act:
+            - Convert the short title "A" to the actual full title.
+        Assert:
+            - That the expected and actual full titles are the same.
+        """
+        ### Arrange ###
+        expected_full_title = "Task A"
+
+        ### Act ###
+        actual_full_title = TestDataEntitySupport.create_full_title("A", Task())
+
+        ### Assert ###
+        self.assertEqual(expected_full_title, actual_full_title)
 #------------------------------------------------------------------------------ 
 
 class TaskDataTestSupport(object):
@@ -564,4 +687,111 @@ class TaskDataTestSupport(object):
                 t_b.entity_id:t_b, t_c.entity_id:t_c}
 
         return all_tasks
+
+    @classmethod
+    def create_tasktree(cls, tasklist_type=TaskList, task_type=Task):
+        """This will establish a two-level tree of task data.
+
+        The tree consists of a single TaskList A, with child Tasks t-B..t-F.
+        The data should create a tree with the following architecture:
+
+        - tl-A
+            - t-B
+            - t-C
+                - t-E
+                - t-F
+            - t-D
+        """
+        tasklist_a = TaskList(entity_id="tl-A", title="TaskList A")
+
+        task_b = Task(entity_id="t-B", title="Task B",
+            tasklist_id=tasklist_a.entity_id, position="0")
+
+        task_c = Task(entity_id="t-C", title="Task C",
+            tasklist_id=tasklist_a.entity_id, position="1")
+        task_e = Task(entity_id="t-E", title="Task E",
+            tasklist_id=tasklist_a.entity_id, position="1",
+            parent_id=task_c.entity_id)
+        task_f = Task(entity_id="t-F", title="Task F",
+            tasklist_id=tasklist_a.entity_id, position="2",
+            parent_id=task_c.entity_id)
+
+        task_d = Task(entity_id="t-D", title="Task D",
+            tasklist_id=tasklist_a.entity_id, position="2")
+
+        tasklists = {tasklist_a.entity_id: tasklist_a}
+        tasklist_a_tasks = {task_b.entity_id:task_b,
+            task_c.entity_id:task_c,
+            task_d.entity_id:task_d,
+            task_e.entity_id:task_e,
+            task_f.entity_id:task_f}
+        all_tasks = {tasklist_a.entity_id: tasklist_a_tasks}
+
+        # Use the task data to build the TaskTree.
+        tasktree = TaskTree(tasklists=tasklists, all_tasks=all_tasks)
+
+        return tasktree
 #------------------------------------------------------------------------------
+
+class TaskTreeComparator(object):
+    pass
+#------------------------------------------------------------------------------ 
+
+class TaskTreeComparatorTest(ManagedFixturesTestSupport, unittest.TestCase):
+    def setUp(self):
+        """Set up basic test fixtures."""
+
+        # All tests in this test case will compare a pair of tree, original and 
+        # current.
+        self.original_tasktree = TaskDataTestSupport.create_tasktree()
+        self.current_tasktree = TaskDataTestSupport.create_tasktree()
+
+        # Create the TaskTreeComparator that will be under test.
+        self.comparator = TaskTreeComparator()
+
+        self._register_fixtures(self.original_tasktree, self.current_tasktree,
+            self.comparator)
+
+    @unittest.skip("Skip test; waiting on test data improvements in other module components.")
+    def test_find_added(self):
+        """Test that the TaskTreeComparator can identify any new entities added
+        to a TaskTree.
+
+        Four new entities will be added. The updated current TaskTree should
+        have this architecture, where an asterisk (*) denotes an added entity:
+
+        - tl-A
+            - t-B
+            - t-C
+                - t-E
+                - t-F
+            - t-D
+                - t-G *
+        - tl-B *
+            - t-B-A *
+            - t-B-B *
+
+        Arrange:
+            - Add a TaskList B to current TaskTree.
+            - Add Tasks B-A, B-B to TaskList B in current TaskTree.
+            - Add Task G to TaskList A, Task D in current TaskTree.
+            - Create a new set representing the IDs of the new entities.
+        Act:
+            - Use TaskTreeComparator.find_added to locate all task data that
+            was added during the Arrange phase.
+        Assert:
+            - That the expected and actual sets of added entity IDs are
+            identical.
+        """
+        ### Arrange ###
+#        tasklist_b = self.current_tasktree.add(TaskList(entity_id="tl-B"))
+#        task_b_a = 
+#        task_b_b = 
+#        task_g = 
+
+        ### Act ###
+        actual_added_ids = self.comparator.find_added(self.original_tasktree,
+            self.current_tasktree)
+
+        ### Assert ###
+#------------------------------------------------------------------------------ 
