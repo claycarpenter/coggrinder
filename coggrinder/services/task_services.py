@@ -202,8 +202,19 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
     def setUp(self):
         """Established basic fixtures mimicking the Google Tasks service proxy."""
         self.tasklist_service = GoogleServicesTaskService()
-        self.mock_service_proxy = mock(
-            apiclient.discovery.build("tasks", "v1").tasks())
+        
+        """
+        TODO: Investigate mock test stalling issues discussed below.
+        
+        This should be the proper way to build the mock service proxy:
+            self.mock_service_proxy = mock(
+               apiclient.discovery.build("tasks", "v1").tasks())
+               
+        However, for some reason this seems to stall out (possibly because
+        of a missing/fake authenticated HTTP connection?), and causes the tests
+        to take much, much longer to execute (<1s to >8s).
+        """
+        self.mock_service_proxy = mock()
         self.tasklist_service.service_proxy = self.mock_service_proxy
 
         self._register_fixtures(self.tasklist_service, self.mock_service_proxy)
