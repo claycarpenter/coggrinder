@@ -196,6 +196,9 @@ class Tree(DeclaredPropertiesComparable):
             raise NodeNotFoundError(node_indices)
 
         return node
+    
+    def get_root_node(self, must_find=True):
+        return self.get_node(self.ROOT_PATH, must_find)
 
     def insert(self, node_indices, value=None):
         assert node_indices, "A node address must be provided."
@@ -761,6 +764,29 @@ class PopulatedTreeTest(unittest.TestCase):
         ### Assert ###
         with self.assertRaises(NodeMoveTargetError):
             tree.move_node(node_b, node_a)
+
+    def test_get_root_node(self):
+        """Test that the node retrieved by get_root_node() is identical to the
+        node found at Tree.ROOT_PATH (0,).
+
+        Arrange:
+            - Create an empty Tree.
+            - Populate the empty Tree with a root node, capturing the result
+            as the expected root node.
+        Act:
+            - Get the actual root node via get_root_node().
+        Assert:
+            - That the actual and expected root nodes are identical.
+        """
+        ### Arrange ###
+        tree = Tree()
+        expected_root_node = tree.insert(Tree.ROOT_PATH)
+
+        ### Act ###
+        actual_root_node = tree.get_root_node()
+
+        ### Assert ###
+        self.assertEqual(expected_root_node, actual_root_node)
 
     def test_remove_leaf(self):
         """Test removing a leaf node (via remove).
