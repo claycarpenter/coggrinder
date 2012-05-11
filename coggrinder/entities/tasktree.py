@@ -269,8 +269,8 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         """
         ### Arrange ###        
         expected_tasklist_a = self.expected_tasktree.tasklists.values()[0]
-        expected_task_b = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["t-B"]
-        expected_task_c = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["t-C"]
+        expected_task_b = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["testdatatask-b"]
+        expected_task_c = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["testdatatask-c"]
 
         ### Act ###
         actual_tasklist_a = self.tasktree.get((0,))
@@ -334,7 +334,7 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         """
         ### Arrange ###        
         expected_tasklist_a = self.expected_tasktree.tasklists.values()[0]
-        expected_task_c = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["t-C"]
+        expected_task_c = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["testdatatask-c"]
 
         ### Act ###
         actual_task_c = self.tasktree.get_entity_for_id(expected_task_c.entity_id)
@@ -455,7 +455,7 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         """
         ### Arrange ###
         expected_task_c = copy.deepcopy(
-            self.expected_tasktree.get_entity_for_id("t-C"))
+            self.expected_tasktree.get_entity_for_id("testdatatask-c"))
         expected_task_c.title = "updated"
 
         ### Act ###
@@ -483,7 +483,7 @@ class UpdatedDateFilteredTaskList(TaskList):
 #------------------------------------------------------------------------------ 
 
 class TestDataTaskList(TaskList):
-    def __init__(self, short_title):
+    def __init__(self, short_title, **kwargs):
         # Create a full title from the provided short title.
         title = TestDataEntitySupport.create_full_title(short_title, self)
 
@@ -491,7 +491,7 @@ class TestDataTaskList(TaskList):
         entity_id = TestDataEntitySupport.convert_title_to_id(title)
 
         TaskList.__init__(self, entity_id=entity_id, title=title,
-            updated_date=datetime.now())
+            updated_date=datetime.now(), **kwargs)
 #------------------------------------------------------------------------------ 
 
 class TestDataTaskListTest(unittest.TestCase):
@@ -523,7 +523,7 @@ class TestDataTaskListTest(unittest.TestCase):
 #------------------------------------------------------------------------------ 
 
 class TestDataTask(Task):
-    def __init__(self, short_title):
+    def __init__(self, short_title, **kwargs):
         # Create a full title from the provided short title.
         title = TestDataEntitySupport.create_full_title(short_title, self)
 
@@ -531,7 +531,7 @@ class TestDataTask(Task):
         entity_id = TestDataEntitySupport.convert_title_to_id(title)
 
         Task.__init__(self, entity_id=entity_id, title=title,
-            updated_date=datetime.now())
+            updated_date=datetime.now(), **kwargs)
 #------------------------------------------------------------------------------ 
 
 class TestDataTaskTest(unittest.TestCase):
@@ -702,22 +702,20 @@ class TaskDataTestSupport(object):
                 - t-F
             - t-D
         """
-        tasklist_a = TaskList(entity_id="tl-A", title="TaskList A")
+        tasklist_a = TestDataTaskList("A")
 
-        task_b = Task(entity_id="t-B", title="Task B",
-            tasklist_id=tasklist_a.entity_id, position="0")
+        task_b = TestDataTask("B", tasklist_id=tasklist_a.entity_id,
+            position="0")
 
-        task_c = Task(entity_id="t-C", title="Task C",
-            tasklist_id=tasklist_a.entity_id, position="1")
-        task_e = Task(entity_id="t-E", title="Task E",
-            tasklist_id=tasklist_a.entity_id, position="1",
-            parent_id=task_c.entity_id)
-        task_f = Task(entity_id="t-F", title="Task F",
-            tasklist_id=tasklist_a.entity_id, position="2",
-            parent_id=task_c.entity_id)
+        task_c = TestDataTask("C", tasklist_id=tasklist_a.entity_id,
+            position="1")
+        task_e = TestDataTask("E", tasklist_id=tasklist_a.entity_id,
+            position="1", parent_id=task_c.entity_id)
+        task_f = TestDataTask("F", tasklist_id=tasklist_a.entity_id,
+            position="2", parent_id=task_c.entity_id)
 
-        task_d = Task(entity_id="t-D", title="Task D",
-            tasklist_id=tasklist_a.entity_id, position="2")
+        task_d = TestDataTask("D", tasklist_id=tasklist_a.entity_id,
+            position="2")
 
         tasklists = {tasklist_a.entity_id: tasklist_a}
         tasklist_a_tasks = {task_b.entity_id:task_b,
@@ -784,7 +782,7 @@ class TaskTreeComparatorTest(ManagedFixturesTestSupport, unittest.TestCase):
             identical.
         """
         ### Arrange ###
-#        tasklist_b = self.current_tasktree.add(TaskList(entity_id="tl-B"))
+#        tasklist_b = self.current_tasktree.add(TestDataTaskList("B"))
 #        task_b_a = 
 #        task_b_b = 
 #        task_g = 
