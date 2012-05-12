@@ -27,8 +27,8 @@ pip-log.txt
 .mr.developer.cfg
 
 #Eclipse project files
-.project
-.pydevproject
+#.project
+#.pydevproject
 
 # App config files
 .coggrinder
