@@ -99,6 +99,25 @@ class TaskTree(Tree):
                 # Recursively build out the branch below the current node/Task.
                 self._build_task_tree(tasks, task_node)
 
+    def add(self, entity):
+        assert entity is not None
+
+        try:
+            parent_tasklist = self.get_entity_for_id(entity.tasklist_id)
+
+            try:
+                parent_entity = self.get_entity_for_id(entity.parent_id)
+            except KeyError:
+                # Task has no parent. Add directly to the TaskList.
+                parent_entity = parent_tasklist
+
+            parent_node = self.find_node_for_entity(parent_entity)
+        except AttributeError:
+            # No TaskList ID found, assuming this is a TaskList.
+            parent_node = self.get_node(self.ROOT_PATH)
+
+        self.append(parent_node, entity)
+
     def get(self, node_indices):
         """Overrides the default get() implementation by prefixing the provided
         node indices with the Tree root path index.
@@ -235,6 +254,94 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
 
         self._register_fixtures(self.expected_tasktree, self.tasktree)
 
+    def test_add_task(self):
+        """Test that adding a Task to the TaskTree inserts the Task
+        in the correct position in the tree.
+
+        This new task should be inserted directly below the TaskList.
+
+        Arrange:
+            - Create new Task Foo for TaskList A.
+            - Clone Task Foo into Task Foo Expected.
+            - Append Task Foo Expected to the expected TaskTree, directly under
+            TaskList A.
+        Act:
+            - Add Task Foo to the TaskTree.
+        Assert:
+            - That the expected and actual TaskTrees are identical.
+        """
+        ### Arrange ###
+        tasklist_a = self.expected_tasktree.get_entity_for_id("testdatatasklist-a")
+        task_foo = TestDataTask("Foo", tasklist_id=tasklist_a.entity_id)
+        expected_task_foo = copy.deepcopy(task_foo)
+        self.expected_tasktree.append(self.expected_tasktree.get_node((0, 0)),
+            expected_task_foo)
+
+        ### Act ###
+        self.tasktree.add(task_foo)
+
+        ### Assert ###
+        self.assertEqual(self.expected_tasktree, self.tasktree)
+
+    def test_add_child_task(self):
+        """Test that adding to the TaskTree a new Task that is the child of an
+        existing Task inserts the new Task in the correct position in the tree.
+
+        This new task should be inserted directly below the parent Task.
+
+        Arrange:
+            - Create new Task Foo for TaskList A.
+            - Clone Task Foo into Task Foo Expected.
+            - Append Task Foo Expected to the expected TaskTree, directly under
+            Task B.
+        Act:
+            - Add Task Foo to the TaskTree.
+        Assert:
+            - That the expected and actual TaskTrees are identical.
+        """
+        ### Arrange ###
+        tasklist_a = self.expected_tasktree.get_entity_for_id("testdatatasklist-a")
+        task_b = self.expected_tasktree.get_entity_for_id("testdatatask-b")
+        task_foo = TestDataTask("Foo", tasklist_id=tasklist_a.entity_id, 
+            parent_id=task_b.entity_id)
+        expected_task_foo = copy.deepcopy(task_foo)
+        self.expected_tasktree.append(
+            self.expected_tasktree.find_node_for_entity(task_b),
+            expected_task_foo)
+
+        ### Act ###
+        self.tasktree.add(task_foo)
+
+        ### Assert ###
+        self.assertEqual(self.expected_tasktree, self.tasktree)
+
+    def test_add_tasklist(self):
+        """Test that adding to the TaskTree a new TaskList inserts the new
+        TaskList directly below the root of the tree.
+
+        Arrange:
+            - Create new TaskList Foo.
+            - Clone TaskList Foo into TaskList Foo Expected.
+            - Append TaskList Foo Expected to the expected TaskTree, directly under
+            the tree root.
+        Act:
+            - Add TaskList Foo to the TaskTree.
+        Assert:
+            - That the expected and actual TaskTrees are identical.
+        """
+        ### Arrange ###
+        tasklist_foo = TestDataTaskList("Foo")
+        expected_tasklist_foo = copy.deepcopy(tasklist_foo)
+        self.expected_tasktree.append(
+            self.expected_tasktree.get_node(self.expected_tasktree.ROOT_PATH),
+            expected_tasklist_foo)
+
+        ### Act ###
+        self.tasktree.add(tasklist_foo)
+
+        ### Assert ###
+        self.assertEqual(self.expected_tasktree, self.tasktree)
+
     def test_all_entity_ids(self):
         """Test the all_entity_ids property of TaskTree, ensuring that it
         accurately reflects the IDs of the entities held by a populated
@@ -269,8 +376,8 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         """
         ### Arrange ###        
         expected_tasklist_a = self.expected_tasktree.tasklists.values()[0]
-        expected_task_b = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["t-B"]
-        expected_task_c = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["t-C"]
+        expected_task_b = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["testdatatask-b"]
+        expected_task_c = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["testdatatask-c"]
 
         ### Act ###
         actual_tasklist_a = self.tasktree.get((0,))
@@ -334,7 +441,7 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         """
         ### Arrange ###        
         expected_tasklist_a = self.expected_tasktree.tasklists.values()[0]
-        expected_task_c = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["t-C"]
+        expected_task_c = self.expected_tasktree.all_tasks[expected_tasklist_a.entity_id]["testdatatask-c"]
 
         ### Act ###
         actual_task_c = self.tasktree.get_entity_for_id(expected_task_c.entity_id)
@@ -455,7 +562,7 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         """
         ### Arrange ###
         expected_task_c = copy.deepcopy(
-            self.expected_tasktree.get_entity_for_id("t-C"))
+            self.expected_tasktree.get_entity_for_id("testdatatask-c"))
         expected_task_c.title = "updated"
 
         ### Act ###
@@ -483,7 +590,7 @@ class UpdatedDateFilteredTaskList(TaskList):
 #------------------------------------------------------------------------------ 
 
 class TestDataTaskList(TaskList):
-    def __init__(self, short_title):
+    def __init__(self, short_title, **kwargs):
         # Create a full title from the provided short title.
         title = TestDataEntitySupport.create_full_title(short_title, self)
 
@@ -491,7 +598,7 @@ class TestDataTaskList(TaskList):
         entity_id = TestDataEntitySupport.convert_title_to_id(title)
 
         TaskList.__init__(self, entity_id=entity_id, title=title,
-            updated_date=datetime.now())
+            updated_date=datetime.now(), **kwargs)
 #------------------------------------------------------------------------------ 
 
 class TestDataTaskListTest(unittest.TestCase):
@@ -523,7 +630,7 @@ class TestDataTaskListTest(unittest.TestCase):
 #------------------------------------------------------------------------------ 
 
 class TestDataTask(Task):
-    def __init__(self, short_title):
+    def __init__(self, short_title, **kwargs):
         # Create a full title from the provided short title.
         title = TestDataEntitySupport.create_full_title(short_title, self)
 
@@ -531,7 +638,7 @@ class TestDataTask(Task):
         entity_id = TestDataEntitySupport.convert_title_to_id(title)
 
         Task.__init__(self, entity_id=entity_id, title=title,
-            updated_date=datetime.now())
+            updated_date=datetime.now(), **kwargs)
 #------------------------------------------------------------------------------ 
 
 class TestDataTaskTest(unittest.TestCase):
@@ -702,22 +809,20 @@ class TaskDataTestSupport(object):
                 - t-F
             - t-D
         """
-        tasklist_a = TaskList(entity_id="tl-A", title="TaskList A")
+        tasklist_a = TestDataTaskList("A")
 
-        task_b = Task(entity_id="t-B", title="Task B",
-            tasklist_id=tasklist_a.entity_id, position="0")
+        task_b = TestDataTask("B", tasklist_id=tasklist_a.entity_id,
+            position="0")
 
-        task_c = Task(entity_id="t-C", title="Task C",
-            tasklist_id=tasklist_a.entity_id, position="1")
-        task_e = Task(entity_id="t-E", title="Task E",
-            tasklist_id=tasklist_a.entity_id, position="1",
-            parent_id=task_c.entity_id)
-        task_f = Task(entity_id="t-F", title="Task F",
-            tasklist_id=tasklist_a.entity_id, position="2",
-            parent_id=task_c.entity_id)
+        task_c = TestDataTask("C", tasklist_id=tasklist_a.entity_id,
+            position="1")
+        task_e = TestDataTask("E", tasklist_id=tasklist_a.entity_id,
+            position="1", parent_id=task_c.entity_id)
+        task_f = TestDataTask("F", tasklist_id=tasklist_a.entity_id,
+            position="2", parent_id=task_c.entity_id)
 
-        task_d = Task(entity_id="t-D", title="Task D",
-            tasklist_id=tasklist_a.entity_id, position="2")
+        task_d = TestDataTask("D", tasklist_id=tasklist_a.entity_id,
+            position="2")
 
         tasklists = {tasklist_a.entity_id: tasklist_a}
         tasklist_a_tasks = {task_b.entity_id:task_b,
