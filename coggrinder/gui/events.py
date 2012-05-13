@@ -8,7 +8,7 @@ Much credit goes to this example:
 """
 
 """
-It would be cool if there was a way to propogate these Events up a widget 
+It would be cool if there was a way to propagate these Events up a widget 
 chain. This would allow a container view (i.e., a window) to also serve as a 
 registration proxy for a component view (i.e., a toolbar). That way the 
 Controller working with the container view wouldn't have to know about the 
