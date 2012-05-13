@@ -8,8 +8,8 @@
 <pydev_property name="org.python.pydev.PYTHON_PROJECT_VERSION">python 2.7</pydev_property>
 <pydev_property name="org.python.pydev.PYTHON_PROJECT_INTERPRETER">python</pydev_property>
 <pydev_pathproperty name="org.python.pydev.PROJECT_EXTERNAL_SOURCE_PATH">
-<path>/usr/local/lib/python2.7/dist-packages/mockito-0.5.1-py2.7.egg</path>
-<path>/usr/local/lib/python2.7/dist-packages/google_api_python_client-1.0beta8-py2.7.egg</path>
-<path>/usr/lib/girepository-1.0</path>
+<path>${PYTHON_MOCKITO_EGG}</path>
+<path>${PYTHON_GOOGLE_API_CLIENT_EGG}</path>
+<path>${PYGI_REPOSITORY}</path>
 </pydev_pathproperty>
 </pydev_project>
