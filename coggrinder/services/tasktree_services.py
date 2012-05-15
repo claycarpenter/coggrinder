@@ -86,11 +86,8 @@ class TaskTreeService(object):
 
         return task_service
 
-    def get_tasklist(self, tasklist_id):
-        return self.tree.get_entity_for_id(tasklist_id)
-
-    def get_task(self, task_id):
-        return self.tree.get_entity_for_id(task_id)
+    def get_entity_for_id(self, entity_id):
+        return self.tree.get_entity_for_id(entity_id)
 
     def update_entity(self, entity):
         # Update the entity value reference in the TaskTree.
@@ -228,7 +225,7 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         expected_tasktree = copy.deepcopy(self.tasktree_srvc.tree)
 
         ### Act ###
-        tasklist_A = self.tasktree_srvc.get_tasklist("tl-A")
+        tasklist_A = self.tasktree_srvc.get_entity_for_id("tl-A")
         tasklist_A.title = "updated"
 
         self.tasktree_srvc.revert_task_data()
@@ -286,7 +283,7 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         self.tasktree_srvc.save_task_data()
         self.tasktree_srvc.refresh_task_data()
 
-        actual_tasklist_a = self.tasktree_srvc.get_tasklist(expected_tasklist_a.entity_id)
+        actual_tasklist_a = self.tasktree_srvc.get_entity_for_id(expected_tasklist_a.entity_id)
         actual_task_a = self.tasktree_srvc.get_task(expected_task_a.entity_id)
 
         ### Assert ###
@@ -327,8 +324,8 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
 
         self.tasktree_srvc.refresh_task_data()
 
-        actual_tasklist_a = self.tasktree_srvc.get_tasklist(expected_tasklist_a.entity_id)
-        actual_task_a = self.tasktree_srvc.get_task(expected_task_a.entity_id)
+        actual_tasklist_a = self.tasktree_srvc.get_entity_for_id(expected_tasklist_a.entity_id)
+        actual_task_a = self.tasktree_srvc.get_entity_for_id(expected_task_a.entity_id)
 
         ### Assert ###
         self.assertEqual(expected_tasklist_a, actual_tasklist_a)
@@ -395,7 +392,7 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         expected_tasklist = self.expected_tasklists[expected_tasklist_id]
 
         ### Act ###   
-        actual_tasklist = self.tasktree_srvc.get_tasklist(expected_tasklist_id)
+        actual_tasklist = self.tasktree_srvc.get_entity_for_id(expected_tasklist_id)
 
         ### Assert ###
         self.assertEqual(expected_tasklist, actual_tasklist)
@@ -417,7 +414,7 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         expected_task = self.expected_all_tasks[expected_tasklist_id][expected_task_id]
 
         ### Act ###   
-        actual_task = self.tasktree_srvc.get_task(expected_task_id)
+        actual_task = self.tasktree_srvc.get_entity_for_id(expected_task_id)
 
         ### Assert ###
         self.assertEqual(expected_task, actual_task)
@@ -445,7 +442,7 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         expected_tasklist_a.title = expected_updated_title
 
         ### Act ###   
-        actual_tasklist_a = self.tasktree_srvc.get_tasklist(expected_tasklist_a.entity_id)
+        actual_tasklist_a = self.tasktree_srvc.get_entity_for_id(expected_tasklist_a.entity_id)
         actual_tasklist_a.title = expected_updated_title
         self.tasktree_srvc.update_entity(actual_tasklist_a)
 
@@ -477,7 +474,7 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         expected_task_a.title = expected_updated_title
 
         ### Act ###   
-        actual_task_a = self.tasktree_srvc.get_tasklist(expected_task_a.entity_id)
+        actual_task_a = self.tasktree_srvc.get_entity_for_id(expected_task_a.entity_id)
         actual_task_a.title = expected_updated_title
         self.tasktree_srvc.update_entity(actual_task_a)
         actual_task_a = self.tasktree_srvc.tree.get_entity_for_id(
