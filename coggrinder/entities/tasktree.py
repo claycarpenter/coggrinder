@@ -46,6 +46,19 @@ class TaskTree(Tree):
         entity_ids = self._entity_node_map.keys()
 
         return set(entity_ids)
+    
+    @property
+    def tasklists(self):
+        tasklists = dict()
+        
+        # Find the root node and collect all of its direct children. Each 
+        # child should represent a TaskList.
+        root_node = self.get_root_node()
+        for tasklist_node in root_node.children:
+            tasklist = tasklist_node.value
+            tasklists[tasklist.entity_id] = tasklist
+            
+        return tasklists
 
     def _build_tree(self, task_data):
         """Build the full tree from the task data."""
@@ -561,8 +574,8 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         self.assertEqual(expected_task_c, actual_task_c)
 
     def test_get_tasks_for_tasklist(self):
-        """Test that provided Task data can be retrieved by the parent
-        TaskList.
+        """Test that all Tasks belonging to a certain TaskList can be 
+        retrieved by providing that TaskList.
 
         Arrange:
             - Clear the TaskTree under test.
@@ -595,6 +608,44 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
 
         ### Assert ###
         self.assertEqual(expected_tasks, actual_tasks)
+
+    def test_tasklists_property(self):
+        """Test that the TaskTree can correctly generate a collection (dict) 
+        containing of all of the TaskLists held within the TaskTree. 
+
+        Arrange:
+            - Clear the TaskTree under test.
+            - Create task data TaskLists A, B, and C, and add them 
+            to the TaskTree.
+            - Create a dict of expected TaskLists reflecting those just 
+            added to TaskTree.
+        Act:
+            - Retrieve the actual dict of TaskLists from the TaskTree using the 
+            tasklists property.
+        Assert:
+            - That the expected and actual TaskList dicts are identical.
+        """
+        ### Arrange ###        
+        self.tasktree.clear()
+        
+        tasklist_a = TestDataTaskList("A")
+        self.tasktree.add_entity(tasklist_a)
+        
+        tasklist_b = TestDataTaskList("B")
+        self.tasktree.add_entity(tasklist_b)
+        
+        tasklist_c = TestDataTaskList("C")
+        self.tasktree.add_entity(tasklist_c)
+        
+        expected_tasklists = {tasklist_a.entity_id:tasklist_a,
+            tasklist_b.entity_id:tasklist_b,
+            tasklist_c.entity_id:tasklist_c}
+
+        ### Act ###
+        actual_tasklists = self.tasktree.tasklists
+
+        ### Assert ###
+        self.assertEqual(expected_tasklists, actual_tasklists)
 
     def test_get_entity_tasklist(self):
         """Test that searching the TaskTree for an entity ID belonging to a
@@ -1149,6 +1200,10 @@ class TaskDataTestSupport(object):
             task_f.entity_id:task_f}
         all_tasks = {tasklist_a.entity_id: tasklist_a_tasks}
 
+        """
+        TODO: This should be updated to provide the task data in a single, 
+        "flat" dictionary collection.
+        """
         # Use the task data to build the TaskTree.
         tasktree = TaskTree(tasklists=tasklists, all_tasks=all_tasks)
 
