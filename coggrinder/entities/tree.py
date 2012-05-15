@@ -298,7 +298,14 @@ class Tree(DeclaredPropertiesComparable):
 
     def remove_node(self, node):
         try:
-            node.parent.children.remove(node)
+            node_parent = node.parent
+            node_parent.children.remove(node)
+            
+            # Update the paths of any siblings of the deleted node. This 
+            # ensures
+            for sibling_node in node_parent.children:
+                position_index = node_parent.children.index(sibling_node)
+                sibling_node.path = node_parent.path + (position_index,)
         except IndexError:
             raise NodeNotFoundError(node.path)
 
@@ -388,8 +395,11 @@ class Tree(DeclaredPropertiesComparable):
         return self.__str__()
 
     def _create_branch_str(self, node=None, depth=0, indent=4):
-        if node is None:
-            node = self.get_node(Tree.ROOT_PATH)
+        try:
+            if node is None:
+                node = self.get_node(Tree.ROOT_PATH)
+        except NodeNotFoundError:
+            return "<Empty>"
 
         node_str = "{indent} - {path} - {value}\n".format(
             indent="".center(depth * indent), path=node.path, value=node.value)
@@ -823,33 +833,37 @@ class PopulatedTreeTest(unittest.TestCase):
         """Test removing a leaf node (via remove_node).
 
         Test tree architecture:
-        - 0
-            - 0:0
+        - root
+            - A
+            - B
 
         Arrange:
-            Create blank tree.
-            Create root node.
-            Create leaf node.
+            - Create blank Tree.
+            - Create TreeNodes root, A, B.
+            - Create expected Tree with nodes root, B.
         Act:
-            Remove leaf node.
+            - Remove TreeNode A.
         Assert:
-            Accessing leaf node raises NodeNotFoundError.
-            Root node no longer has children.
+            - Node at path 0,1 is TreeNode B.
+            - The expected and actual Trees are identical.
         """
-        ### Arrange ###########################################################
+        ### Arrange ###
         tree = Tree()
-        tree.insert(Tree.ROOT_PATH)
-        leaf_node_path = Tree.ROOT_PATH + (0,)
-        tree.insert(leaf_node_path)
+        tree.insert(Tree.ROOT_PATH, "root")
+        actual_node_a = tree.insert(Tree.ROOT_PATH + (0,), "A")
+        tree.insert(Tree.ROOT_PATH + (1,), "B")
+        
+        expected_tree = Tree()
+        expected_tree.insert(Tree.ROOT_PATH, "root")
+        expected_node_b = expected_tree.insert(Tree.ROOT_PATH + (0,), "B")
 
-        ### Act ###############################################################   
-        leaf_node = tree.get_node(leaf_node_path)
-        tree.remove_node(leaf_node)
+        ### Act ###
+        tree.remove_node(actual_node_a)
 
-        ### Assert ############################################################
-        with self.assertRaises(NodeNotFoundError):
-            tree.get(leaf_node_path)
-        self.assertFalse(tree.has_children(Tree.ROOT_PATH))
+        ### Assert ###
+        first_child_node = tree.get_node(expected_node_b.path)
+        self.assertEqual(expected_node_b,first_child_node) 
+        self.assertEqual(expected_tree, tree)
 
     def test_remove_root(self):
         """Test removing the root node of a tree with a leaf node.
