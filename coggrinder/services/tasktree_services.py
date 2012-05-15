@@ -414,9 +414,6 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         expected_task_id = expected_tasklist_id + "-t-B"
         expected_task = self.expected_all_tasks[expected_tasklist_id][expected_task_id]
 
-
-        self.tasktree_srvc.refresh_task_data()
-
         ### Act ###   
         actual_task = self.tasktree_srvc.get_task(expected_task_id)
 
