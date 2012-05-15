@@ -255,7 +255,7 @@ class Task(BaseTaskEntity):
         self.completed_date = None
         self.is_deleted = None
         self.is_hidden = None
-        self.position = 0
+        self.position = position
 
     def _get_filter_keys(self):
         base_keys = super(Task, self)._get_filter_keys()
