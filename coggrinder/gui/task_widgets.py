@@ -63,12 +63,10 @@ class TaskTreeWindowController(object):
         self.view.update_tasktree(self._tasktree_service.tree)
 
     def _handle_save_event(self, button):
-        raise NotImplementedError
-#        self._tasktree_service.push_task_data()
+        self._tasktree_service.push_task_data()
 
     def _handle_sync_event(self, button):
-        raise NotImplementedError
-#        self._tasktree_service.pull_task_data()
+        self._tasktree_service.pull_task_data()
 
     def _handle_revert_event(self, button):
         # Clear away any user changes.
@@ -181,16 +179,9 @@ class TaskTreeWindowController(object):
 
         # Set the entity's updated title.
         target_entity.title = updated_title
-
-        # Determine the entity type (task or tasklist).
-        if isinstance(target_entity, TaskList):
-            # Send the updated tasklist to the server.
-            target_entity = self._tasktree_service.update_tasklist(target_entity)
-        elif isinstance(target_entity, Task):
-            # Send the updated task to the server.
-            target_entity = self._tasktree_service.update_task(target_entity)
-        else:
-            raise ValueError("Target entity must be of type TaskList or Task, was instead {0}".format(type(target_entity)))
+      
+        # Send the updated entity to the server.
+        target_entity = self._tasktree_service.update_entity(target_entity)
 
         # Update the task data view.
         self.refresh_task_view()

@@ -301,7 +301,7 @@ class TaskTree(Tree):
             child_node = self.insert(entity_node.path, child_node.value)
             self._register_entity_node(child_node)
 
-    def update(self, entity):
+    def update_entity(self, entity):
         # Lookup the containing tree node.
         node = self._entity_node_map[entity.entity_id]
 
@@ -846,9 +846,9 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_entity_node, actual_entity_node)
 
-    def test_update_task(self):
+    def test_update_entity_task(self):
         """Test that updating a Task only updates the corresponding value in
-        the TaskTree after update() is called.
+        the TaskTree after update_entity() is called.
 
         Arrange:
             - Change title of expected Task C.
@@ -867,7 +867,7 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
 
         ### Act ###
         preop_task_c = self.tasktree.get_entity_for_id(expected_task_c.entity_id)
-        self.tasktree.update(expected_task_c)
+        self.tasktree.update_entity(expected_task_c)
         postop_task_c = self.tasktree.get_entity_for_id(expected_task_c.entity_id)
 
         ### Assert ###

@@ -92,9 +92,9 @@ class TaskTreeService(object):
     def get_task(self, task_id):
         return self.tree.get_entity_for_id(task_id)
 
-    def update(self, entity):
+    def update_entity(self, entity):
         # Update the entity value reference in the TaskTree.
-        entity = self.tree.update(entity)
+        entity = self.tree.update_entity(entity)
 
         # Update the updated date timestamp.
         entity.updated_date = datetime.now()
@@ -280,8 +280,8 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         expected_tasklist_a.title = updated_title
 
         ### Act ###
-        self.tasktree_srvc.update(expected_tasklist_a)
-        self.tasktree_srvc.update(expected_task_a)
+        self.tasktree_srvc.update_entity(expected_tasklist_a)
+        self.tasktree_srvc.update_entity(expected_task_a)
 
         self.tasktree_srvc.save_task_data()
         self.tasktree_srvc.refresh_task_data()
@@ -322,8 +322,8 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         cloned_task_a.title = updated_title
 
         ### Act ###
-        self.tasktree_srvc.update(cloned_tasklist_a)
-        self.tasktree_srvc.update(cloned_task_a)
+        self.tasktree_srvc.update_entity(cloned_tasklist_a)
+        self.tasktree_srvc.update_entity(cloned_task_a)
 
         self.tasktree_srvc.refresh_task_data()
 
@@ -447,7 +447,7 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         ### Act ###   
         actual_tasklist_a = self.tasktree_srvc.get_tasklist(expected_tasklist_a.entity_id)
         actual_tasklist_a.title = expected_updated_title
-        self.tasktree_srvc.update(actual_tasklist_a)
+        self.tasktree_srvc.update_entity(actual_tasklist_a)
 
         ### Assert ###
         self.assertEqual(expected_tasklist_a, actual_tasklist_a)
@@ -479,7 +479,7 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         ### Act ###   
         actual_task_a = self.tasktree_srvc.get_tasklist(expected_task_a.entity_id)
         actual_task_a.title = expected_updated_title
-        self.tasktree_srvc.update(actual_task_a)
+        self.tasktree_srvc.update_entity(actual_task_a)
         actual_task_a = self.tasktree_srvc.tree.get_entity_for_id(
                 expected_task_a.entity_id)
 
