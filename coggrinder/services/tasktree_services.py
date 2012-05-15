@@ -72,7 +72,8 @@ class TaskTreeService(object):
         assert self.gtasks_service_proxy is not None
         assert self.gtasks_service_proxy.tasklists() is not None
 
-        tasklist_service = GoogleServicesTaskListService(self.gtasks_service_proxy.tasklists())
+        tasklist_service = GoogleServicesTaskListService()
+        tasklist_service.service_proxy = self.gtasks_service_proxy.tasklists()
 
         return tasklist_service
 
@@ -80,7 +81,8 @@ class TaskTreeService(object):
         assert self.gtasks_service_proxy is not None
         assert self.gtasks_service_proxy.tasks() is not None
 
-        task_service = GoogleServicesTaskService(self.gtasks_service_proxy.tasks())
+        task_service = GoogleServicesTaskService()
+        task_service.service_proxy = self.gtasks_service_proxy.tasks()
 
         return task_service
 
