@@ -116,7 +116,14 @@ class TaskTree(Tree):
                 # Parent of this Task is another Task, but the parent Task has
                 # not yet been added to the tree. Add it before attempting to 
                 # add the current Task.
-                parent_task = task_data[task.parent_id]
+                try:
+                    parent_task = task_data[task.parent_id]
+                except KeyError:
+                    # This is unlikely to happen, could occur if the parent 
+                    # Task was deleted without also deleting this child task. 
+                    raise TaskDataError("Could not find parent Task with ID '{parent_id}' for Task {task}".format(
+                        parent_id=task.parent_id,task=task))
+                    
                 self._add_task(task_data, parent_task)
         
         # Parent node already exists in tree, add this Task child.
@@ -1338,4 +1345,9 @@ class TaskTreeComparatorTest(ManagedFixturesTestSupport, unittest.TestCase):
 
         ### Assert ###
         self.assertEqual(expected_added_ids, actual_added_ids)
+#------------------------------------------------------------------------------
+
+class TaskDataError(Exception):
+    def __init__(self, message):
+        Exception.__init__(self, "Corrupt task data: " + message) 
 #------------------------------------------------------------------------------ 
