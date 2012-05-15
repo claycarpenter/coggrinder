@@ -859,18 +859,27 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
 class EntityOverwriteError(Exception):
     def __init__(self, entity_id):
         Exception.__init__(self,
-            "Cannot add entity with duplicate ID {entity_id}".format(
+            "Cannot register entity with duplicate ID {entity_id}".format(
             entity_id=entity_id))
 #------------------------------------------------------------------------------ 
 
 class UnregisteredEntityError(Exception):
     def __init__(self, entity_id):
-        Exception.__init__(self,
-            "Could not find a {entity_name} registered with the ID {entity_id}".format(
-            entity_name=self._get_entity_name(), entity_id=entity_id))
+        entity_type_name = self._get_entity_name()
+        
+        if entity_type_name is None:
+            # Use a generic error message. 
+            Exception.__init__(self,
+                "Could not find an entity registered with the ID '{entity_id}'".format(
+                entity_name=self._get_entity_name(), entity_id=entity_id))
+        else:
+            # Construct an error message that included the entity's type name. 
+            Exception.__init__(self,
+                "Could not find a {entity_name} registered with the ID '{entity_id}'".format(
+                entity_name=entity_type_name, entity_id=entity_id))
 
     def _get_entity_name(self):
-        raise NotImplementedError
+        return None
 #------------------------------------------------------------------------------ 
 
 class UnregisteredTaskError(Exception):
