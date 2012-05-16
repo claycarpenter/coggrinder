@@ -15,8 +15,22 @@ class Tree(DeclaredPropertiesComparable):
         self.children = list()
         self.path = ()
 
-    # TODO: What's the difference between append and insert?
     def append(self, parent_node, value):
+        """Adds a new TreeNode to the tree, below the indicated parent node.
+        
+        The new node will be added in the lowest order position under the 
+        parent node. This operation will leave the ordering positions of the
+        other sibling nodes intact.
+        
+        Args:
+            parent_node: The node that will be the parent of the new child 
+                node.
+            value: Value to insert into the new node.
+        Raises:
+            NodeNotFoundError: If the parent node cannot be located.
+        Returns:
+            Node created by the insert process.
+        """
         new_node = TreeNode(value=value)
 
         return self.append_node(parent_node, new_node)
@@ -201,6 +215,22 @@ class Tree(DeclaredPropertiesComparable):
         return self.get_node(self.ROOT_PATH, must_find)
 
     def insert(self, node_indices, value=None):
+        """Inserts a new TreeNode with the provided value into the tree at the 
+        provided address.
+        
+        Any sibling nodes of the same parent as this new node that are ordered
+        below the indicated address will be moved down one more position to 
+        make space for this new node.
+        
+        Args:
+            node_indices: The full path the new node should occupy, in order
+                from tree root to the child position index of the node.
+            value: Optional value to insert into the new node.
+        Raises:
+            NodeNotFoundError: If the parent node cannot be located.
+        Returns:
+            Node created by the insert process.
+        """
         assert node_indices, "A node address must be provided."
 
         new_node = self.insert_node(node_indices)
