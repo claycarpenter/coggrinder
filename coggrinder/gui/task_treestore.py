@@ -107,6 +107,45 @@ class TaskTreeStore(Gtk.TreeStore):
         new_node_iter = self.append(parent_iter, TreeNode(entity).row_data)
         self.entity_path_index[entity.entity_id] = self.get_string_from_iter(new_node_iter)
 
+    def __str__(self):
+        return self._create_branch_str()
+
+    def __repr__(self):
+        return self.__str__()
+
+    def _create_branch_str(self, node_iter=None, depth=0, indent=4):
+        if node_iter is None:
+            # If no node iter is provided, use the root node iter.
+            node_iter = self.get_iter_first()
+            
+            if node_iter is None:
+                return "<Empty TaskTreeStore>"
+        
+        branches_str = list()
+        while node_iter != None:               
+            # Collect node information.
+            node_path = self.get_path(node_iter)
+            entity_id = self.get_value(node_iter, TreeNode.ENTITY_ID)
+            label = self.get_value(node_iter, TreeNode.LABEL)
+            if label is None:
+                label = "<Empty title>"
+            node_values_str = "'{label}' - id: '{entity_id}'".format(
+                entity_id=entity_id, label=label)
+            
+            # Create the node info debug string.
+            node_str = "{indent} - {path} - {value}\n".format(
+                indent="".center(depth * indent), path=node_path, value=node_values_str)
+            branches_str.append(node_str)
+                      
+            if self.iter_has_child(node_iter):
+                child_iter = self.iter_children(node_iter)
+                
+                branches_str.append(self._create_branch_str(
+                    node_iter=child_iter, depth=depth + 1, indent=indent))
+            
+            node_iter = self.iter_next(node_iter)
+        
+        return "".join(branches_str)
 #------------------------------------------------------------------------------ 
 
 class TaskTreeStoreTest(unittest.TestCase):
