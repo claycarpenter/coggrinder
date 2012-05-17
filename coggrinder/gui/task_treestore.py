@@ -14,9 +14,7 @@ class TaskTreeStore(Gtk.TreeStore):
         Gtk.TreeStore.__init__(self, str, str, GdkPixbuf.Pixbuf)
 
         # TODO: Document keys, values, uses.
-        self.entity_path_index = None
-
-        self._root_node = None
+        self.entity_path_index = dict()
 
     def build_tree(self, tasktree):
         """Build a tree representing all of the user's task data (TaskLists and
@@ -28,45 +26,36 @@ class TaskTreeStore(Gtk.TreeStore):
         Args:
             tasktree: The TaskTree that contains the task data.
         Returns:
-            dict with that maps entity (both TaskList and Task) ID keys to
+            A dict that maps entity (both TaskList and Task) ID keys to
             their path (as a str) in the TreeModel.
         """
-        self._root_node = self.get_iter_first()
-
+        # Reset the entity id-tree path registry. 
         self.entity_path_index = dict()
-
-        # Iterate over each TaskList in the TaskTree, adding each as a node in 
-        # the TreeModel. 
-        for tasklist in tasktree.tasklists.values():
-            row_model_data = TreeNode(tasklist).row_data
-            tasklist_iter = self.append(self._root_node,
-                TreeNode(tasklist).row_data)
-
-            # Add the TaskList to the path index.
-            tasklist_treepath = self.get_path(tasklist_iter)
-            self.entity_path_index[tasklist.entity_id] = tasklist_treepath.to_string()
-
-            # Get all of the Tasks for the current TaskList.
-            tasklist_tasks = tasktree.get_tasks_for_tasklist(tasklist)
-
-            # Add all of the TaskList Tasks to the tree as nodes under the 
-            # TaskList.
-            self._build_task_tree(tasklist_tasks, tasklist_iter)
-
+        
+        # Access the TaskTree using node methods, TreeNode info.
+        
+        # Get the depth-1 child nodes of the TaskTree. Each of these will hold
+        # a TaskList reference.
+        tasktree_root_node = tasktree.get_root_node()
+        for tasklist_node in tasktree_root_node.children:            
+            self._build_task_tree(tasktree, tasklist_node)
+            
         return self.entity_path_index
-
-    def _build_task_tree(self, tasks, parent_iter, parent_id=None):
-        """Build a tree for a particular TaskList."""
-        for task in tasks.values():
-            if task.parent_id == parent_id:
-                task_iter = self.append(parent_iter, TreeNode(task).row_data)
-
-                # Add the Task to the path index.
-                self.entity_path_index[task.entity_id] = self.get_string_from_iter(task_iter)
-
-                # Recursively build the tree below this Task.
-                self._build_task_tree(tasks, task_iter,
-                    parent_id=task.entity_id)
+        
+    def _build_task_tree(self, tasktree, current_node, parent_node_iter=None):        
+        # Collect the entity data into a TreeView-compatible list, and then
+        # add the row to the tree under the parent node.
+        entity = current_node.value
+        row_model_data = TreeNode(entity).row_data
+        entity_iter = self.append(parent_node_iter, row_model_data)
+        
+        # Add the TaskList to the path index.
+        treepath = self.get_path(entity_iter)
+        self.entity_path_index[entity.entity_id] = treepath.to_string()
+        
+        # Recursively add all descendants of this current node.
+        for child_node in current_node.children:
+            self._build_task_tree(tasktree, child_node, entity_iter)       
 
     def get_entity(self, tree_path):
         """Retrieves the entity targeted by the specified tree path.
@@ -80,7 +69,7 @@ class TaskTreeStore(Gtk.TreeStore):
         """
         assert isinstance(tree_path, str), "Tree path provided must be a string in the form of '0:0:0'"
 
-        return None
+        raise NotImplementedError()
 
     def add_tasklist(self, tasklist, tasks=None):
         """Creates a new task tree branch for the TaskList and its associated

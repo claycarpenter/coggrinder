@@ -32,51 +32,54 @@ class AbstractTaskService(object):
     TODO: It might be the case that this extra class above the implementing
     subclasses is unnecessary.
     """
-    def get_task(self, tasklist_id, task_id):
+    def get(self, tasklist_id, task_id):
         assert (task_id is not None
             and tasklist_id is not None)
 
-        task = self._get_task(tasklist_id, task_id)
+        task = self._get(tasklist_id, task_id)
 
         return task
 
-    def _get_task(self, tasklist_id, task_id):
+    def _get(self, tasklist_id, task_id):
         raise NotImplementedError
 
-    def add_task(self, task):
+    def insert(self, task):
         assert (task is not None and task.tasklist_id is not None)
 
-        task = self._add_task(task)
+        task = self._insert(task)
 
         return task
 
-    def _add_task(self, task):
+    def _insert(self, task):
         raise NotImplementedError
 
-    def delete_task(self, task):
+    def delete(self, task):
         assert (task is not None
             and task.entity_id is not None
             and task.tasklist_id is not None)
 
-        task = self._delete_task(task)
+        task = self._delete(task)
 
         return task
 
-    def _delete_task(self, task):
+    def _delete(self, task):
         raise NotImplementedError
 
-    def update_task(self, task):
+    def update(self, task):
         assert (task is not None
             and task.entity_id is not None
             and task.tasklist_id is not None)
 
-        task = self._update_task(task)
+        task = self._update(task)
 
         return task
 
-    def _update_task(self, task):
+    def _update(self, task):
         raise NotImplementedError
 
+    """
+    TODO: Rename this to list() to stay in line with Google Services API.
+    """
     def get_tasks_in_tasklist(self, tasklist):
         """Return a dictionary of all tasks belonging to the specified TaskList.
 
@@ -102,14 +105,14 @@ class GoogleServicesTaskService(AbstractTaskService):
 
         self.service_proxy = None
 
-    def _get_task(self, tasklist_id, task_id):
+    def _get(self, tasklist_id, task_id):
         result_str_dict = self.service_proxy.get(tasklist=tasklist_id,
             task=task_id).execute()
         task = Task.from_str_dict(result_str_dict)
 
         return task
 
-    def _add_task(self, task):
+    def _insert(self, task):
         # Create the str dict (JSON formatted data) for the insert request.
         insert_str_dict = task.to_str_dict()
 
@@ -134,17 +137,17 @@ class GoogleServicesTaskService(AbstractTaskService):
 
         return task
 
-    def _delete_task(self, task):
+    def _delete(self, task):
         # Execute the delete operation.
         self.service_proxy.delete(tasklist=task.tasklist_id,
             task=task.entity_id).execute()
 
         # Refresh the task by getting updated properties from the server.
-        task = self.get_task(task.tasklist_id, task.entity_id)
+        task = self.get(task.tasklist_id, task.entity_id)
 
         return task
 
-    def update_task(self, task):
+    def update(self, task):
         assert (task is not None
             and task.entity_id is not None
             and task.tasklist_id is not None)
@@ -173,7 +176,9 @@ class GoogleServicesTaskService(AbstractTaskService):
         """Return a dictionary of all tasks belonging to the specified TaskList.
 
         Dictionary keys will be entity IDs, values will be the corresponding
-        task instances.
+        task instances. In the case that the TaskList given in the arguments
+        does not correspond to a list of Tasks, an empty collection will be 
+        returned.
         """
         # Execute the list operation and store the resulting str dict, which 
         # contains an array/list of results stored under an "items" key.
@@ -185,7 +190,8 @@ class GoogleServicesTaskService(AbstractTaskService):
         # Check to see if the tasklist has any assigned tasks.
         if list_results_str_dict.has_key(GoogleKeywords.ITEMS):
             for task_str_dict in list_results_str_dict.get(GoogleKeywords.ITEMS):
-                # Create a Task to represent the result captured in the str dict.
+                # Create a Task to represent the result captured in the 
+                # str dict.
                 task = Task.from_str_dict(task_str_dict)
 
                 # Set the tasklist id (this property is maintained locally per
@@ -219,7 +225,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
 
         self._register_fixtures(self.tasklist_service, self.mock_service_proxy)
 
-    def test_get_task_minimal(self):
+    def test_get_minimal(self):
         ### Arrange ###        
         tasklist = TaskList()
         tasklist.entity_id = "tasklistid"
@@ -243,7 +249,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         when(mock_get_request).execute().thenReturn(result_str_dict)
 
         ### Act ###        
-        actual_task = self.tasklist_service.get_task(tasklist.entity_id, expected_task_id)
+        actual_task = self.tasklist_service.get(tasklist.entity_id, expected_task_id)
 
         ### Assert ###
         self.assertIsNotNone(actual_task)
@@ -281,7 +287,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         ### Assert ###
         self.assertEqual(expected_tasks, actual_tasks)
 
-    def test_update_task_simple(self):
+    def test_update_simple(self):
         ### Arrange ###        
         # IDs used to specify which task to delete and get.
         tasklist = TaskList()
@@ -330,7 +336,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
 
         ### Act ###        
         # Delete the task, and store the update results.
-        actual_task = self.tasklist_service.update_task(input_task)
+        actual_task = self.tasklist_service.update(input_task)
 
         ### Assert ###
         # Task should be present and have these updated properties:
@@ -343,7 +349,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         self.assertEqual(expected_task.position, actual_task.position)
         self.assertEqual(expected_task.task_status, actual_task.task_status)
 
-    def test_add_task(self):
+    def test_insert(self):
         ### Arrange ###
         tasklist = TaskList()
         tasklist.entity_id = "tasklistid"
@@ -373,7 +379,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         when(mock_insert_request).execute().thenReturn(result_str_dict)
 
         ### Act ###
-        actual_task = self.tasklist_service.add_task(expected_task)
+        actual_task = self.tasklist_service.insert(expected_task)
 
         ### Assert ###
         self.assertIsNotNone(actual_task)
@@ -384,7 +390,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         self.assertEqual(expected_task_position, actual_task.position)
         self.assertEqual(expected_task_status, actual_task.task_status)
 
-    def test_delete_task(self):
+    def test_delete(self):
         ### Arrange ###
         # IDs used to specify which task to delete and get.
         tasklist = TaskList()
@@ -436,7 +442,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
 
         ### Act ###
         # Delete the task, and store the updated results.
-        actual_task = self.tasklist_service.delete_task(input_task)
+        actual_task = self.tasklist_service.delete(input_task)
 
         ### Assert ###
         # Task should be present and have these updated properties:
@@ -494,7 +500,7 @@ class InMemoryService(object):
 #------------------------------------------------------------------------------ 
 
 class InMemoryTaskService(AbstractTaskService, InMemoryService):
-    def _add_task(self, task):
+    def _insert(self, task):
         # Update the updated date on the Task.
         task.updated_date = datetime.now()
 
@@ -515,7 +521,7 @@ class InMemoryTaskService(AbstractTaskService, InMemoryService):
 
         return task
 
-    def _delete_task(self, task):
+    def _delete(self, task):
         try:
             tasklist_tasks = self.data_store[task.tasklist_id]
         except KeyError:
@@ -533,7 +539,7 @@ class InMemoryTaskService(AbstractTaskService, InMemoryService):
 
         return task
 
-    def _get_task(self, tasklist_id, task_id):
+    def _get(self, tasklist_id, task_id):
         try:
             tasklist_tasks = self.data_store[tasklist_id]
         except KeyError:
@@ -550,14 +556,11 @@ class InMemoryTaskService(AbstractTaskService, InMemoryService):
         return task
 
     def _get_tasks_in_tasklist(self, tasklist):
-        try:
-            tasklist_tasks = self.data_store[tasklist.entity_id]
-        except KeyError:
-            raise UnregisteredTaskListError(tasklist.entity_id)
+        tasklist_tasks = self.data_store.get(tasklist.entity_id, dict())
 
         return tasklist_tasks
 
-    def _update_task(self, task):
+    def _update(self, task):
         # Check to make sure the Task is already present in the data store.
         if task.tasklist_id not in self.data_store:
             raise UnregisteredTaskListError(task.tasklist_id)
@@ -600,7 +603,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         self._register_fixtures(self.tasklist_service, self.expected_tasklist,
             self.expected_task_data)
 
-    def test_get_task(self):
+    def test_get(self):
         """Test that the InMemoryTaskService can retrieve the correct Task
         given a pair TaskList and Task IDs.
 
@@ -617,13 +620,13 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         expected_task = self.expected_task_data[self.expected_tasklist.entity_id].values()[0]
 
         ### Act ###        
-        actual_task = self.tasklist_service.get_task(
+        actual_task = self.tasklist_service.get(
             self.expected_tasklist.entity_id, expected_task.entity_id)
 
         ### Assert ###
         self.assertEqual(expected_task, actual_task)
 
-    def test_get_task_invalid_ids(self):
+    def test_get_invalid_ids(self):
         """Test that the InMemoryTaskService raises an error when asked to
         retrieved a Task with a Task or TaskList ID that isn't registered.
 
@@ -646,11 +649,11 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
 
         ### Assert ###
         with self.assertRaises(UnregisteredTaskError):
-            self.tasklist_service.get_task(reg_tasklist_id, unreg_task_id)
+            self.tasklist_service.get(reg_tasklist_id, unreg_task_id)
         with self.assertRaises(UnregisteredTaskListError):
-            self.tasklist_service.get_task(unreg_tasklist_id, reg_task_id)
+            self.tasklist_service.get(unreg_tasklist_id, reg_task_id)
         with self.assertRaises(UnregisteredTaskListError):
-            self.tasklist_service.get_task(unreg_tasklist_id, unreg_task_id)
+            self.tasklist_service.get(unreg_tasklist_id, unreg_task_id)
 
     def test_get_tasks_in_tasklist(self):
         """Test that the InMemoryTaskService can retrieve all of the Tasks
@@ -669,24 +672,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
             self.expected_task_data[self.expected_tasklist.entity_id],
             actual_tasks)
 
-    def test_get_tasks_in_tasklist_invalid_id(self):
-        """Test that the InMemoryTaskService will raise an error if asked to
-        retrieve all Tasks belonging to an unregistered TaskList.
-
-        Arrange:
-            - Create a new TaskList with a fake ID.
-        Assert:
-            - That querying for the Tasks belonging to an unregistered TaskList
-            raises an error.
-        """
-        ### Arrange ###
-        unreg_tasklist = TaskList(entity_id="unregistered-id")
-
-        ### Assert ###
-        with self.assertRaises(UnregisteredTaskListError):
-            self.tasklist_service.get_tasks_in_tasklist(unreg_tasklist)
-
-    def test_update_task(self):
+    def test_update(self):
         """Test that the InMemoryTaskService can persist an updated Task and
         return the updated information when later queried for that Task.
 
@@ -709,7 +695,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
                 local Task A.
         """
         ### Arrange ###
-        local_task_A = self.tasklist_service.get_task(self.expected_tasklist.entity_id, "t-A")
+        local_task_A = self.tasklist_service.get(self.expected_tasklist.entity_id, "t-A")
         local_task_A = copy.deepcopy(local_task_A)
 
         expected_updated_title = "updated"
@@ -717,16 +703,16 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         local_task_A.updated_date = datetime.now()
 
         ### Act ###
-        actual_task_A = self.tasklist_service.get_task(self.expected_tasklist.entity_id, "t-A")
+        actual_task_A = self.tasklist_service.get(self.expected_tasklist.entity_id, "t-A")
         actual_task_A.title = expected_updated_title
-        self.tasklist_service.update_task(actual_task_A)
-        actual_task_A = self.tasklist_service.get_task(self.expected_tasklist.entity_id, "t-A")
+        self.tasklist_service.update(actual_task_A)
+        actual_task_A = self.tasklist_service.get(self.expected_tasklist.entity_id, "t-A")
 
         ### Assert ###
         self.assertEqual(local_task_A.title, actual_task_A.title)
         self.assertGreater(actual_task_A.updated_date, local_task_A.updated_date)
 
-    def test_update_task_invalid_ids(self):
+    def test_update_invalid_ids(self):
         """Test that attempting to update a Task with an unregistered ID will
         raise an error.
 
@@ -741,11 +727,11 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
 
         ### Assert ###
         with self.assertRaises(UnregisteredTaskError):
-            self.tasklist_service.update_task(unreg_task_id_task)
+            self.tasklist_service.update(unreg_task_id_task)
         with self.assertRaises(UnregisteredTaskListError):
-            self.tasklist_service.update_task(unreg_tasklist_id_task)
+            self.tasklist_service.update(unreg_tasklist_id_task)
 
-    def test_add_task(self):
+    def test_add(self):
         """Test that adding a Task to the task service will persist the Task,
         and that the same Task can be later retrieved using get().
 
@@ -774,11 +760,11 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
             tasklist_id=unreg_tasklist_id)
 
         ### Act ###
-        self.tasklist_service.add_task(new_task_reg_tasklist)
-        self.tasklist_service.add_task(new_task_unreg_tasklist)
-        actual_task_reg_tasklist = self.tasklist_service.get_task(
+        self.tasklist_service.insert(new_task_reg_tasklist)
+        self.tasklist_service.insert(new_task_unreg_tasklist)
+        actual_task_reg_tasklist = self.tasklist_service.get(
             self.expected_tasklist.entity_id, entity_id)
-        actual_task_unreg_tasklist = self.tasklist_service.get_task(
+        actual_task_unreg_tasklist = self.tasklist_service.get(
             unreg_tasklist_id, entity_id)
 
         ### Assert ###
@@ -790,8 +776,8 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         self.assertGreater(actual_task_reg_tasklist.updated_date, before_operation)
         self.assertGreater(actual_task_unreg_tasklist.updated_date, before_operation)
 
-    def test_add_task_duplicate_id(self):
-        """Test that attempting to add a Task that would overwrite an existing
+    def test_add_duplicate_id(self):
+        """Test that attempting to insert a Task that would overwrite an existing
         Task (identical Task and TaskList IDs) raises an error.
 
         Arrange:
@@ -807,9 +793,9 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
 
         ### Assert ###
         with self.assertRaises(EntityOverwriteError):
-            self.tasklist_service.add_task(duplicated_task)
+            self.tasklist_service.insert(duplicated_task)
 
-    def test_delete_task(self):
+    def test_delete(self):
         """Test that deleting a registered Task from the TaskService properly
         updates that Task's deleted and updated date properties.
 
@@ -826,13 +812,13 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         before_deletion = datetime.now()
 
         ### Act ###
-        deletable_task = self.tasklist_service.delete_task(deletable_task)
+        deletable_task = self.tasklist_service.delete(deletable_task)
 
         ### Assert ###
         self.assertTrue(deletable_task.is_deleted)
         self.assertGreater(deletable_task.updated_date, before_deletion)
 
-    def test_delete_task_unreg_ids(self):
+    def test_delete_unreg_ids(self):
         """Test that attempting to delete a Task when either its Task or
         TaskList ID is unregistered raises an error.
 
@@ -851,9 +837,9 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
 
         ### Assert ###
         with self.assertRaises(UnregisteredTaskError):
-            self.tasklist_service.delete_task(unreg_task_id_task)
+            self.tasklist_service.delete(unreg_task_id_task)
         with self.assertRaises(UnregisteredTaskListError):
-            self.tasklist_service.delete_task(unreg_tasklist_id_task)
+            self.tasklist_service.delete(unreg_tasklist_id_task)
 #------------------------------------------------------------------------------
 
 class EntityOverwriteError(Exception):
@@ -893,52 +879,52 @@ class UnregisteredTaskListError(Exception):
 #------------------------------------------------------------------------------ 
 
 class AbstractTaskListService(object):
-    def get_all_tasklists(self):
+    def list(self):
         """
         Return a dictionary of all tasklists available. Dictionary keys will be
         entity IDs, values will be the corresponding tasklist instances.
         """
-        all_tasklists = self._get_all_tasklists()
+        all_tasklists = self._list()
 
         return all_tasklists
 
-    def _get_all_tasklists(self):
+    def _list(self):
         raise NotImplementedError
 
-    def get_tasklist(self, entity_id):
+    def get(self, entity_id):
         assert entity_id is not None
 
-        tasklist = self._get_tasklist(entity_id)
+        tasklist = self._get(entity_id)
 
         return tasklist
 
-    def _get_tasklist(self, entity_id):
+    def _get(self, entity_id):
         raise NotImplementedError
 
-    def add_tasklist(self, tasklist):
+    def insert(self, tasklist):
         # The TaskList must have defined, at a minimum, the ID of the TaskList.
         assert tasklist is not None and tasklist.entity_id is not None
 
-        tasklist = self._add_tasklist(tasklist)
+        tasklist = self._insert(tasklist)
 
         return tasklist
 
-    def _add_tasklist(self, tasklist):
+    def _insert(self, tasklist):
         raise NotImplementedError
 
-    def delete_tasklist(self, tasklist):
+    def delete(self, tasklist):
         # The TaskList must have defined, at a minimum, the ID of the TaskList.
         assert tasklist is not None and tasklist.entity_id is not None
 
         # Execute the delete operation.
-        tasklist = self._delete_tasklist(tasklist)
+        tasklist = self._delete(tasklist)
 
         return tasklist
 
-    def _delete_tasklist(self, tasklist):
+    def _delete(self, tasklist):
         raise NotImplementedError
 
-    def update_tasklist(self, tasklist):
+    def update(self, tasklist):
         """
         This method updates the TaskList using a patch command rather than a
         full update.
@@ -950,11 +936,11 @@ class AbstractTaskListService(object):
         # The TaskList must have defined, at a minimum, the ID of the TaskList.
         assert tasklist is not None and tasklist.entity_id is not None
 
-        tasklist = self._update_tasklist(tasklist)
+        tasklist = self._update(tasklist)
 
         return tasklist
 
-    def _update_tasklist(self, tasklist):
+    def _update(self, tasklist):
         raise NotImplementedError
 #------------------------------------------------------------------------------  
 
@@ -964,7 +950,7 @@ class GoogleServicesTaskListService(AbstractTaskListService):
 
         self.service_proxy = None
 
-    def _get_all_tasklists(self):
+    def _list(self):
         tasklist_items_dict = self.service_proxy.list().execute()
 
         assert tasklist_items_dict.has_key(coggrinder.utilities.GoogleKeywords.ITEMS)
@@ -979,14 +965,14 @@ class GoogleServicesTaskListService(AbstractTaskListService):
 
         return tasklist_result_list
 
-    def _get_tasklist(self, entity_id):
+    def _get(self, entity_id):
         tasklist_dict = self.service_proxy.get(tasklist=entity_id).execute()
 
         tasklist = TaskList.from_str_dict(tasklist_dict)
 
         return tasklist
 
-    def _add_tasklist(self, tasklist):
+    def _insert(self, tasklist):
         tasklist_dict = tasklist.to_str_dict()
 
         # Create a dict with only a 'title' property; it looks like everything
@@ -1004,14 +990,14 @@ class GoogleServicesTaskListService(AbstractTaskListService):
 
         return tasklist
 
-    def _delete_tasklist(self, tasklist):
+    def _delete(self, tasklist):
         # The TaskList must have defined, at a minimum, the id of the TaskList.
         assert tasklist.entity_id is not None
 
         # Execute the delete operation.
         self.service_proxy.delete(tasklist=tasklist.entity_id).execute()
 
-    def _update_tasklist(self, tasklist):
+    def _update(self, tasklist):
         tasklist_dict = tasklist.to_str_dict()
 
         # Create a dict with only the 'title' and 'id' properties.   
@@ -1035,7 +1021,7 @@ class GoogleServicesTaskListServiceTest(unittest.TestCase):
     TODO: This test could use some refactoring, as the tests repeat a lot of
     boilerplate code trying to set up the same fixtures.
     """
-    def test_get_tasklist(self):
+    def test_get(self):
         expected_tasklist = TaskList(entity_id="1",
             title="Test List Title", updated_date=datetime(2012, 3, 10, 3, 30, 6))
 
@@ -1046,11 +1032,11 @@ class GoogleServicesTaskListServiceTest(unittest.TestCase):
 
         tasklist_service = GoogleServicesTaskListService()
         tasklist_service.service_proxy = mock_service_proxy
-        result_tasklist = tasklist_service.get_tasklist(expected_tasklist.entity_id)
+        result_tasklist = tasklist_service.get(expected_tasklist.entity_id)
 
         self.assertEqual(expected_tasklist, result_tasklist)
 
-    def test_get_all_tasklists(self):
+    def test_list(self):
         mock_service_proxy = mock()
         mock_list_request = mock()
 
@@ -1070,11 +1056,11 @@ class GoogleServicesTaskListServiceTest(unittest.TestCase):
         tasklist_service = GoogleServicesTaskListService()
         tasklist_service.service_proxy = mock_service_proxy
 
-        result_tasklists = tasklist_service.get_all_tasklists()
+        result_tasklists = tasklist_service.list()
 
         self.assertEqual(expected_tasklists, result_tasklists)
 
-    def test_update_list(self):
+    def test_update(self):
         """
         TODO: Useless test?
         """
@@ -1089,13 +1075,13 @@ class GoogleServicesTaskListServiceTest(unittest.TestCase):
 
         tasklist_service = GoogleServicesTaskListService()
         tasklist_service.service_proxy = mock_service_proxy
-        result_tasklist = tasklist_service.update_tasklist(tasklist)
+        result_tasklist = tasklist_service.update(tasklist)
 
         verify(mock_update_request).execute()
         self.assertIsNotNone(result_tasklist)
         self.assertIsNotNone(result_tasklist.entity_id)
 
-    def test_add_list(self):
+    def test_insert(self):
         mock_service_proxy = mock()
         mock_insert_request = mock()
 
@@ -1107,13 +1093,13 @@ class GoogleServicesTaskListServiceTest(unittest.TestCase):
 
         tasklist_service = GoogleServicesTaskListService()
         tasklist_service.service_proxy = mock_service_proxy
-        result_tasklist = tasklist_service.add_tasklist(tasklist)
+        result_tasklist = tasklist_service.insert(tasklist)
 
         verify(mock_insert_request).execute()
         self.assertIsNotNone(result_tasklist)
         self.assertIsNotNone(result_tasklist.entity_id)
 
-    def test_delete_list(self):
+    def test_delete(self):
         """
         As it currently stands, this test seems a bit too much like I'm simply
         writing the delete function twice.
@@ -1130,13 +1116,13 @@ class GoogleServicesTaskListServiceTest(unittest.TestCase):
 
         tasklist_service = GoogleServicesTaskListService()
         tasklist_service.service_proxy = mock_service_proxy
-        tasklist_service.delete_tasklist(tasklist)
+        tasklist_service.delete(tasklist)
 
         verify(mock_delete_request).execute()
 #------------------------------------------------------------------------------ 
 
 class InMemoryTaskListService(AbstractTaskListService, InMemoryService):
-    def _add_tasklist(self, tasklist):
+    def _insert(self, tasklist):
         # Cannot overwrite an already registered TaskList.        
         if tasklist.entity_id in self.data_store:
             raise EntityOverwriteError(tasklist.entity_id)
@@ -1147,7 +1133,7 @@ class InMemoryTaskListService(AbstractTaskListService, InMemoryService):
 
         return tasklist
 
-    def _delete_tasklist(self, tasklist):
+    def _delete(self, tasklist):
         try:
             del self.data_store[tasklist.entity_id]
         except KeyError:
@@ -1155,10 +1141,10 @@ class InMemoryTaskListService(AbstractTaskListService, InMemoryService):
 
         return tasklist
 
-    def _get_all_tasklists(self):
+    def _list(self):
         return self.data_store
 
-    def _get_tasklist(self, entity_id):
+    def _get(self, entity_id):
         try:
             tasklist = self.data_store[entity_id]
         except KeyError:
@@ -1166,7 +1152,7 @@ class InMemoryTaskListService(AbstractTaskListService, InMemoryService):
 
         return tasklist
 
-    def _update_tasklist(self, tasklist):
+    def _update(self, tasklist):
         if tasklist.entity_id not in self.data_store:
             raise UnregisteredTaskListError(tasklist.entity_id)
         
@@ -1195,7 +1181,7 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
 
         self._register_fixtures(self.tasklist_service, self.expected_tasklists)
 
-    def test_add_tasklist(self):
+    def test_insert(self):
         """Test that adding a TaskList to the TaskList service will persist
         the new TaskList, and that the same TaskList can later be retrieved
         using get().
@@ -1210,7 +1196,7 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
             - That the actual and expected TaskList Foos compare as follows:
                 - Identical title, ID properties.
                 - Updated date of actual TaskList Foo has been updated during
-                the add operation.
+                the insert operation.
         """
         ### Arrange ###
         expected_id = "tl-foo"
@@ -1220,15 +1206,15 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
              title=expected_title)
 
         ### Act ###
-        self.tasklist_service.add_tasklist(expected_tasklist)
-        actual_tasklist = self.tasklist_service.get_tasklist(expected_id)
+        self.tasklist_service.insert(expected_tasklist)
+        actual_tasklist = self.tasklist_service.get(expected_id)
 
         ### Assert ###
         self.assertEqual(expected_id, actual_tasklist.entity_id)
         self.assertEqual(expected_title, actual_tasklist.title)
         self.assertGreater(actual_tasklist.updated_date, before_operation)
 
-    def test_add_tasklist_duplicate_id(self):
+    def test_insert_duplicate_id(self):
         """Test that adding a TaskList with an ID that has already been
         registered raises an error.
 
@@ -1237,8 +1223,8 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
             - Create a new TaskList Foo with an empty title and TaskList A's
             ID.
         Assert:
-            - That attempting to add TaskList Foo to the TaskService raises
-            an error.
+            - That attempting to insert TaskList Foo into the TaskService 
+            raises an error.
         """
         ### Arrange ###
         tasklist_a = self.expected_tasklists.values()[0]
@@ -1246,9 +1232,9 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
 
         ### Assert ###
         with self.assertRaises(EntityOverwriteError):
-            self.tasklist_service.add_tasklist(tasklist_foo)
+            self.tasklist_service.insert(tasklist_foo)
 
-    def test_delete_tasklist(self):
+    def test_delete(self):
         """Test that deleting a TaskList from the TaskListSerivce removes the
         TaskList from the service's data store, and that the TaskList cannot
         later be retrieved using a get() request.
@@ -1264,13 +1250,13 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
         tasklist_a = self.expected_tasklists.values()[0]
 
         ### Act ###
-        self.tasklist_service.delete_tasklist(tasklist_a)
+        self.tasklist_service.delete(tasklist_a)
 
         ### Assert ###
         with self.assertRaises(UnregisteredTaskListError):
-            self.tasklist_service.get_tasklist(tasklist_a.entity_id)
+            self.tasklist_service.get(tasklist_a.entity_id)
 
-    def test_delete_tasklist_unreg_id(self):
+    def test_delete_unreg_id(self):
        """Test that attempting to delete a TaskList with an
        unregistered ID raises an error.
 
@@ -1284,9 +1270,9 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
 
        ### Assert ###
        with self.assertRaises(UnregisteredTaskListError):
-           self.tasklist_service.delete_tasklist(unreg_tasklist_foo)
+           self.tasklist_service.delete(unreg_tasklist_foo)
 
-    def test_get_tasklist(self):
+    def test_get(self):
         """Test that querying the TaskListService with a TaskList ID returns
         the correct TaskList associated with that ID.
 
@@ -1301,13 +1287,13 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
         expected_tasklist_a = copy.deepcopy(self.expected_tasklists.values()[0])
 
         ### Act ###
-        actual_tasklist_a = self.tasklist_service.get_tasklist(
+        actual_tasklist_a = self.tasklist_service.get(
             expected_tasklist_a.entity_id)
 
         ### Assert ###
         self.assertEqual(expected_tasklist_a, actual_tasklist_a)
 
-    def test_get_tasklist_unreg_id(self):
+    def test_get_unreg_id(self):
         """Test that querying the TaskListService with an unregistered TaskList
         ID raises an error.
 
@@ -1322,9 +1308,9 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
 
         ### Assert ###
         with self.assertRaises(UnregisteredTaskListError):
-            self.tasklist_service.get_tasklist(unreg_tasklist_id)
+            self.tasklist_service.get(unreg_tasklist_id)
 
-    def test_get_all_tasklists(self):
+    def test_list(self):
         """Test that querying the TaskListService for all TaskLists returns
         the expected set of TaskLists.
 
@@ -1334,12 +1320,12 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
             - That the expected and actual sets of TaskLists are identical.
         """
         ### Act ###
-        actual_tasklists = self.tasklist_service.get_all_tasklists()
+        actual_tasklists = self.tasklist_service.list()
 
         ### Assert ###
         self.assertEqual(self.expected_tasklists, actual_tasklists)
 
-    def test_get_all_tasklists_empty(self):
+    def test_list_empty(self):
         """Test that querying a TaskListService that contains no TaskLists
         returns an empty dict (rather than None).
 
@@ -1354,12 +1340,12 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
         empty_tasklist_service = InMemoryTaskListService()
 
         ### Act ###
-        actual_tasklists = empty_tasklist_service.get_all_tasklists()
+        actual_tasklists = empty_tasklist_service.list()
 
         ### Assert ###
         self.assertEqual({}, actual_tasklists)
 
-    def test_update_tasklist(self):
+    def test_update(self):
         """Test that the TaskListService can persist an updated TaskList and
         return the updated information when later queried for the same
         TaskList.
@@ -1376,7 +1362,7 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
             - That the actual and cloned TaskList As compare as follows:
                 - Identical title, ID properties.
                 - Updated date of actual TaskList Foo has been updated during
-                the add operation.
+                the insert operation.
         """
         ### Arrange ###
         expected_title = "updated"
@@ -1386,15 +1372,15 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
         before_operation = datetime.now()
 
         ### Act ###
-        self.tasklist_service.update_tasklist(cloned_tasklist_a)
-        actual_tasklist_a = self.tasklist_service.get_tasklist(expected_id)
+        self.tasklist_service.update(cloned_tasklist_a)
+        actual_tasklist_a = self.tasklist_service.get(expected_id)
 
         ### Assert ###
         self.assertEqual(expected_id, actual_tasklist_a.entity_id)
         self.assertEqual(expected_title, actual_tasklist_a.title)
         self.assertGreater(actual_tasklist_a.updated_date, before_operation)
 
-    def test_update_tasklist_unreg_id(self):
+    def test_update_unreg_id(self):
         """Test that attempting to update a TaskList that isn't registered in
         the TaskListService raises an error.
 
@@ -1409,5 +1395,5 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
 
         ### Assert ###
         with self.assertRaises(UnregisteredTaskListError):
-            self.tasklist_service.update_tasklist(unreg_tasklist_foo)
+            self.tasklist_service.update(unreg_tasklist_foo)
 #------------------------------------------------------------------------------ 

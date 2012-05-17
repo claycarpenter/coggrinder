@@ -12,8 +12,6 @@ from coggrinder.gui.task_treestore import TaskTreeStore, TreeNode
 
 class TaskTreeWindowController(object):
     def __init__(self, tasktree_service=None):
-        self.tasktree = None
-
         self._tasktree_service = tasktree_service
 
         # Initialize the TaskTreeWindow Gtk window that serves as the view
@@ -77,8 +75,10 @@ class TaskTreeWindowController(object):
 
     def _handle_add_list_event(self, button):
         # Create the new (blank) tasklist, and add it to the task tree.
-        new_tasklist = self._tasktree_service.add_tasklist(TaskList(title=""))
-        self.refresh_task_data()
+        new_tasklist = self._tasktree_service.add_entity(TaskList(title=""))
+        
+        # Update the UI with the new TaskList.
+        self.refresh_task_view()
 
         # Find the new tasklist, select it (wiping out other selections), and
         # set it to editable/editing.
@@ -182,6 +182,9 @@ class TaskTreeWindowController(object):
       
         # Send the updated entity to the server.
         target_entity = self._tasktree_service.update_entity(target_entity)
+        
+        # Reorder the tree.
+        self._tasktree_service.tree.sort() 
 
         # Update the task data view.
         self.refresh_task_view()
@@ -578,16 +581,17 @@ class TaskTreeViewController(object):
         restore the tree state (as much as possible).
         """
 
-        # Collect current tree state.
+        # Reset and collect the current tree state.
         self._rebuild_tree_state()
 
-        # Clear out tree. Set clearing flag to disable selection change 
-        # handling, as the clear operation will fire those events.
+        # Clear out current TreeStore. Set clearing flag to disable 
+        # selection change handling, as the clear operation will fire 
+        # those events.
         self._is_clearing = True
         self.task_treestore.clear()
         self._is_clearing = False
 
-        # Build a new tree with the updated task data.
+        # Build a new Gtk TreeStore with the updated task data.
         self._tasktree = tasktree
         self.entity_path_index = self.task_treestore.build_tree(tasktree)
 
