@@ -70,6 +70,9 @@ class TaskTreeWindowController(object):
         # Clear away any user changes.
         self._tasktree_service.revert_task_data()
         
+        # Clear away any existing tree state (selections and row expansions).
+        self.reset_treeview_state()
+        
         # Update the UI with the scrubbed task data.
         self.refresh_task_view()
 
@@ -217,6 +220,9 @@ class TaskTreeWindowController(object):
     def show(self):
         self.refresh_task_view()
         self.view.show_all()
+    
+    def reset_treeview_state(self):
+        self.view.reset_treeview_state()
 #------------------------------------------------------------------------------ 
 
 class TaskTreeWindow(Gtk.Window):
@@ -307,6 +313,9 @@ class TaskTreeWindow(Gtk.Window):
 
     def get_selected_entities(self):
         return self.treeview_controller.get_selected_entities()
+    
+    def reset_treeview_state(self):
+        self.treeview_controller.reset_treeview_state()
 #------------------------------------------------------------------------------ 
 
 class TaskToolbarViewController(object):
@@ -661,9 +670,23 @@ class TaskTreeViewController(object):
 
     def _rebuild_tree_state(self):
         # Clear out existing tree states.
-        self.tree_states.clear()
+        self._clear_tree_state()
 
         self._collect_tree_state()
+        
+    def reset_treeview_state(self):
+        # Clear existing tree state information.
+        self._clear_tree_state()
+        
+        # Collapse any tree expansions.
+        self.view.collapse_all()
+        
+        # Clear any existing selections. This must be called after the tree
+        # is fully collapsed or selections can survive the refresh.
+        self.view.get_selection().unselect_all()
+    
+    def _clear_tree_state(self):
+        self.tree_states = dict()
 
     def _collect_tree_state(self, tree_iter=None):
         if tree_iter is None:
