@@ -6,6 +6,7 @@ Created on Mar 18, 2012
 
 from datetime import datetime
 import unittest
+import uuid
 import coggrinder.utilities
 from coggrinder.core.comparable import DeclaredPropertiesComparable
 from coggrinder.entities.properties import EntityProperty, RFC3339Converter, IntConverter, BooleanConverter, TaskStatus, TaskStatusConverter
@@ -14,18 +15,21 @@ from coggrinder.utilities import GoogleKeywords
 class BaseTaskEntity(DeclaredPropertiesComparable):
     _ARGUMENT_FAIL_MESSAGE = "Provided {0} argument must be of type {1}"
     _properties = (
-            EntityProperty("entity_id", GoogleKeywords.ID),
-            EntityProperty("e_tag", GoogleKeywords.ETAG), # Tracking this property may not be necessary as the updated (date) can be used instead. 
+            EntityProperty("entity_id", GoogleKeywords.ID), 
             EntityProperty("title", GoogleKeywords.TITLE),
             EntityProperty("updated_date", GoogleKeywords.UPDATED,
-                RFC3339Converter())
+                RFC3339Converter()),
+            EntityProperty("e_tag", GoogleKeywords.ETAG), # Tracking this property may not be necessary as the updated (date) can be used instead.
         )
     _props_initialized = False
 
-    def __init__(self, entity_id="", title="", updated_date=None, children=None):
+    def __init__(self, entity_id=None, title="", updated_date=None, children=None):
         if entity_id is not None:
             assert isinstance(entity_id, str), \
                 BaseTaskEntity._ARGUMENT_FAIL_MESSAGE.format("entity_id", "str")
+        else:
+            entity_id = str(uuid.uuid4())
+            
         self.entity_id = entity_id
 
         if title is not None:
@@ -126,6 +130,20 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
         entity_dict = coggrinder.utilities.DictUtilities.filter_dict(entity_dict, filter_keys)
 
         return entity_dict
+    
+    def _ordered_entity_info(self, str_dict):
+        prop_values = list()
+        for prop in self._get_properties():
+            try:
+                prop_value = str_dict[prop.str_dict_key]
+                prop_values.append("{key}: {value}".format(
+                    key=prop.entity_key, value=prop_value))
+            except KeyError:
+                # Property isn't defined in this str dict, which is (usually?)
+                # ok.
+                pass
+        
+        return ", ".join(prop_values)
 
     # TODO: Rename this method?
     def _get_filter_keys(self):
@@ -142,10 +160,20 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
         return comparable_properties
     
     def __str__(self):
-        return str(self.to_str_dict())
+        str_dict = self.to_str_dict()
+        return str(self._ordered_entity_info(str_dict))
 
     def __repr__(self):
         return self.__str__()
+    
+    def __lt__(self, other):
+        if self.title.lower() < other.title.lower():
+            return True
+        
+        return False
+    
+    def __gt__(self, other):
+        return not self.__lt__(other)
 #------------------------------------------------------------------------------ 
 
 class BaseTaskEntityTest(unittest.TestCase):
@@ -169,6 +197,38 @@ class BaseTaskEntityTest(unittest.TestCase):
         entity_2 = BaseTaskEntity(entity_id, title, updated_date=updated_date)
 
         self.assertEqual(entity_1, entity_2)
+
+    def test_ordering_comparison(self):        
+        """Test the greater than and lesser than comparison operators.
+        
+        This tests the entity's implementation of the Python 
+        customization/"magic" methods __gt__ and __lt__. Ordering should be 
+        based upon a case-insensitive, lexicographical comparison of the
+        entities titles.
+        
+        Arrange:
+            - Create entities Foo, Bar, barber, "" (empty), and "_special_char". 
+        Assert:
+            - That the following comparisons are true:
+                - Foo > Bar
+                - Bar < barber
+                - "" < Bar
+                - "_special_char" < Bar
+                - "" < "_special_char"
+        """    
+        ### Arrange ###
+        entity_foo = BaseTaskEntity(title="Foo")
+        entity_bar = BaseTaskEntity(title="Bar")
+        entity_barber = BaseTaskEntity(title="Barber")
+        entity_empty = BaseTaskEntity(title="")
+        entity_special_char = BaseTaskEntity(title="_special_char")
+
+        ### Assert ###
+        self.assertGreater(entity_foo, entity_bar)
+        self.assertLess(entity_bar, entity_barber)
+        self.assertLess(entity_empty, entity_bar)
+        self.assertLess(entity_special_char, entity_bar)
+        self.assertLess(entity_empty, entity_special_char)
 
     def test_from_str_dict(self):
         expected_entity = BaseTaskEntity(entity_id="1",
@@ -213,9 +273,9 @@ class BaseTaskEntityTest(unittest.TestCase):
 
 class TaskList(BaseTaskEntity):
     """
-    This class is little more tahn a marker class intended to make it more 
+    This class is little more than a marker class intended to make it more 
     clear whether a TaskList or Task entity is being used. A TaskList is 
-    otherwise (functionaly) identical to the BaseTaskEntity class. 
+    otherwise (functionally) identical to the BaseTaskEntity class. 
     """
     @classmethod
     def _create_blank_entity(cls):
@@ -240,7 +300,7 @@ class Task(BaseTaskEntity):
             EntityProperty("is_hidden", GoogleKeywords.HIDDEN, BooleanConverter()),
         )
 
-    def __init__(self, tasklist_id=None, entity_id=None, title=None, updated_date=None,
+    def __init__(self, tasklist_id=None, entity_id=None, title="", updated_date=None,
             children=None, parent_id=None, task_status=TaskStatus.NEEDS_ACTION,
             position=0):
         super(Task, self).__init__(entity_id, title, updated_date, children)
@@ -289,9 +349,28 @@ class Task(BaseTaskEntity):
         entity = Task()
 
         return entity
+    
+    def __lt__(self, other):
+        # Check for an "undefined" position. This is indicated by a zero value,
+        # and such positions should be considered _greater_ than any other
+        # defined position value.
+        if self.position == 0:
+            return False
+        
+        if self.position < other.position:
+            return True
+        
+        return False
+    
+    def __gt__(self, other):
+        return not self.__lt__(other)
 #------------------------------------------------------------------------------ 
 
 class TaskTest(unittest.TestCase):
+    """
+    TODO: This test case probably needs to include a couple of tests to ensure
+    that equality comparisons (eq, ne) are working properly.
+    """
     def test_to_str_dict(self):
         task_id = "abcid"
         task_title = "task title"
@@ -343,4 +422,39 @@ class TaskTest(unittest.TestCase):
         actual_taskitem = Task.from_str_dict(str_dict)
 
         self.assertEqual(expected_taskitem, actual_taskitem)
+
+    def test_ordering_comparison(self):        
+        """Test the greater than and lesser than comparison operators.
+        
+        This tests Task's implementation of the Python 
+        customization/"magic" methods __gt__ and __lt__. Ordering should be 
+        based upon a case-insensitive, lexicographical comparison of the
+        Task's position, if they have a defined position. 
+        
+        A position of zero 
+        should be considered as undefined and _greater_ than any other defined
+        position. This allows for new Tasks to be created without defining a 
+        position value while still ordering them at the lowest position among
+        their Task sibling group.
+        
+        Arrange:
+            - Create Tasks "1", "02", "3403", "0" (undefined). 
+        Assert:
+            - That the following comparisons are true:
+                - 02 > 1
+                - 02 < 3403
+                - 0 > 1
+                - 0 > 3403
+        """    
+        ### Arrange ###
+        entity_1 = Task(position=1)
+        entity_02 = Task(position=02)
+        entity_3403 = Task(position=3403)
+        entity_undefined = Task()
+
+        ### Assert ###
+        self.assertGreater(entity_02, entity_1)
+        self.assertLess(entity_02, entity_3403)
+        self.assertGreater(entity_undefined, entity_1)
+        self.assertGreater(entity_undefined, entity_3403)
 #------------------------------------------------------------------------------ 
