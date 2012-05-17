@@ -15,7 +15,7 @@ from coggrinder.utilities import GoogleKeywords
 class BaseTaskEntity(DeclaredPropertiesComparable):
     _ARGUMENT_FAIL_MESSAGE = "Provided {0} argument must be of type {1}"
     _properties = (
-            EntityProperty("entity_id", GoogleKeywords.ID), 
+            EntityProperty("entity_id", GoogleKeywords.ID),
             EntityProperty("title", GoogleKeywords.TITLE),
             EntityProperty("updated_date", GoogleKeywords.UPDATED,
                 RFC3339Converter()),
@@ -339,7 +339,7 @@ class Task(BaseTaskEntity):
 
             # Aggregate those properties along with this class' particular
             # property definitions.
-            cls._properties = cls._properties + super_properties            
+            cls._properties = super_properties + cls._properties            
 
         # Return combined properties. 
         return cls._properties
@@ -351,11 +351,17 @@ class Task(BaseTaskEntity):
         return entity
     
     def __lt__(self, other):
+        if self.position == other.position:
+            return super(Task, self).__lt__(other)
+        
         # Check for an "undefined" position. This is indicated by a zero value,
         # and such positions should be considered _greater_ than any other
         # defined position value.
         if self.position == 0:
             return False
+        
+        if other.position == 0:
+            return True
         
         if self.position < other.position:
             return True
@@ -435,26 +441,39 @@ class TaskTest(unittest.TestCase):
         should be considered as undefined and _greater_ than any other defined
         position. This allows for new Tasks to be created without defining a 
         position value while still ordering them at the lowest position among
-        their Task sibling group.
+        their Task sibling group. 
+        
+        If the positions are equal, the comparison 
+        should be between the lexicographical ordering of the title.
         
         Arrange:
-            - Create Tasks "1", "02", "3403", "0" (undefined). 
+            - Create Tasks "1", "02", "3403", "0" (undefined), "0" but with a
+            title defined of Foo and Bar. 
         Assert:
             - That the following comparisons are true:
                 - 02 > 1
                 - 02 < 3403
                 - 0 > 1
                 - 0 > 3403
+                - 0 Foo > 0 Bar 
         """    
         ### Arrange ###
         entity_1 = Task(position=1)
         entity_02 = Task(position=02)
         entity_3403 = Task(position=3403)
         entity_undefined = Task()
+        entity_undefined_foo = Task(title="Foo")
+        entity_undefined_bar = Task(title="Bar")
 
         ### Assert ###
-        self.assertGreater(entity_02, entity_1)
-        self.assertLess(entity_02, entity_3403)
-        self.assertGreater(entity_undefined, entity_1)
-        self.assertGreater(entity_undefined, entity_3403)
+        self.assertRichComparison(entity_1, entity_02)
+        self.assertRichComparison(entity_02, entity_3403)
+        self.assertRichComparison(entity_1, entity_undefined)
+        self.assertRichComparison(entity_3403, entity_undefined)
+        self.assertRichComparison(entity_undefined_bar, entity_undefined_foo)
+        
+    def assertRichComparison(self, lesser, greater):
+        self.assertNotEqual(greater, lesser)
+        self.assertGreater(greater, lesser)
+        self.assertLess(lesser, greater)
 #------------------------------------------------------------------------------ 
