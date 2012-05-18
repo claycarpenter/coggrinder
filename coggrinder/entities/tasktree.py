@@ -336,7 +336,6 @@ class TaskTree(Tree):
         for i in range(0, len(sorted_child_nodes)):
             sorted_child_node = sorted_child_nodes[i]
             current_node.children[i] = sorted_child_node
-            sorted_child_node.path = current_node.path + (i,)
             
             self.sort(sorted_child_node)
 

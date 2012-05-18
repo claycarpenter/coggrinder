@@ -45,7 +45,6 @@ class Tree(DeclaredPropertiesComparable):
                 raise DuplicateRootError()
 
         new_child_index = len(parent_node.children)
-        new_node.path = parent_node.path + (new_child_index,)
         new_node.parent = parent_node
 
         parent_node.children.append(new_node)
@@ -257,11 +256,6 @@ class Tree(DeclaredPropertiesComparable):
         child_node = TreeNode(parent_node, node_indices)
         parent_node.children.insert(child_index, child_node)
 
-        # Update the paths of any moved nodes.
-        for index in range(child_index, len(parent_node.children)):
-            updated_node = parent_node.children[index]
-            updated_node.path = parent_node.path + (index,)
-
         return child_node
 
     def move_node(self, new_parent_node, node):
@@ -329,13 +323,7 @@ class Tree(DeclaredPropertiesComparable):
     def remove_node(self, node):
         try:
             node_parent = node.parent
-            node_parent.children.remove(node)
-            
-            # Update the paths of any siblings of the deleted node. This 
-            # ensures
-            for sibling_node in node_parent.children:
-                position_index = node_parent.children.index(sibling_node)
-                sibling_node.path = node_parent.path + (position_index,)
+            node_parent.children.remove(node)            
         except IndexError:
             raise NodeNotFoundError(node.path)
 
@@ -446,30 +434,28 @@ class TreeNode(DeclaredPropertiesComparable):
     """Simple tree node that contains a value and allows traversal up (towards
     root), down (to children), previous and next.
     """
-    """
-    TODO: Wipe out irrelevant path argument.
-    """
-    def __init__(self, parent=None, path=None, value=None):
+    def __init__(self, parent=None, value=None):
         """Create the node with a parent and option value.
 
         Args:
+            parent: The parent TreeNode of this node, or None if the parent
+                is the Tree itself (i.e., this is the root node).
             value: The value to be stored at this tree node.
         """
         self.parent = parent
         self.value = value
-
         self.children = list()
         
     def _get_path(self):
         if self.parent is None:
-            # Special case for root...?
+            # Special case for root.
             return ()
         
         # Must try to identify child position via instance identity rather
         # than using list.index() because it appears that the index() method
         # uses equality for testing, which then creates a recursive loop when
         # comparing the path property of two nodes.
-        for i in range(0,len(self.parent.children)):
+        for i in range(0, len(self.parent.children)):
             child = self.parent.children[i]
             if child is self:
                 node_index = i
@@ -479,11 +465,8 @@ class TreeNode(DeclaredPropertiesComparable):
             raise Exception("Could not identify self in parent's children.")
         
         return self.parent.path + (node_index,)
-    
-    def _set_path(self, path):
-        pass
         
-    path = property(_get_path, _set_path)
+    path = property(_get_path)
 
     def has_children(self):
         if len(self.children) > 0:
@@ -919,7 +902,7 @@ class PopulatedTreeTest(unittest.TestCase):
 
         ### Assert ###
         first_child_node = tree.get_node(expected_node_b.path)
-        self.assertEqual(expected_node_b,first_child_node) 
+        self.assertEqual(expected_node_b, first_child_node) 
         self.assertEqual(expected_tree, tree)
 
     def test_remove_root(self):
@@ -2065,14 +2048,11 @@ class TreeNodeEqualityTest(unittest.TestCase):
         """
         ### Arrange ###
         expected_parent = None
-        expected_path = ()
         expected_value = "root"
 
         ### Act ###
-        treenode_one = TreeNode(parent=expected_parent, path=expected_path,
-            value=expected_value)
-        treenode_two = TreeNode(parent=expected_parent, path=expected_path,
-            value=expected_value)
+        treenode_one = TreeNode(parent=expected_parent, value=expected_value)
+        treenode_two = TreeNode(parent=expected_parent, value=expected_value)
 
         ### Assert ###
         self.assertEqual(treenode_one, treenode_two)
@@ -2082,7 +2062,7 @@ class TreeNodeEqualityTest(unittest.TestCase):
         equal.
 
         Arrange:
-            Establish expected parent, path, value property values sets for
+            Establish expected parent, value property values sets for
             both nodes.
         Act:
             Create TreeNode one with expected values.
@@ -2092,14 +2072,13 @@ class TreeNodeEqualityTest(unittest.TestCase):
         """
         ### Arrange ###
         expected_parent = None
-        expected_path = ()
         expected_value_one = "root 1"
         expected_value_two = "root 2"
 
         ### Act ###
-        treenode_one = TreeNode(parent=expected_parent, path=expected_path,
+        treenode_one = TreeNode(parent=expected_parent,
             value=expected_value_one)
-        treenode_two = TreeNode(parent=expected_parent, path=expected_path,
+        treenode_two = TreeNode(parent=expected_parent,
             value=expected_value_two)
 
         ### Assert ###
@@ -2122,7 +2101,7 @@ class TreeNodeEqualityTest(unittest.TestCase):
             - A
 
         Arrange:
-            Establish expected parent, path, value property values sets for
+            Establish expected parent and value property values sets for
             all nodes.
         Act:
             Create both TreeNode architectures as documented above.
@@ -2135,15 +2114,15 @@ class TreeNodeEqualityTest(unittest.TestCase):
         b_value = "b"
 
         ### Act ###
-        tn_one_parent = TreeNode(parent=None, path=(), value=parent_value)
-        tn_one_a = TreeNode(parent=tn_one_parent, path=(0), value=a_value)
-        tn_one_b = TreeNode(parent=tn_one_parent, path=(1), value=b_value)
+        tn_one_parent = TreeNode(parent=None, value=parent_value)
+        tn_one_a = TreeNode(parent=tn_one_parent, value=a_value)
+        tn_one_b = TreeNode(parent=tn_one_parent, value=b_value)
         tn_one_parent.children.append(tn_one_a)
         tn_one_parent.children.append(tn_one_b)
 
-        tn_two_parent = TreeNode(parent=None, path=(), value=parent_value)
-        tn_two_b = TreeNode(parent=tn_two_parent, path=(0), value=b_value)
-        tn_two_a = TreeNode(parent=tn_two_parent, path=(1), value=a_value)
+        tn_two_parent = TreeNode(parent=None, value=parent_value)
+        tn_two_b = TreeNode(parent=tn_two_parent, value=b_value)
+        tn_two_a = TreeNode(parent=tn_two_parent, value=a_value)
         tn_two_parent.children.append(tn_two_b)
         tn_two_parent.children.append(tn_two_a)
 
