@@ -59,6 +59,30 @@ class TaskTree(Tree):
             tasklists[tasklist.entity_id] = tasklist
             
         return tasklists
+    
+    @property
+    def task_data(self):
+        """Returns a collection of all entities currently held by the TaskTree.
+        
+        This collection is in the form of a dictionary. The dictionary keys 
+        are the entity IDs, while the values are the corresponding entity 
+        instances.
+        
+        Note: this collection is dynamically built upon each call. If calling
+        code knows that the data underlying a TaskTree won't be modified, it 
+        might make sense to cache the result of this property call.        
+        """
+        task_data = dict()
+        
+        """
+        This collection is built dynamically to simplify the maintenance of
+        accurate entity id-entity mappings. By using the entity id-node map, 
+        it allows the class to only maintain a single mapping registry.
+        """        
+        for entity_id in self.all_entity_ids:
+            task_data[entity_id] = self._entity_node_map[entity_id].value
+        
+        return task_data
 
     def _build_tree(self, task_data):
         """Build the full tree from the task data."""
@@ -387,29 +411,6 @@ class TaskTreeTest(unittest.TestCase):
 
         ### Assert ###
         self.assertEqual(tasktree_one, tasktree_two)
-
-    # TODO: Finish this test.
-    @unittest.skip("Test yet to be completed.")
-    def test_tree_creation_bad_data(self):
-        """Test creating a TaskTree without providing an adequate Tasks data
-        collection.
-
-        If a TaskList collection is supplied, then there must be a Tasks dict
-        provided that has a key for every TaskList ID.
-
-        Arrange:
-
-        Act:
-
-        Assert:
-
-        """
-        ### Arrange ###
-
-        ### Act ###
-
-        ### Assert ###
-        self.assertTrue(False)
         
     def test_simple_task_data_tree_creation(self):
         """Test the creation of a TaskTree with a simple and small task data
@@ -450,6 +451,38 @@ class TaskTreeTest(unittest.TestCase):
         
         ### Assert ###
         self.assertEqual(expected_tasktree, actual_tasktree)
+        
+    def test_task_data_property(self):
+        """Test the accuracy of the TaskTree .task_data property.
+        
+        The .task_data property should accurately reflect all entities 
+        currently held within the TaskTree.
+        
+        Arrange:
+            - Create expected entities TaskList A, Task B.
+            - Create expected task data dict.
+        Act:
+            - Create TaskTree.
+            - Add clones of expected entities to TaskTree.
+            - Get TaskTree.task_data
+        Assert:
+            - Expected and actual task data collections are identical.
+        """
+        ### Arrange ###
+        expected_tl_a = TestDataTaskList('A')
+        expected_t_b = TestDataTask('B', tasklist_id=expected_tl_a.entity_id)
+        expected_task_data = {expected_tl_a.entity_id:expected_tl_a,
+            expected_t_b.entity_id:expected_t_b}
+        
+        ### Act ###
+        tasktree = TaskTree()
+        tasktree.add_entity(copy.deepcopy(expected_tl_a))
+        tasktree.add_entity(copy.deepcopy(expected_t_b))
+        
+        actual_task_data = tasktree.task_data
+        
+        ### Assert ###
+        self.assertEqual(expected_task_data, actual_task_data)
 #------------------------------------------------------------------------------ 
 
 class TaskTreeSortTest(unittest.TestCase):
@@ -1411,7 +1444,7 @@ class TestDataEntitySupportTest(unittest.TestCase):
         """
         ### Arrange ###
         expected_full_title = "Task A-C-C"
-        short_title_sections= ['A','C','C']
+        short_title_sections = ['A', 'C', 'C']
         
         ### Act ###
         actual_full_title = TestDataEntitySupport.create_full_title(Task, *short_title_sections)
@@ -1436,7 +1469,7 @@ class TestDataEntitySupportTest(unittest.TestCase):
         """
         ### Arrange ###
         expected_id = "task-a-c-c"
-        short_title_sections= ['A','C','C']
+        short_title_sections = ['A', 'C', 'C']
         
         ### Act ###
         actual_id = TestDataEntitySupport.short_title_to_id(Task, *short_title_sections)
