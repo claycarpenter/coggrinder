@@ -605,7 +605,7 @@ class TaskTreeSortTest(unittest.TestCase):
         ### Arrange ###        
         expected_tasklist_bar = TestDataTaskList("Bar")
         expected_tasklist_car = copy.deepcopy(expected_tasklist_bar)
-        expected_tasklist_car.title = TestDataEntitySupport.create_full_title("Car", TestDataTaskList)
+        expected_tasklist_car.title = TestDataEntitySupport.create_full_title(TestDataTaskList, "Car")
         expected_tasklist_baz = TestDataTaskList("Baz")
         expected_tasklist_foo = TestDataTaskList("Foo")
                 
@@ -1155,7 +1155,7 @@ class UpdatedDateFilteredTaskList(TaskList):
 class TestDataTaskList(TaskList):
     def __init__(self, short_title, **kwargs):
         # Create a full title from the provided short title.
-        title = TestDataEntitySupport.create_full_title(short_title, self.__class__)
+        title = TestDataEntitySupport.create_full_title(self.__class__, short_title)
 
         # Create an entity id from the full title.
         entity_id = TestDataEntitySupport.convert_title_to_id(title)
@@ -1166,7 +1166,7 @@ class TestDataTaskList(TaskList):
     @classmethod
     def convert_short_title_to_id(cls, short_title):
         # Create a full title from the provided short title.
-        title = TestDataEntitySupport.create_full_title(short_title, cls)
+        title = TestDataEntitySupport.create_full_title(cls, short_title)
 
         # Create an entity id from the full title.
         entity_id = TestDataEntitySupport.convert_title_to_id(title)
@@ -1227,7 +1227,7 @@ class TestDataTaskListTest(unittest.TestCase):
 class TestDataTask(Task):
     def __init__(self, short_title, **kwargs):
         # Create a full title from the provided short title.
-        title = TestDataEntitySupport.create_full_title(short_title, self.__class__)
+        title = TestDataEntitySupport.create_full_title(self.__class__, short_title)
 
         # Create an entity id from the full title.
         entity_id = self.convert_short_title_to_id(short_title)
@@ -1242,7 +1242,7 @@ class TestDataTask(Task):
     @classmethod
     def convert_short_title_to_id(cls, short_title):
         # Create a full title from the provided short title.
-        title = TestDataEntitySupport.create_full_title(short_title, cls)
+        title = TestDataEntitySupport.create_full_title(cls, short_title)
 
         # Create an entity id from the full title.
         entity_id = TestDataEntitySupport.convert_title_to_id(title)
@@ -1309,6 +1309,8 @@ class UpdatedDateIgnoredTestDataTask(TestDataTask, UpdatedDateFilteredTask):
 #------------------------------------------------------------------------------ 
 
 class TestDataEntitySupport(object):
+    TITLE_SECTION_DIVIDER = "-"
+    
     @staticmethod
     def convert_title_to_id(title):
         # Convert to lowercase.
@@ -1320,9 +1322,14 @@ class TestDataEntitySupport(object):
         return entity_id
 
     @staticmethod
-    def create_full_title(short_title, entity_class):
+    def create_full_title(entity_class, *short_title_sections):    
         # Get the short name of the entity.
         entity_class_name = entity_class.__name__
+
+        # Create full short title by combining short title sections with a
+        # special divider character.
+        short_title = TestDataEntitySupport.TITLE_SECTION_DIVIDER.join(
+            short_title_sections)
 
         # Create a full title by combining the entity's class name and the
         # short title provided.
@@ -1356,7 +1363,7 @@ class TestDataEntitySupportTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_id, actual_id)
 
-    def test_create_full_title_task(self):
+    def test_create_task_full_title(self):
         """Test creating a full title for a Task entity.
 
         Should produce a full title of "Task A" from a short title of
@@ -1373,7 +1380,32 @@ class TestDataEntitySupportTest(unittest.TestCase):
         expected_full_title = "Task A"
 
         ### Act ###
-        actual_full_title = TestDataEntitySupport.create_full_title("A", Task)
+        actual_full_title = TestDataEntitySupport.create_full_title(Task, "A")
+
+        ### Assert ###
+        self.assertEqual(expected_full_title, actual_full_title)
+
+    def test_create_task_full_title_from_sections(self):
+        """Test creating a full title for a Task entity from a series of short
+        title sections.
+
+        Should produce a full title of "Task A-C-C" from the short title 
+        sections 'A','C','C'.
+
+        Arrange:
+            - Create expected full title "Task A-C-C".
+            - Create short title sections 'A-C-C'.
+        Act:
+            - Convert the short title sections to the actual full title.
+        Assert:
+            - That the expected and actual full titles are the same.
+        """
+        ### Arrange ###
+        expected_full_title = "Task A-C-C"
+        short_title_sections= ['A','C','C']
+        
+        ### Act ###
+        actual_full_title = TestDataEntitySupport.create_full_title(Task, *short_title_sections)
 
         ### Assert ###
         self.assertEqual(expected_full_title, actual_full_title)
@@ -1541,7 +1573,7 @@ class TaskDataTestSupportTest(unittest.TestCase):
         """
         ### Arrange ###
         expected_tasklist_a = TestDataTaskList("A")
-        expected_task_acc = TestDataTask("A-C-C",tasklist_id=expected_tasklist_a.entity_id, parent_id="testdatatask-a-c")
+        expected_task_acc = TestDataTask("A-C-C", tasklist_id=expected_tasklist_a.entity_id, parent_id="testdatatask-a-c")
             
         ### Act ###
         tasktree = TaskDataTestSupport.create_dynamic_tasktree(
