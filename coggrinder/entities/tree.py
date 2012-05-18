@@ -431,8 +431,14 @@ class Tree(DeclaredPropertiesComparable):
 #------------------------------------------------------------------------------ 
 
 class TreeNode(DeclaredPropertiesComparable):
-    """Simple tree node that contains a value and allows traversal up (towards
-    root), down (to children), previous and next.
+    """Simple tree node that contains an arbitrary value and allows 
+    traversal up (towards root) and down (to children).
+    
+    The parent node (node above) the node is referred to in the parent
+    property. The nodes belonging to this node are held in the children 
+    collection. The root node of a tree should contain a None value for the 
+    parent reference, and should be the only node in that tree with such a 
+    reference. 
     """
     def __init__(self, parent=None, value=None):
         """Create the node with a parent and option value.
@@ -461,8 +467,7 @@ class TreeNode(DeclaredPropertiesComparable):
                 node_index = i
                 break
         else:
-            # TODO: Make this exception clearer, better.
-            raise Exception("Could not identify self in parent's children.")
+            raise NodeRelationshipError()
         
         return self.parent.path + (node_index,)
         
@@ -489,6 +494,13 @@ class NodeNotFoundError(Exception):
         Exception.__init__(self,
             "Node could not be found at path {0}".format(node_path))
 #------------------------------------------------------------------------------
+
+class NodeRelationshipError(Exception):
+    def __init(self, message=None):
+        if message is None:
+            message = "Node could not identify self in the collection of children held by the node's parent." 
+        Exception.__init__(self, message)
+#------------------------------------------------------------------------------ 
 
 class DuplicateRootError(Exception):
     def __init__(self):
