@@ -446,6 +446,9 @@ class TreeNode(DeclaredPropertiesComparable):
     """Simple tree node that contains a value and allows traversal up (towards
     root), down (to children), previous and next.
     """
+    """
+    TODO: Wipe out irrelevant path argument.
+    """
     def __init__(self, parent=None, path=None, value=None):
         """Create the node with a parent and option value.
 
@@ -453,10 +456,34 @@ class TreeNode(DeclaredPropertiesComparable):
             value: The value to be stored at this tree node.
         """
         self.parent = parent
-        self.path = path
         self.value = value
 
         self.children = list()
+        
+    def _get_path(self):
+        if self.parent is None:
+            # Special case for root...?
+            return ()
+        
+        # Must try to identify child position via instance identity rather
+        # than using list.index() because it appears that the index() method
+        # uses equality for testing, which then creates a recursive loop when
+        # comparing the path property of two nodes.
+        for i in range(0,len(self.parent.children)):
+            child = self.parent.children[i]
+            if child is self:
+                node_index = i
+                break
+        else:
+            # TODO: Make this exception clearer, better.
+            raise Exception("Could not identify self in parent's children.")
+        
+        return self.parent.path + (node_index,)
+    
+    def _set_path(self, path):
+        pass
+        
+    path = property(_get_path, _set_path)
 
     def has_children(self):
         if len(self.children) > 0:
