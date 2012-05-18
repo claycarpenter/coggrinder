@@ -1337,6 +1337,16 @@ class TestDataEntitySupport(object):
             class_name=entity_class_name, short_title=short_title)
 
         return full_title
+    
+    @staticmethod
+    def short_title_to_id(entity_class, *short_title_sections):
+        # Create the full title for the entity.
+        full_title = TestDataEntitySupport.create_full_title(entity_class, *short_title_sections)
+        
+        # Convert title to an ID.
+        entity_id = TestDataEntitySupport.convert_title_to_id(full_title)
+        
+        return entity_id
 #------------------------------------------------------------------------------ 
 
 class TestDataEntitySupportTest(unittest.TestCase):
@@ -1409,6 +1419,31 @@ class TestDataEntitySupportTest(unittest.TestCase):
 
         ### Assert ###
         self.assertEqual(expected_full_title, actual_full_title)
+
+    def test_short_title_to_id_from_title_sections(self):
+        """Test creating an entity ID for a Task entity from a series of short
+        title sections.
+
+        Should produce an entity ID of "task-a-c-c" from the short title 
+        sections 'A','C','C'.
+
+        Arrange:
+            - Create expected full title "Task A-C-C".
+            - Create short title sections 'A-C-C'.
+        Act:
+            - Convert the short title sections to the actual entity ID.
+        Assert:
+            - That the expected and actual entity IDs are the same.
+        """
+        ### Arrange ###
+        expected_id = "task-a-c-c"
+        short_title_sections= ['A','C','C']
+        
+        ### Act ###
+        actual_id = TestDataEntitySupport.short_title_to_id(Task, *short_title_sections)
+
+        ### Assert ###
+        self.assertEqual(expected_id, actual_id)
 #------------------------------------------------------------------------------ 
 
 class TaskDataTestSupport(object):
