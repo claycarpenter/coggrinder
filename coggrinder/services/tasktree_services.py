@@ -109,10 +109,7 @@ class TaskTreeService(object):
     def delete_entity(self, entity):
         # Child Tasks are deleted along with the TaskList, apparently. At the 
         # very least, they're apparently inaccessible. 
-        self.tree.remove_entity(entity, remove_children=True)
-
-    def delete_task(self, task):
-        self.tree.remove_entity(task)
+        self.tree.remove_entity(entity)
 
     def revert_task_data(self):
         self._current_tree = copy.deepcopy(self._original_tasktree)
