@@ -1484,9 +1484,19 @@ class TaskDataTestSupport(object):
 class TaskTreeComparator(object):
     @classmethod
     def find_added_ids(cls, baseline_tree, altered_tree):
+        # Find all entity IDs that are present in the altered tree but not in
+        # the baseline tree.
         added_ids = altered_tree.all_entity_ids - baseline_tree.all_entity_ids
         
         return added_ids
+    
+    @classmethod
+    def find_deleted_ids(cls, baseline_tree, altered_tree):
+        # Find all entity IDs that were present in the baseline tree but are
+        # missing in the altered tree.
+        deleted_ids = baseline_tree.all_entity_ids - altered_tree.all_entity_ids
+        
+        return deleted_ids
 #------------------------------------------------------------------------------ 
 
 class TaskTreeComparatorTest(ManagedFixturesTestSupport, unittest.TestCase):
@@ -1569,9 +1579,8 @@ class TaskTreeComparatorTest(ManagedFixturesTestSupport, unittest.TestCase):
 
         ### Assert ###
         self.assertEqual(set(), actual_added_ids)
-    
-    @unittest.expectedFailure
-    def test_find_deleted(self):
+
+    def test_find_deleted_tasks(self):
         """Test that the TaskTreeComparator can identify any entities that 
         were removed from a TaskTree.
 
@@ -1602,14 +1611,14 @@ class TaskTreeComparatorTest(ManagedFixturesTestSupport, unittest.TestCase):
         self.current_tasktree.remove_entity(task_b)
         self.current_tasktree.remove_entity(task_d)
         
-        expected_added_ids = set([task_b.entity_id, task_d.entity_id])
+        expected_deleted_ids = set([task_b.entity_id, task_d.entity_id])
 
         ### Act ###
-        actual_added_ids = self.comparator.find_added(self.original_tasktree,
+        actual_deleted_ids = self.comparator.find_deleted_ids(self.original_tasktree,
             self.current_tasktree)
 
         ### Assert ###
-        self.assertEqual(expected_added_ids, actual_added_ids)
+        self.assertEqual(expected_deleted_ids, actual_deleted_ids)
 #------------------------------------------------------------------------------
 
 class TaskDataError(Exception):
