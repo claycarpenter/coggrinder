@@ -75,6 +75,9 @@ class TaskTreeWindowController(object):
         
         # Update the task tree UI with the scrubbed task data.
         self.refresh_task_view()
+        
+        # Update the toolbar button states.
+        self.view.update_button_states()
 
     def _handle_add_list_event(self, button):
         # Create the new (blank) tasklist, and add it to the task tree.
@@ -316,6 +319,10 @@ class TaskTreeWindow(Gtk.Window):
     
     def reset_treeview_state(self):
         self.treeview_controller.reset_treeview_state()
+        
+    def update_button_states(self):
+        selection_state = self.treeview_controller.selection_state
+        self.toolbar_controller.selection_state_changed(selection_state)
 #------------------------------------------------------------------------------ 
 
 class TaskToolbarViewController(object):
@@ -378,8 +385,8 @@ class TaskToolbarViewController(object):
         self.view.configure_button.connect("clicked",
             self.configure_button_clicked.fire)
 
-    def selection_state_changed(self, tasklist_selection_state, task_selection_state):
-        self.view.update_button_states(tasklist_selection_state, task_selection_state)
+    def selection_state_changed(self, tasktree_selection_state):
+        self.view.update_button_states(tasktree_selection_state)
 #------------------------------------------------------------------------------ 
 
 class TaskToolbarView(Gtk.HBox):
@@ -514,22 +521,25 @@ class TaskToolbarView(Gtk.HBox):
     This would be hard to move to the toolbar view because it requires
     checking the selection state of the TaskTreeView.
     """
-    def update_button_states(self, tasklist_selection_state, task_selection_state):
-        # Only enable when single tasklist is selected.
-        self.remove_list_button.set_state(tasklist_selection_state == TaskTreeViewController.SelectionState.SINGLE)
+    def update_button_states(self, tasktree_selection_state):        
+        # Only enable when single TaskList is selected.
+        self.remove_list_button.set_state(
+            tasktree_selection_state.tasklist_selection_state == TaskTreeSelectionState.SINGLE)
 
         # Only show add task when a single row/entity--either task or 
-        # tasklist--is selected:
-        # -- Task single and tasklist none or
-        # -- Task none and tasklist single
+        # TaskList--is selected:
+        # -- Task single and TaskList none or
+        # -- Task none and TaskList single
         add_task_button_enabled = False
-        if (task_selection_state == TaskTreeViewController.SelectionState.SINGLE and tasklist_selection_state == TaskTreeViewController.SelectionState.NONE) or (task_selection_state == TaskTreeViewController.SelectionState.NONE and tasklist_selection_state == TaskTreeViewController.SelectionState.SINGLE):
+        if ((tasktree_selection_state.task_selection_state == TaskTreeSelectionState.SINGLE and tasktree_selection_state.tasklist_selection_state == TaskTreeSelectionState.NONE) 
+            or (tasktree_selection_state.task_selection_state == TaskTreeSelectionState.NONE and tasktree_selection_state.tasklist_selection_state == TaskTreeSelectionState.SINGLE)):
             add_task_button_enabled = True
+            
         self.add_task_button.set_state(add_task_button_enabled)
 
         # Show whenever task or tasks are selected, regardless of tasklist.
         task_detail_buttons_enabled = False
-        if task_selection_state != TaskTreeViewController.SelectionState.NONE:
+        if tasktree_selection_state.task_selection_state != TaskTreeSelectionState.NONE:
             task_detail_buttons_enabled = True
         self.edit_task_button.set_state(task_detail_buttons_enabled)
         self.complete_task_button.set_state(task_detail_buttons_enabled)
@@ -576,6 +586,10 @@ class TaskTreeViewController(object):
         # TODO: Document the expected keys and values for this dict; how it
         # will be used.
         self.tree_states = dict()
+        
+        # Establish an initial selection state (reflecting no entities 
+        # selected).
+        self.selection_state = TaskTreeSelectionState()
 
         # Set default for clearing flag. This flag is used to help ignore 
         # "system" selection change events that seem to occur during the 
@@ -651,7 +665,8 @@ class TaskTreeViewController(object):
 #        if is_expanded:
 
     def get_selected_entities(self):
-        assert (not self._tasklist_selection_state == self.SelectionState.NONE or not self._task_selection_state == self.SelectionState.NONE)
+        assert (not self.selection_state.tasklist_selection_state == TaskTreeSelectionState.NONE 
+            or not self.selection_state.task_selection_state == TaskTreeSelectionState.NONE)
 
         # Ensure tree state information is up to date.
         self._rebuild_tree_state()
@@ -784,8 +799,7 @@ class TaskTreeViewController(object):
 
         selected_rows = selection_data.get_selected_rows()[1]
 
-        self._selected_tasks = list()
-        self._selected_tasklists = list()
+        self.selection_state = TaskTreeSelectionState()
 
         # Count the tasklists and tasks in the selection.
         for new_selected_row in selected_rows:
@@ -794,42 +808,42 @@ class TaskTreeViewController(object):
 
             if isinstance(selected_entity, TaskList):
                 # This row represents a Tasklist.
-                self._selected_tasklists.append(selected_entity)
+                self.selection_state.selected_tasklists.append(selected_entity)
             elif isinstance(selected_entity, Task):
                 # This row represents a Task.
-                self._selected_tasks.append(selected_entity)
+                self.selection_state.selected_tasks.append(selected_entity)
 
-        if len(self._selected_tasklists) == 1:
-            self._tasklist_selection_state = TaskTreeViewController.SelectionState.SINGLE
-        elif len(self._selected_tasklists) > 1:
-            self._tasklist_selection_state = TaskTreeViewController.SelectionState.MULTIPLE_HETERGENOUS
+        if len(self.selection_state.selected_tasklists) == 1:
+            self.selection_state.tasklist_selection_state = TaskTreeSelectionState.SINGLE
+        elif len(self.selection_state.selected_tasklists) > 1:
+            self.selection_state.tasklist_selection_state = TaskTreeSelectionState.MULTIPLE_HETERGENOUS
         else:
-            self._tasklist_selection_state = TaskTreeViewController.SelectionState.NONE
+            self.selection_state.tasklist_selection_state = TaskTreeSelectionState.NONE
 
-        if len(self._selected_tasks) == 1:
-            self._task_selection_state = TaskTreeViewController.SelectionState.SINGLE
-        elif len(self._selected_tasks) > 1:
+        if len(self.selection_state.selected_tasks) == 1:
+            self.selection_state.task_selection_state = TaskTreeSelectionState.SINGLE
+        elif len(self.selection_state.selected_tasks) > 1:
             # Determine if all selected tasks belong to the same tasklist or
             # not.
             is_homogenous = True
             prev_tasklist_id = None
-            for selected_task in self._selected_tasks:
+            for selected_task in self.selection_state.selected_tasks:
                 if prev_tasklist_id is not None and selected_task.tasklist_id != prev_tasklist_id:
                     is_homogenous = False
                     break
 
             if is_homogenous:
-                self._task_selection_state = TaskTreeViewController.SelectionState.MULTIPLE_HOMOGENOUS
+                self.selection_state.task_selection_state = TaskTreeSelectionState.MULTIPLE_HOMOGENOUS
             else:
-                self._task_selection_state = TaskTreeViewController.SelectionState.MULTIPLE_HETERGENOUS
+                self.selection_state.task_selection_state = TaskTreeSelectionState.MULTIPLE_HETERGENOUS
         else:
-            self._task_selection_state = TaskTreeViewController.SelectionState.NONE
+            self.selection_state.task_selection_state = TaskTreeSelectionState.NONE
 
         # Notify any listeners of the change in selection state.
         # TODO: Make this a bit smarter/more efficient by only firing when the
         # selection state actually changes, instead of on every selection 
         # event.
-        self.selection_state_changed.fire(self._tasklist_selection_state, self._task_selection_state)
+        self.selection_state_changed.fire(self.selection_state)
 
     class TreeState(object):
         """
@@ -839,12 +853,25 @@ class TaskTreeViewController(object):
         def __init__(self, is_expanded=False, is_selected=False):
             self.is_expanded = is_expanded
             self.is_selected = is_selected
+#------------------------------------------------------------------------------ 
 
-    class SelectionState(object):
-            NONE = 0
-            SINGLE = 1
-            MULTIPLE_HOMOGENOUS = 2 # All in same tasklist
-            MULTIPLE_HETERGENOUS = 3 # In different tasklists
+class TaskTreeSelectionState(object):
+    NONE = 0
+    SINGLE = 1
+    # All selections are in the same tasklist.
+    MULTIPLE_HOMOGENOUS = 2 
+    # Selections are spread across multiple tasklists.
+    MULTIPLE_HETERGENOUS = 3 
+            
+    def __init__(self):
+        self.tasklist_selection_state = TaskTreeSelectionState.NONE
+        self.task_selection_state = TaskTreeSelectionState.NONE
+        self.selected_tasks = list()
+        self.selected_tasklists = list()
+        
+    @property
+    def selected_entities(self):
+        return self.selected_tasks + self.selected_tasklists
 #------------------------------------------------------------------------------ 
 
 class TaskTreeView(Gtk.TreeView):
