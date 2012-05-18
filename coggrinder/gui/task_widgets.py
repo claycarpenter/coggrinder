@@ -73,7 +73,7 @@ class TaskTreeWindowController(object):
         # Clear away any existing tree state (selections and row expansions).
         self.reset_treeview_state()
         
-        # Update the UI with the scrubbed task data.
+        # Update the task tree UI with the scrubbed task data.
         self.refresh_task_view()
 
     def _handle_add_list_event(self, button):
@@ -88,13 +88,13 @@ class TaskTreeWindowController(object):
         self.view.set_entity_editable(new_tasklist)
 
     def _handle_remove_list_event(self, button):
-        # Locate the selected tasklist.
+        # Locate the selected TaskList.
         selected_entities = self.view.get_selected_entities()
-        assert len(selected_entities) == 1, "Should only allow a single tasklist to be selected for deletion."
+        assert len(selected_entities) == 1, "Should only allow a single TaskList to be selected for deletion."
         tasklist = selected_entities[0]
 
-        # Delete the tasklist.
-        self._tasktree_service.delete_tasklist(tasklist)
+        # Delete the TaskList.
+        self._tasktree_service.delete_entity(tasklist)
 
         # Refresh the task data, tree.
         self.refresh_task_view()
@@ -157,7 +157,7 @@ class TaskTreeWindowController(object):
         # Keep track of the child tasks that have their parent updated, as 
         # they will need to be updated as well.
         for selected_task in selected_tasks:
-            self._tasktree_service.delete_task(selected_task)
+            self._tasktree_service.delete_entity(selected_task)
 
         # Update the UI.
         self.refresh_task_view()
