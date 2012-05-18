@@ -310,9 +310,6 @@ class TaskTree(Tree):
         # Remove the node from the entity id-to-node registry.
         self._deregister_entity_node(entity_node)
         
-        # Remove the node from the tree. 
-        self.remove_node(entity_node)
-        
         if len(entity_node.path) > 2:
             # This entity is not a TaskList, so move all of the children up to
             # the position of the deleted entity. 
@@ -323,6 +320,9 @@ class TaskTree(Tree):
             for child_node in reversed(entity_node.children):
                 child_node = self.insert(entity_node.path, child_node.value)
                 self._register_entity_node(child_node)
+        
+        # Remove the node from the tree. 
+        self.remove_node(entity_node)
             
     def sort(self, current_node=None):
         if current_node is None:
@@ -1438,7 +1438,7 @@ class TaskDataTestSupport(object):
     def create_tasktree(cls, tasklist_type=TaskList, task_type=Task):
         """This will establish a two-level tree of task data.
 
-        The tree consists of a single TaskList A, with child Tasks t-B..t-F.
+        The tree consists of a single TaskList A, with child Tasks B..F.
         The data should create a tree with the following architecture:
 
         - tl-A
@@ -1479,8 +1479,82 @@ class TaskDataTestSupport(object):
         tasktree = TaskTree(tasklists=tasklists, all_tasks=all_tasks)
 
         return tasktree
+    
+    @classmethod
+    def create_dynamic_tasktree(cls, tasklist_type=TestDataTaskList,
+        task_type=TestDataTask, siblings_count=3,
+        tree_depth=3):
+        
+        tasklists = dict()
+        all_tasks = dict()
+        
+        for tl_i in range(0, siblings_count):
+            tasklist_short_title = string.ascii_uppercase[tl_i]
+            tasklist = tasklist_type(tasklist_short_title)
+            tasklists[tasklist.entity_id] = tasklist
+                      
+            tasklist_tasks = cls._create_task_branch(task_type,
+                tasklist_short_title, tasklist.entity_id, None,
+                siblings_count, tree_depth - 1, 1)
+            all_tasks[tasklist.entity_id] = tasklist_tasks
+            
+        tasktree = TaskTree(tasklists=tasklists, all_tasks=all_tasks)
+        return tasktree
+    
+    @classmethod
+    def _create_task_branch(cls, task_type, parent_title, tasklist_id,
+        parent_task_id, siblings_count, tree_depth, current_depth):
+        
+        tasks = dict()
+        
+        for t_i in range(0, siblings_count):
+            task_short_title = parent_title + "-" + string.ascii_uppercase[t_i]
+            task = task_type(task_short_title, tasklist_id=tasklist_id,
+                parent_id=parent_task_id)
+            
+            tasks[task.entity_id] = task
+            
+            if current_depth < tree_depth:
+                child_tasks = cls._create_task_branch(task_type,
+                    task_short_title, tasklist_id, task.entity_id,
+                    siblings_count, tree_depth, current_depth + 1)
+                tasks.update(child_tasks)
+        
+        return tasks
 #------------------------------------------------------------------------------
 
+class TaskDataTestSupportTest(unittest.TestCase):
+    def test_create_dynamic_tasktree(self):
+        """Test the creation of a "4x3" TaskTree.
+        
+        A "4x3" TaskTree should have three siblings for every level, and a 
+        depth (height?) of four branches.
+        
+        Arrange:
+            - Create expected TaskList A and Task A-C-C.
+        Act:
+            - Create a TaskTree with three TaskLists and a depth of 3 
+            (TaskList plus two levels of Tasks).
+            - Find the actual TaskList A and Task A-C-C.
+        Assert:
+            - That the expected and actual TaskList A and Task A-C-C are equal.
+        """
+        ### Arrange ###
+        expected_tasklist_a = TestDataTaskList("A")
+        expected_task_acc = TestDataTask("A-C-C",tasklist_id=expected_tasklist_a.entity_id, parent_id="testdatatask-a-c")
+            
+        ### Act ###
+        tasktree = TaskDataTestSupport.create_dynamic_tasktree(
+            tasklist_type=TestDataTaskList, task_type=TestDataTask,
+            siblings_count=3, tree_depth=3)
+        
+        actual_tasklist_a = tasktree.get_entity_for_id("testdatatasklist-a")
+        actual_task_acc = tasktree.get_entity_for_id("testdatatask-a-c-c")
+        
+        ### Assert ###
+        self.assertEqual(expected_tasklist_a, actual_tasklist_a)
+        self.assertEqual(expected_task_acc, actual_task_acc)
+        
 class TaskTreeComparator(object):
     @classmethod
     def find_added_ids(cls, baseline_tree, altered_tree):
