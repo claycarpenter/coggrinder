@@ -328,7 +328,7 @@ class TaskTree(Tree):
         entity = node.value
 
         if entity is None:
-            raise ValueError("Could not find entity with ID {id}".format(id=entity_id))
+            raise UnregisteredEntityError(id=entity_id)
 
         return entity
 
