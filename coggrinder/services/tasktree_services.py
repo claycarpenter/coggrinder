@@ -412,7 +412,6 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
             self.tasktree_srvc.get_entity_for_id(
             TestDataEntitySupport.short_title_to_id(TestDataTask, *list('acc')))
 
-    @unittest.skip("Waiting on the TaskTreeComparator entity updated comparison implementation.")
     def test_save_task_data_tasklist_task_titles_updated(self):
         """Test that saving the task data will persist updated TaskList and
         Task titles to the task data services.
@@ -444,12 +443,12 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         self.tasktree_srvc.update_entity(expected_tasklist_a)
         self.tasktree_srvc.update_entity(expected_task_a)
 
-        self.tasktree_srvc.save_task_data()
+        self.tasktree_srvc.push_task_data()
         self.tasktree_srvc.refresh_task_data()
 
         actual_tasklist_a = self.tasktree_srvc.get_entity_for_id(
             expected_tasklist_a.entity_id)
-        actual_task_a = self.tasktree_srvc.get_task(expected_task_a.entity_id)
+        actual_task_a = self.tasktree_srvc.get_entity_for_id(expected_task_a.entity_id)
 
         ### Assert ###
         self.assertEqual(expected_tasklist_a, actual_tasklist_a)
