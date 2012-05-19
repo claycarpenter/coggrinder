@@ -61,6 +61,25 @@ class TaskTree(Tree):
         return tasklists
     
     @property
+    def all_tasks(self):
+        """Returns a collection of all Task-type entities currently held by 
+        the TaskTree.
+        
+        This collection is in the form of a dictionary. The dictionary keys 
+        are the entity IDs, while the values are the corresponding entity 
+        instances.
+        """
+        all_tasks = dict()
+        
+        # Collect all of the Tasks (all your Tasks are belong to us?), 
+        # grouping by their common TaskList parents.
+        for tasklist in self.tasklists.values():
+            tasks = self.get_tasks_for_tasklist(tasklist)
+            all_tasks[tasklist.entity_id] = tasks
+            
+        return all_tasks
+    
+    @property
     def task_data(self):
         """Returns a collection of all entities currently held by the TaskTree.
         
@@ -483,6 +502,41 @@ class TaskTreeTest(unittest.TestCase):
         
         ### Assert ###
         self.assertEqual(expected_task_data, actual_task_data)
+        
+    def test_all_tasks_property(self):
+        """Test the accuracy of the TaskTree .all_tasks property.
+        
+        The .all_tasks property should accurately reflect all Task-type 
+        entities currently held within the TaskTree. The Tasks will be grouped
+        by parent TaskList, with the return collection defining a dictionary
+        of TaskList ID keys pointing to Task sub-dictionaries. Each Task 
+        sub-dictionary will contain Task ID keys pointing to Task instances. 
+        
+        Arrange:
+            - Create expected entities TaskList A, Task B.
+            - Create expected all_tasks dict.
+        Act:
+            - Create TaskTree.
+            - Add clones of expected entities to TaskTree.
+            - Get TaskTree.all_tasks
+        Assert:
+            - Expected and actual all_task collections are identical.
+        """
+        ### Arrange ###
+        expected_tl_a = TestDataTaskList('A')
+        expected_t_b = TestDataTask('B', tasklist_id=expected_tl_a.entity_id)
+        tasks = {expected_t_b.entity_id: expected_t_b}
+        expected_all_tasks = {expected_tl_a.entity_id:tasks}
+        
+        ### Act ###
+        tasktree = TaskTree()
+        tasktree.add_entity(copy.deepcopy(expected_tl_a))
+        tasktree.add_entity(copy.deepcopy(expected_t_b))
+        
+        actual_all_tasks = tasktree.all_tasks
+        
+        ### Assert ###
+        self.assertEqual(expected_all_tasks, actual_all_tasks)
 #------------------------------------------------------------------------------ 
 
 class TaskTreeSortTest(unittest.TestCase):
