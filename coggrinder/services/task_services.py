@@ -534,8 +534,8 @@ class InMemoryTaskService(AbstractTaskService, InMemoryService):
         task.is_deleted = True
         task.updated_date = datetime.now()
 
-        # Ensure the updated Task is in the data store.
-        tasklist_tasks[task.entity_id] = task
+        # Remove the deleted task from the data store.
+        del tasklist_tasks[task.entity_id]
 
         return task
 
