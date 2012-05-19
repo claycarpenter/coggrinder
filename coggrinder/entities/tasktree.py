@@ -1724,6 +1724,23 @@ class TaskTreeComparator(object):
         deleted_ids = baseline_tree.all_entity_ids - altered_tree.all_entity_ids
         
         return deleted_ids
+    
+    @classmethod
+    def find_updated_ids(cls, baseline_tree, altered_tree):
+        # Begin with a list of all IDs that are in both Trees.
+        common_ids = baseline_tree.all_entity_ids & altered_tree.all_entity_ids
+        
+        updated_ids = set()
+        for entity_id in common_ids:
+            # For each common entity ID, pull the entity from both trees and
+            # compare if they are equal.
+            baseline_entity = baseline_tree.get_entity_for_id(entity_id)
+            altered_entity = altered_tree.get_entity_for_id(entity_id)
+            
+            if baseline_entity != altered_entity:
+                updated_ids.add(entity_id)
+                
+        return updated_ids
 #------------------------------------------------------------------------------ 
 
 class TaskTreeComparatorTest(ManagedFixturesTestSupport, unittest.TestCase):
@@ -1846,6 +1863,42 @@ class TaskTreeComparatorTest(ManagedFixturesTestSupport, unittest.TestCase):
 
         ### Assert ###
         self.assertEqual(expected_deleted_ids, actual_deleted_ids)
+
+    def test_find_updated_task_tasklist_title(self):
+        """Test that the TaskTreeComparator can identify any entities in a 
+        TaskTree that have updated title properties.
+
+        TaskList A and Task B will have their title props updated to "updated".
+
+        Arrange:
+            - Find entities TaskList A, Task B in expected TaskTree and make
+            local actual clones.
+            - U
+        Act:
+            - Use TaskTreeComparator.find_added to locate all task data that
+            was added during the Arrange phase.
+        Assert:
+            - That the expected and actual sets of added entity IDs are
+            identical.
+        """
+        ### Arrange ###
+        tasklist_a = self.current_tasktree.get_entity_for_id("testdatatasklist-a")
+        task_b = self.current_tasktree.get_entity_for_id("testdatatask-b")
+        update_title = "updated"
+        tasklist_a.title = update_title
+        task_b.title = update_title
+        
+        self.current_tasktree.update_entity(tasklist_a)
+        self.current_tasktree.update_entity(task_b)
+        
+        expected_updated_ids = set([tasklist_a.entity_id, task_b.entity_id])
+
+        ### Act ###
+        actual_updated_ids = self.comparator.find_updated_ids(self.original_tasktree,
+            self.current_tasktree)
+
+        ### Assert ###
+        self.assertEqual(expected_updated_ids, actual_updated_ids)
 #------------------------------------------------------------------------------
 
 class TaskDataError(Exception):
