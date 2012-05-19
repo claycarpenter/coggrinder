@@ -901,6 +901,14 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         Assert:
             That the TaskTree has the expected TaskList and Task elements.
         """
+        """
+        TODO: This is not a very good test. Shouldn't it involve setting up
+        a new TaskTree, rather than relying on the test fixture?
+        
+        If this test stands, it needs to be fixed somewhat because occasionally 
+        it fails. I'm assuming that because the failures are intermittent, 
+        they are probably due to updated date property comparisons.
+        """
         ### Arrange ###        
         expected_tasklist_a = self.expected_tasktree.get_entity_for_id(
             TestDataTaskList.convert_short_title_to_id("A"))
@@ -1863,7 +1871,39 @@ class TaskTreeComparatorTest(ManagedFixturesTestSupport, unittest.TestCase):
 
         ### Assert ###
         self.assertEqual(expected_deleted_ids, actual_deleted_ids)
+#------------------------------------------------------------------------------ 
 
+class TaskTreeComparatorFindUpdatedTest(ManagedFixturesTestSupport, unittest.TestCase):
+    def setUp(self):
+        """Set up basic test fixtures."""
+
+        # All tests in this test case will compare a pair of TaskTrees, the
+        # baseline and altered.
+        self.baseline_tasktree = TaskDataTestSupport.create_dynamic_tasktree(
+            TestDataTaskList, TestDataTask, 3, 3)
+        self.altered_tasktree = copy.deepcopy(self.baseline_tasktree)
+
+        # Create the TaskTreeComparator that will be under test.
+        self.comparator = TaskTreeComparator()
+
+        self._register_fixtures(self.baseline_tasktree, self.altered_tasktree,
+            self.comparator)
+        
+    def find_entity(self, tasktree, entity_type, *short_title_sections):
+        entity_id = TestDataEntitySupport.short_title_to_id(entity_type, *short_title_sections)
+        
+        entity = tasktree.get_entity_for_id(entity_id)
+        
+        return entity
+    
+    def find_tasklist(self, tasktree, *short_title_sections):
+        return self.find_entity(tasktree, TestDataTaskList,
+            *short_title_sections)
+    
+    def find_task(self, tasktree, *short_title_sections):
+        return self.find_entity(tasktree, TestDataTask,
+            *short_title_sections)
+        
     def test_find_updated_task_tasklist_title(self):
         """Test that the TaskTreeComparator can identify any entities in a 
         TaskTree that have updated title properties.
@@ -1882,20 +1922,20 @@ class TaskTreeComparatorTest(ManagedFixturesTestSupport, unittest.TestCase):
             identical.
         """
         ### Arrange ###
-        tasklist_a = self.current_tasktree.get_entity_for_id("testdatatasklist-a")
-        task_b = self.current_tasktree.get_entity_for_id("testdatatask-b")
+        tasklist_a = self.find_tasklist(self.altered_tasktree, 'a')
+        task_b = self.find_task(self.altered_tasktree, *list('ab'))
         update_title = "updated"
         tasklist_a.title = update_title
         task_b.title = update_title
         
-        self.current_tasktree.update_entity(tasklist_a)
-        self.current_tasktree.update_entity(task_b)
+        self.altered_tasktree.update_entity(tasklist_a)
+        self.altered_tasktree.update_entity(task_b)
         
         expected_updated_ids = set([tasklist_a.entity_id, task_b.entity_id])
 
         ### Act ###
-        actual_updated_ids = self.comparator.find_updated_ids(self.original_tasktree,
-            self.current_tasktree)
+        actual_updated_ids = self.comparator.find_updated_ids(self.baseline_tasktree,
+            self.altered_tasktree)
 
         ### Assert ###
         self.assertEqual(expected_updated_ids, actual_updated_ids)
