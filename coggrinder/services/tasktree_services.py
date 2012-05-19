@@ -7,7 +7,7 @@ Created on Apr 26, 2012
 import unittest
 import apiclient.discovery
 from datetime import datetime
-from coggrinder.services.task_services import GoogleServicesTaskService, GoogleServicesTaskListService, InMemoryTaskListService, InMemoryTaskService
+from coggrinder.services.task_services import GoogleServicesTaskService, GoogleServicesTaskListService, InMemoryTaskListService, InMemoryTaskService, UnregisteredEntityError
 from coggrinder.entities.tasks import Task, TaskList
 from coggrinder.entities.tasktree import TaskTree, TaskDataTestSupport, UpdatedDateFilteredTask, UpdatedDateFilteredTaskList, \
     TestDataTaskList, TestDataTask, TaskTreeComparator, UpdatedDateIgnoredTestDataTaskList, UpdatedDateIgnoredTestDataTask, \
@@ -114,13 +114,22 @@ class TaskTreeService(object):
     def revert_task_data(self):
         self._current_tree = copy.deepcopy(self._original_tasktree)
 
-    def save_task_data(self):
+    def push_task_data(self):
         # We need to determine what updates have been made to the tree here.
         """
         TODO: Is there a certain order of operations (add, update, delete) 
         that needs to be followed here?
+        
+        Updated probably needs to come before added. That way, any data added 
+        to reordered tasks will be placed in the right position...  or does it
+        not matter?
         """
-        # Find all added entities.
+        self._push_added()
+        
+        self._push_deleted()
+        
+    def _push_added(self):
+        # Find the IDs of all new entities.
         added_entity_ids = TaskTreeComparator.find_added_ids(self._original_tasktree,
             self.tree)
         
@@ -137,6 +146,25 @@ class TaskTreeService(object):
                 service = self.tasklist_service
             
             service.insert(entity)
+            
+    def _push_deleted(self):
+        # Find the IDs of all entities that were deleted.
+        deleted_entity_ids = TaskTreeComparator.find_deleted_ids(
+            self._original_tasktree, self.tree)
+        
+        # Delete each removed entity from its respective service.
+        for entity_id in deleted_entity_ids:
+            entity = self._original_tasktree.get_entity_for_id(entity_id)
+            
+            # Get the proper service provider.            
+            if hasattr(entity, "tasklist_id"):
+                # Presence of a tasklist ID property should indicate a Task.
+                service = self.task_service
+            else:
+                # Lack of a tasklist ID property should indicate a TaskList.
+                service = self.tasklist_service
+            
+            service.delete(entity)
 #------------------------------------------------------------------------------
 
 class TaskTreeServiceTestCommon(object):
@@ -248,30 +276,14 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         expected_tasktree = copy.deepcopy(self.tasktree_srvc.tree)
 
         ### Act ###
-        tasklist_a = self.tasktree_srvc.get_entity_for_id(TestDataEntitySupport.short_title_to_id(TestDataTaskList, 'A'))
-        tasklist_a.title = "updated"
+        expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(TestDataTaskList, 'A'))
+        expected_tasklist_a.title = "updated"
 
         self.tasktree_srvc.revert_task_data()
 
         ### Assert ###
         self.assertEqual(expected_tasktree, self.tasktree_srvc.tree)
-
-    """
-    TODO: Complete this test.
-    """
-    @unittest.skip("TODO item, incomplete.")
-    def test_revert_no_task_data(self):
-        """Test asking the TaskTree to revert changes when there hasn't been
-        a refresh task data call raises an error.
-
-        This test ensures that the local task data copy default initialization
-        value of None will never be used as the working tree value.
-
-        Arrange:
-        Act:
-        Assert:
-        """
-        self.assertTrue(False)
 
     def test_save_task_data_tasklist_added(self):
         """Test that saving the task data will persist an added TaskList to 
@@ -296,7 +308,7 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         ### Act ###
         self.tasktree_srvc.add_entity(actual_tasklist_foo)
 
-        self.tasktree_srvc.save_task_data()
+        self.tasktree_srvc.push_task_data()
         self.tasktree_srvc.refresh_task_data()
 
         actual_tasklist_foo = self.tasktree_srvc.get_entity_for_id(
@@ -321,7 +333,8 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
             - That the post-refresh task data includes the expected Task Foo.
         """
         ### Arrange ###
-        expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(TestDataEntitySupport.short_title_to_id(TestDataTaskList, 'A'))
+        expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(TestDataTaskList, 'A'))
         expected_task_foo = UpdatedDateIgnoredTestDataTask("Foo",
             tasklist_id=expected_tasklist_a.entity_id)
         actual_task_foo = copy.deepcopy(expected_task_foo)
@@ -329,7 +342,7 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         ### Act ###
         self.tasktree_srvc.add_entity(actual_task_foo)
 
-        self.tasktree_srvc.save_task_data()
+        self.tasktree_srvc.push_task_data()
         self.tasktree_srvc.refresh_task_data()
 
         actual_task_foo = self.tasktree_srvc.get_entity_for_id(
@@ -338,7 +351,35 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         ### Assert ###
         self.assertEqual(expected_task_foo, actual_task_foo)
 
-    @unittest.skip("Waiting on the implementation of a TaskTree comparator.")
+    def test_save_task_data_task_deleted(self):
+        """Test that saving the task data will persist a deleted Task to 
+        the task data services.
+
+        Arrange:
+            - Find expected Task a-c-c and make local clone actual Task a-c-c.
+        Act:
+            - Delete actual Task a-c-c through the TaskTreeService.
+            - Save the task tree data.
+            - Refresh the task data.
+        Assert:
+            - That the post-refresh task data does not include Task a-c-c.
+        """
+        ### Arrange ###
+        expected_task_acc = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(TestDataTask, 'a', 'c', 'c'))        
+        actual_task_acc = copy.deepcopy(expected_task_acc)
+
+        ### Act ###
+        self.tasktree_srvc.delete_entity(actual_task_acc)
+
+        self.tasktree_srvc.push_task_data()
+        self.tasktree_srvc.refresh_task_data()
+
+        ### Assert ###
+        with self.assertRaises(UnregisteredEntityError):
+            self.tasktree_srvc.get_entity_for_id(expected_task_acc.entity_id)
+
+    @unittest.skip("Waiting on the TaskTreeComparator entity updated comparison implementation.")
     def test_save_task_data_tasklist_task_titles_updated(self):
         """Test that saving the task data will persist updated TaskList and
         Task titles to the task data services.
@@ -358,10 +399,12 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         ### Arrange ###
         updated_title = "Updated!"
 
-        expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(TestDataEntitySupport.short_title_to_id(TestDataTaskList, 'A'))
+        expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(TestDataTaskList, 'A'))
         expected_tasklist_a.title = updated_title
 
-        expected_task_a = self.tasktree_srvc.get_entity_for_id(TestDataEntitySupport.short_title_to_id(TestDataTask, 'A', 'A'))
+        expected_task_a = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(TestDataTask, 'A', 'A'))
         expected_tasklist_a.title = updated_title
 
         ### Act ###
@@ -371,7 +414,8 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         self.tasktree_srvc.save_task_data()
         self.tasktree_srvc.refresh_task_data()
 
-        actual_tasklist_a = self.tasktree_srvc.get_entity_for_id(expected_tasklist_a.entity_id)
+        actual_tasklist_a = self.tasktree_srvc.get_entity_for_id(
+            expected_tasklist_a.entity_id)
         actual_task_a = self.tasktree_srvc.get_task(expected_task_a.entity_id)
 
         ### Assert ###
