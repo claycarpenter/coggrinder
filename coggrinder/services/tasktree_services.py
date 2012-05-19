@@ -366,7 +366,7 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         """
         ### Arrange ###
         expected_task_acc = self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(TestDataTask, 'a', 'c', 'c'))        
+            TestDataEntitySupport.short_title_to_id(TestDataTask, *list('acc')))        
         actual_task_acc = copy.deepcopy(expected_task_acc)
 
         ### Act ###
@@ -378,6 +378,39 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         ### Assert ###
         with self.assertRaises(UnregisteredEntityError):
             self.tasktree_srvc.get_entity_for_id(expected_task_acc.entity_id)
+
+    def test_save_task_data_tasklist_deleted(self):
+        """Test that saving the task data will persist a deleted TaskList to 
+        the task data services.
+
+        Arrange:
+            - Find expected TaskList a and make local clone actual TaskList a.
+        Act:
+            - Delete actual TaskList a through the TaskTreeService.
+            - Save the task tree data.
+            - Refresh the task data.
+        Assert:
+            - That the post-refresh task data does not include:
+                - TaskList a
+                - Task a-c-c (child of TaskList a)
+        """
+        ### Arrange ###
+        expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(TestDataTaskList, 'a'))        
+        actual_tasklist_a = copy.deepcopy(expected_tasklist_a)
+
+        ### Act ###
+        self.tasktree_srvc.delete_entity(actual_tasklist_a)
+
+        self.tasktree_srvc.push_task_data()
+        self.tasktree_srvc.refresh_task_data()
+
+        ### Assert ###
+        with self.assertRaises(UnregisteredEntityError):
+            self.tasktree_srvc.get_entity_for_id(expected_tasklist_a.entity_id)
+        with self.assertRaises(UnregisteredEntityError):
+            self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(TestDataTask, *list('acc')))
 
     @unittest.skip("Waiting on the TaskTreeComparator entity updated comparison implementation.")
     def test_save_task_data_tasklist_task_titles_updated(self):
