@@ -14,6 +14,7 @@ import string
 from coggrinder.services.task_services import UnregisteredTaskListError, \
     EntityOverwriteError, UnregisteredEntityError, UnregisteredTaskError
 from operator import attrgetter
+from coggrinder.entities.properties import TaskStatus
 
 class TaskTree(Tree):
     def __init__(self, tasklists=None, all_tasks=None):
@@ -1878,19 +1879,20 @@ class TaskTreeComparatorFindUpdatedTest(ManagedFixturesTestSupport, unittest.Tes
         """Set up basic test fixtures."""
 
         # All tests in this test case will compare a pair of TaskTrees, the
-        # baseline and altered.
+        # baseline and working (altered).
         self.baseline_tasktree = TaskDataTestSupport.create_dynamic_tasktree(
             TestDataTaskList, TestDataTask, 3, 3)
-        self.altered_tasktree = copy.deepcopy(self.baseline_tasktree)
+        self.working_tasktree = copy.deepcopy(self.baseline_tasktree)
 
         # Create the TaskTreeComparator that will be under test.
         self.comparator = TaskTreeComparator()
 
-        self._register_fixtures(self.baseline_tasktree, self.altered_tasktree,
+        self._register_fixtures(self.baseline_tasktree, self.working_tasktree,
             self.comparator)
         
     def find_entity(self, tasktree, entity_type, *short_title_sections):
-        entity_id = TestDataEntitySupport.short_title_to_id(entity_type, *short_title_sections)
+        entity_id = TestDataEntitySupport.short_title_to_id(entity_type,
+            *short_title_sections)
         
         entity = tasktree.get_entity_for_id(entity_id)
         
@@ -1908,34 +1910,115 @@ class TaskTreeComparatorFindUpdatedTest(ManagedFixturesTestSupport, unittest.Tes
         """Test that the TaskTreeComparator can identify any entities in a 
         TaskTree that have updated title properties.
 
-        TaskList A and Task B will have their title props updated to "updated".
+        TaskList a and Task a-b will have their title props updated to "updated".
 
         Arrange:
-            - Find entities TaskList A, Task B in expected TaskTree and make
-            local actual clones.
-            - U
+            - Find entities TaskList a, Task a-b in working TaskTree.
+            - Update the titles of each entity.
+            - Create list of expected updated entity IDs.
         Act:
-            - Use TaskTreeComparator.find_added to locate all task data that
-            was added during the Arrange phase.
+            - Use TaskTreeComparator.find_updated_id to locate the entity IDs
+            of every entity that was changed between the two TaskTrees.
         Assert:
-            - That the expected and actual sets of added entity IDs are
+            - That the expected and actual sets of updated entity IDs are
             identical.
         """
         ### Arrange ###
-        tasklist_a = self.find_tasklist(self.altered_tasktree, 'a')
-        task_b = self.find_task(self.altered_tasktree, *list('ab'))
+        tasklist_a = self.find_tasklist(self.working_tasktree, 'a')
+        task_b = self.find_task(self.working_tasktree, *list('ab'))
         update_title = "updated"
         tasklist_a.title = update_title
         task_b.title = update_title
         
-        self.altered_tasktree.update_entity(tasklist_a)
-        self.altered_tasktree.update_entity(task_b)
+        self.working_tasktree.update_entity(tasklist_a)
+        self.working_tasktree.update_entity(task_b)
         
         expected_updated_ids = set([tasklist_a.entity_id, task_b.entity_id])
 
         ### Act ###
-        actual_updated_ids = self.comparator.find_updated_ids(self.baseline_tasktree,
-            self.altered_tasktree)
+        actual_updated_ids = self.comparator.find_updated_ids(
+            self.baseline_tasktree, self.working_tasktree)
+
+        ### Assert ###
+        self.assertEqual(expected_updated_ids, actual_updated_ids)
+        
+    def test_find_updated_task_due_date(self):
+        """Test that the TaskTreeComparator can identify any Tasks in a 
+        TaskTree that have updated due date properties.
+
+        Tasks c-a-c, a-c-c will have their title props updated to "updated".
+
+        Arrange:
+            - Find entities Task c-a-c, Task a-c-c in working TaskTree.
+            - Update the due date property of each entity.
+            - Create list of expected updated entity IDs.
+        Act:
+            - Use TaskTreeComparator.find_updated_id to locate the entity IDs
+            of every entity that was changed between the two TaskTrees.
+        Assert:
+            - That the expected and actual sets of updated entity IDs are
+            identical.
+        """
+        ### Arrange ###
+        task_cac = self.find_task(self.working_tasktree, *list('cac'))
+        task_acc = self.find_task(self.working_tasktree, *list('acc'))
+        task_cac.due_date = datetime(1982,2,3)
+        task_acc.due_date = datetime(1984,02,10) 
+        
+        self.working_tasktree.update_entity(task_cac)
+        self.working_tasktree.update_entity(task_acc)
+        
+        expected_updated_ids = set([task_cac.entity_id, task_acc.entity_id])
+
+        ### Act ###
+        actual_updated_ids = self.comparator.find_updated_ids(
+            self.baseline_tasktree, self.working_tasktree)
+
+        ### Assert ###
+        self.assertEqual(expected_updated_ids, actual_updated_ids)
+        
+    def test_find_updated_task_status(self):
+        """Test that the TaskTreeComparator can identify any Tasks in a 
+        TaskTree that have updated task status properties.
+        
+        The Task status property (task_status) indicates whether the Task has been 
+        completed (or not).
+
+        Task c-a-c will have its task status changed to "completed". Task 
+        a-c-c will have its task status changed from "needs action" to
+        "completed" and back to "needs action". Only Task c-a-c should be
+        indicated as an entity that's been updated.
+
+        Arrange:
+            - Find entities Task c-a-c, Task a-c-c in working TaskTree.
+            - Update the task status of Task c-a-c, a-c-c to "completed".
+            - Update the task status of Task a-c-c to "needs action".
+            - Create list of expected updated entity IDs (just Task c-a-c).
+        Act:
+            - Use TaskTreeComparator.find_updated_id to locate the entity IDs
+            of every entity that was changed between the two TaskTrees.
+        Assert:
+            - That the expected and actual sets of updated entity IDs are
+            identical.
+        """
+        ### Arrange ###
+        task_cac = self.find_task(self.working_tasktree, *list('cac'))
+        task_acc = self.find_task(self.working_tasktree, *list('acc'))
+        
+        task_cac.task_status = TaskStatus.COMPLETED
+        task_acc.task_status = TaskStatus.COMPLETED 
+        
+        self.working_tasktree.update_entity(task_cac)
+        self.working_tasktree.update_entity(task_acc)
+        
+        task_acc.task_status = TaskStatus.NEEDS_ACTION
+        self.working_tasktree.update_entity(task_acc)
+        
+        expected_updated_ids = set([task_cac.entity_id])
+
+        ### Act ###
+        actual_updated_ids = self.comparator.find_updated_ids(
+            self.baseline_tasktree, self.working_tasktree)
 
         ### Assert ###
         self.assertEqual(expected_updated_ids, actual_updated_ids)
