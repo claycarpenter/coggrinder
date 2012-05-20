@@ -1302,7 +1302,7 @@ class TaskTreePositionTest(ManagedFixturesTestSupport, unittest.TestCase):
         self.tasktree = TaskDataTestSupport.create_tasktree()
 
         self._register_fixtures(self.expected_tasktree, self.tasktree)
-        
+    
     def test_add_entity_establish_task_position(self):
         """Test that adding Tasks updates the Task's previous Task ID 
         reference.
@@ -1311,22 +1311,27 @@ class TaskTreePositionTest(ManagedFixturesTestSupport, unittest.TestCase):
         property should no longer be None.
         
         Arrange:
-        
+            - Create expected TaskList a, Tasks a-a, a-b.
+            - Create working TaskTree and add TaskList a.
+            - Create actual clones of Tasks a-a, a-b.
+            - Update previous_task_id property of Tasks a-a, a-b to be None,
+            Task a-a.entity_id respectively.
         Act:
-        
+            - Add Tasks a-a, a-b.
         Assert:
-                
+            - That expected Tasks a-a,a-b are equal to corresponding Tasks 
+            in working TaskTree.
         """
         ### Arrange ###
         expected_tasklist_a = TestDataTaskList('a')
+        expected_task_aa = TestDataTask('a-a', tasklist_id=expected_tasklist_a.entity_id)
+        expected_task_ab = TestDataTask('a-b', tasklist_id=expected_tasklist_a.entity_id)
+        
         tasktree = TaskTree()
         tasktree.add_entity(expected_tasklist_a)
         
-        actual_task_aa = TestDataTask('a-a', tasklist_id=expected_tasklist_a.entity_id)
-        actual_task_ab = TestDataTask('a-b', tasklist_id=expected_tasklist_a.entity_id)
-        
-        expected_task_aa = copy.deepcopy(actual_task_aa)
-        expected_task_ab = copy.deepcopy(actual_task_ab)
+        actual_task_aa = copy.deepcopy(expected_task_aa)
+        actual_task_ab = copy.deepcopy(expected_task_ab)
         expected_task_aa.previous_task_id = expected_task_aa.parent_id # None
         expected_task_ab.previous_task_id = expected_task_aa.entity_id
         
@@ -1337,7 +1342,6 @@ class TaskTreePositionTest(ManagedFixturesTestSupport, unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_task_aa, tasktree.get_entity_for_id(expected_task_aa.entity_id))
         self.assertEqual(expected_task_ab, tasktree.get_entity_for_id(expected_task_ab.entity_id))
-        
 #------------------------------------------------------------------------------ 
 
 class UpdatedDateFilteredTask(Task):
