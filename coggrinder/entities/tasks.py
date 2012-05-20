@@ -14,6 +14,8 @@ from coggrinder.utilities import GoogleKeywords
 
 class BaseTaskEntity(DeclaredPropertiesComparable):
     _ARGUMENT_FAIL_MESSAGE = "Provided {0} argument must be of type {1}"
+    _KEY_VALUE_MESSAGE = "{key}: {value}"
+    
     _properties = (
             EntityProperty("entity_id", GoogleKeywords.ID),
             EntityProperty("title", GoogleKeywords.TITLE),
@@ -136,14 +138,14 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
         for prop in self._get_properties():
             try:
                 prop_value = str_dict[prop.str_dict_key]
-                prop_values.append("{key}: {value}".format(
+                prop_values.append(BaseTaskEntity._KEY_VALUE_MESSAGE.format(
                     key=prop.entity_key, value=prop_value))
             except KeyError:
                 # Property isn't defined in this str dict, which is (usually?)
                 # ok.
                 pass
         
-        return ", ".join(prop_values)
+        return prop_values
 
     # TODO: Rename this method?
     def _get_filter_keys(self):
@@ -161,7 +163,9 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
     
     def __str__(self):
         str_dict = self.to_str_dict()
-        return str(self._ordered_entity_info(str_dict))
+        ordered_entity_info = self._ordered_entity_info(str_dict)
+        
+        return ", ".join(ordered_entity_info)
 
     def __repr__(self):
         return self.__str__()
@@ -344,6 +348,20 @@ class Task(BaseTaskEntity):
 
         # Return combined properties. 
         return cls._properties
+
+    def _get_comparable_properties(self):
+        base_properties = BaseTaskEntity._get_comparable_properties(self)
+        base_properties.append("previous_task_id")
+        
+        return base_properties
+
+    def _ordered_entity_info(self, str_dict):
+        ordered_entity_info = BaseTaskEntity._ordered_entity_info(self, str_dict)
+                
+        ordered_entity_info.append(BaseTaskEntity._KEY_VALUE_MESSAGE.format(
+            key="previous_task_id", value=self.previous_task_id))
+        
+        return ordered_entity_info
 
     @classmethod
     def _create_blank_entity(cls):
