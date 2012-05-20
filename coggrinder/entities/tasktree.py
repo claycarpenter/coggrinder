@@ -17,27 +17,28 @@ from operator import attrgetter
 from coggrinder.entities.properties import TaskStatus
 
 class TaskTree(Tree):
-    def __init__(self, tasklists=None, all_tasks=None):
+    def __init__(self, tasklists=None, all_tasks=None, task_data=None):
         Tree.__init__(self)
 
         """
         TODO: Should an error be raised if Task data is provided but TaskList
         data is not?
         """
-        if tasklists is None:
-            tasklists = dict()
-        if all_tasks is None:
-            all_tasks = dict()
+        if task_data is None:
+            if tasklists is None:
+                tasklists = dict()
+            if all_tasks is None:
+                all_tasks = dict()
+                
+            task_data = dict()
+            task_data.update(tasklists)
+            for tasklist_tasks in all_tasks.values():
+                task_data.update(tasklist_tasks)
             
         # Allows for a quick lookup of the TreeNode associated with a 
         # particular entity. This is keyed by ID and the values are the 
         # TreeNodes holding the entity for that ID.
         self._entity_node_map = dict()
-        
-        task_data = dict()
-        task_data.update(tasklists)
-        for tasklist_tasks in all_tasks.values():
-            task_data.update(tasklist_tasks)
                 
         self._build_tree(task_data)
 
@@ -432,20 +433,20 @@ class TaskTreeTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(tasktree_one, tasktree_two)
         
-    def test_simple_task_data_tree_creation(self):
-        """Test the creation of a TaskTree with a simple and small task data
-        set.
+    def test_init_arg_tree_creation_tasklists_all_tasks(self):
+        """Test the creation of a TaskTree task data provided through the 
+        initialization arguments.
+        
+        This test focuses on the init arguments tasklists and all_tasks.
         
         The completed TaskTree should have the following architecture:
-        - (TL) A
-            - (T) B
-            
-        TL = TaskList, T = Task
+        - tl-a
+            - t-a-b
         
         Arrange:
-            - Create task data: TaskList A and Task B.
+            - Create task data: TaskList a and Task a-b.
             - Manually build the expected TaskTree.
-            - Create a task data set (in the "tasklist/all_tasks" form).
+            - Create the tasklists and all_tasks collections.
         Act:
             - Build actual TaskTree by providing task data during 
             initialization.
@@ -453,21 +454,61 @@ class TaskTreeTest(unittest.TestCase):
             - That the expected and actual TaskTrees are identical.
         """
         ### Arrange ###
-        expected_tasklist_a = TestDataTaskList("A")
+        expected_tasklist_a = TestDataTaskList('a')
         actual_tasklist_a = copy.deepcopy(expected_tasklist_a)
         
-        expected_task_b = TestDataTask("B", tasklist_id=actual_tasklist_a.entity_id)
-        actual_task_b = copy.deepcopy(expected_task_b)
+        expected_task_ab = TestDataTask('a-b', tasklist_id=expected_tasklist_a.entity_id)
+        actual_task_ab = copy.deepcopy(expected_task_ab)
         
         expected_tasktree = TaskTree()
         expected_tasktree.add_entity(expected_tasklist_a)
-        expected_tasktree.add_entity(expected_task_b)
+        expected_tasktree.add_entity(expected_task_ab)
         
         tasklists = {actual_tasklist_a.entity_id:actual_tasklist_a}
-        all_tasks = {actual_tasklist_a.entity_id:{actual_task_b.entity_id:actual_task_b}}
+        all_tasks = {actual_tasklist_a.entity_id:{actual_task_ab.entity_id:actual_task_ab}}
         
         ### Act ###
-        actual_tasktree = TaskTree(tasklists, all_tasks)
+        actual_tasktree = TaskTree(tasklists=tasklists, all_tasks=all_tasks)
+        
+        ### Assert ###
+        self.assertEqual(expected_tasktree, actual_tasktree)
+        
+    def test_init_arg_tree_creation_task_data(self):
+        """Test the creation of a TaskTree task data provided through the 
+        initialization arguments.
+        
+        This test focuses on the task_data init argument.
+        
+        The completed TaskTree should have the following architecture:
+        - tl-a
+            - t-a-b
+        
+        Arrange:
+            - Create task data: TaskList a and Task a-b.
+            - Manually build the expected TaskTree.
+            - Create the tasklists and all_tasks collections.
+        Act:
+            - Build actual TaskTree by providing task data during 
+            initialization.
+        Assert:
+            - That the expected and actual TaskTrees are identical.
+        """
+        ### Arrange ###
+        expected_tasklist_a = TestDataTaskList('a')
+        actual_tasklist_a = copy.deepcopy(expected_tasklist_a)
+        
+        expected_task_ab = TestDataTask('a-b', tasklist_id=expected_tasklist_a.entity_id)
+        actual_task_ab = copy.deepcopy(expected_task_ab)
+        
+        expected_tasktree = TaskTree()
+        expected_tasktree.add_entity(expected_tasklist_a)
+        expected_tasktree.add_entity(expected_task_ab)
+        
+        task_data = {actual_tasklist_a.entity_id:actual_tasklist_a,
+            actual_task_ab.entity_id:actual_task_ab}
+        
+        ### Act ###
+        actual_tasktree = TaskTree(task_data=task_data)
         
         ### Assert ###
         self.assertEqual(expected_tasktree, actual_tasktree)
@@ -1962,8 +2003,8 @@ class TaskTreeComparatorFindUpdatedTest(ManagedFixturesTestSupport, unittest.Tes
         ### Arrange ###
         task_cac = self.find_task(self.working_tasktree, *list('cac'))
         task_acc = self.find_task(self.working_tasktree, *list('acc'))
-        task_cac.due_date = datetime(1982,2,3)
-        task_acc.due_date = datetime(1984,02,10) 
+        task_cac.due_date = datetime(1982, 2, 3)
+        task_acc.due_date = datetime(1984, 02, 10) 
         
         self.working_tasktree.update_entity(task_cac)
         self.working_tasktree.update_entity(task_acc)
