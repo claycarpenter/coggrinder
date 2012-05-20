@@ -338,6 +338,8 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         expected_task_foo = UpdatedDateIgnoredTestDataTask("Foo",
             tasklist_id=expected_tasklist_a.entity_id)
         actual_task_foo = copy.deepcopy(expected_task_foo)
+        expected_task_foo.previous_task_id = TestDataEntitySupport.short_title_to_id(
+            TestDataTask,*list('ac'))
 
         ### Act ###
         self.tasktree_srvc.add_entity(actual_task_foo)
@@ -576,6 +578,7 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         expected_tasklist_id = "tl-B"
         expected_task_id = expected_tasklist_id + "-t-B"
         expected_task = self.expected_all_tasks[expected_tasklist_id][expected_task_id]
+        expected_task.previous_task_id = expected_tasklist_id + "-t-A"
 
         ### Act ###   
         actual_task = self.tasktree_srvc.get_entity_for_id(expected_task_id)
@@ -634,19 +637,20 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         """
         ### Arrange ###
         expected_updated_title = "updated"
-        expected_task_a = self.expected_all_tasks["tl-A"]["tl-A-t-B"]
-        expected_task_a.title = expected_updated_title
+        expected_task_b = self.expected_all_tasks["tl-A"]["tl-A-t-B"]
+        expected_task_b.title = expected_updated_title
+        expected_task_b.previous_task_id = "tl-A-t-A"
 
         ### Act ###   
-        actual_task_a = self.tasktree_srvc.get_entity_for_id(expected_task_a.entity_id)
-        actual_task_a.title = expected_updated_title
-        self.tasktree_srvc.update_entity(actual_task_a)
-        actual_task_a = self.tasktree_srvc.tree.get_entity_for_id(
-                expected_task_a.entity_id)
+        actual_task_b = self.tasktree_srvc.get_entity_for_id(expected_task_b.entity_id)
+        actual_task_b.title = expected_updated_title
+        self.tasktree_srvc.update_entity(actual_task_b)
+        actual_task_b = self.tasktree_srvc.tree.get_entity_for_id(
+                expected_task_b.entity_id)
 
         ### Assert ###
-        self.assertEqual(expected_task_a, actual_task_a)
-        self.assertGreater(actual_task_a.updated_date, expected_task_a.updated_date)
+        self.assertEqual(expected_task_b, actual_task_b)
+        self.assertGreater(actual_task_b.updated_date, expected_task_b.updated_date)
 
     @unittest.expectedFailure
     def test_delete_tasklist(self):
