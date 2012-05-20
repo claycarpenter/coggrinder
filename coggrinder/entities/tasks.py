@@ -302,12 +302,13 @@ class Task(BaseTaskEntity):
 
     def __init__(self, tasklist_id=None, entity_id=None, title="", updated_date=None,
             children=None, parent_id=None, task_status=TaskStatus.NEEDS_ACTION,
-            position=0):
+            position=0, previous_task_id=None):
         super(Task, self).__init__(entity_id, title, updated_date, children)
 
         self.parent_id = parent_id
         self.task_status = task_status
         self.tasklist_id = tasklist_id
+        self.previous_task_id = previous_task_id
 
         # Establish default properties.
         self.notes = None
