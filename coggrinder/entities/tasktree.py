@@ -1855,6 +1855,22 @@ class TaskDataTestSupport(object):
                 tasks.update(child_tasks)
         
         return tasks
+        
+    def find_entity(self, tasktree, entity_type, *short_title_sections):
+        entity_id = TestDataEntitySupport.short_title_to_id(entity_type,
+            *short_title_sections)
+        
+        entity = tasktree.get_entity_for_id(entity_id)
+        
+        return entity
+    
+    def find_tasklist(self, tasktree, *short_title_sections):
+        return self.find_entity(tasktree, TestDataTaskList,
+            *short_title_sections)
+    
+    def find_task(self, tasktree, *short_title_sections):
+        return self.find_entity(tasktree, TestDataTask,
+            *short_title_sections)
 #------------------------------------------------------------------------------
 
 class TaskDataTestSupportTest(unittest.TestCase):
@@ -2049,14 +2065,13 @@ class TaskTreeComparatorTest(ManagedFixturesTestSupport, unittest.TestCase):
         self.assertEqual(expected_deleted_ids, actual_deleted_ids)
 #------------------------------------------------------------------------------ 
 
-class TaskTreeComparatorFindUpdatedTest(ManagedFixturesTestSupport, unittest.TestCase):
+class TaskTreeComparatorFindUpdatedTest(TaskDataTestSupport, ManagedFixturesTestSupport, unittest.TestCase):
     def setUp(self):
         """Set up basic test fixtures."""
 
         # All tests in this test case will compare a pair of TaskTrees, the
         # baseline and working (altered).
-        self.baseline_tasktree = TaskDataTestSupport.create_dynamic_tasktree(
-            TestDataTaskList, TestDataTask, 3, 3)
+        self.baseline_tasktree = TaskDataTestSupport.create_dynamic_tasktree()
         self.working_tasktree = copy.deepcopy(self.baseline_tasktree)
 
         # Create the TaskTreeComparator that will be under test.
@@ -2064,22 +2079,6 @@ class TaskTreeComparatorFindUpdatedTest(ManagedFixturesTestSupport, unittest.Tes
 
         self._register_fixtures(self.baseline_tasktree, self.working_tasktree,
             self.comparator)
-        
-    def find_entity(self, tasktree, entity_type, *short_title_sections):
-        entity_id = TestDataEntitySupport.short_title_to_id(entity_type,
-            *short_title_sections)
-        
-        entity = tasktree.get_entity_for_id(entity_id)
-        
-        return entity
-    
-    def find_tasklist(self, tasktree, *short_title_sections):
-        return self.find_entity(tasktree, TestDataTaskList,
-            *short_title_sections)
-    
-    def find_task(self, tasktree, *short_title_sections):
-        return self.find_entity(tasktree, TestDataTask,
-            *short_title_sections)
         
     def test_find_updated_task_tasklist_title(self):
         """Test that the TaskTreeComparator can identify any entities in a 
