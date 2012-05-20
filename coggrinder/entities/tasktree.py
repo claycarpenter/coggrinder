@@ -256,14 +256,7 @@ class TaskTree(Tree):
         if len(entity_node.path) > 2:
             # Entity is a Task, update the previous Task IDs of all siblings
             # in this Task group.
-            for sibling_task_node in parent_node.children:
-                child_index = parent_node.children.index(sibling_task_node)                
-                sibling_task = parent_node.children[child_index].value                 
-                if child_index == 0:
-                    sibling_task.previous_task_id = sibling_task.parent_id
-                else:
-                    previous_task = parent_node.children[child_index - 1].value
-                    sibling_task.previous_task_id = previous_task.entity_id
+            self._update_child_task_relationships(parent_node)
         
         return entity
     
@@ -278,6 +271,16 @@ class TaskTree(Tree):
                 break
                
         return parent_node.path + (position,)
+    
+    def _update_child_task_relationships(self, parent_node):
+        for sibling_task_node in parent_node.children:
+            child_index = parent_node.children.index(sibling_task_node)                
+            sibling_task = parent_node.children[child_index].value                 
+            if child_index == 0:
+                sibling_task.previous_task_id = sibling_task.parent_id
+            else:
+                previous_task = parent_node.children[child_index - 1].value
+                sibling_task.previous_task_id = previous_task.entity_id
 
     def clear(self):
         # Clear all of the nodes from the tree.
@@ -378,8 +381,19 @@ class TaskTree(Tree):
                 child_node = self.insert(entity_node.path, child_node.value)
                 self._register_entity_node(child_node)
         
+        # Store the entity node's path. This must be done before the node is
+        # removed from the tree, as the calculation of the node's path relies
+        # upon it still being included in the parent node's children 
+        # collection.
+        entity_node_path = entity_node.path
+        
         # Remove the node from the tree. 
         self.remove_node(entity_node)
+        
+        # If the removed entity is a Task, update the task relationship IDs
+        # for the remaining sibling Tasks.
+        if len(entity_node_path) > 2:
+            self._update_child_task_relationships(entity_node.parent) 
             
     def sort(self, current_node=None):
         if current_node is None:
@@ -1303,9 +1317,9 @@ class TaskTreePositionTest(ManagedFixturesTestSupport, unittest.TestCase):
 
         self._register_fixtures(self.expected_tasktree, self.tasktree)
     
-    def test_add_entity_establish_task_position(self):
-        """Test that adding Tasks updates the Task's previous Task ID 
-        reference.
+    def test_add_entity_maintain_task_position(self):
+        """Test that adding Tasks updates the previous Task ID 
+        references of the sibling Tasks.
         
         After being added to a TaskTree, a new Task's previous_task_id 
         property should no longer be None.
@@ -1314,12 +1328,12 @@ class TaskTreePositionTest(ManagedFixturesTestSupport, unittest.TestCase):
             - Create expected TaskList a, Tasks a-a, a-b.
             - Create working TaskTree and add TaskList a.
             - Create actual clones of Tasks a-a, a-b.
-            - Update previous_task_id property of Tasks a-a, a-b to be None,
-            Task a-a.entity_id respectively.
+            - Update previous_task_id property of expected Tasks a-a, 
+            a-b to be None, Task a-a.entity_id respectively.
         Act:
             - Add Tasks a-a, a-b.
         Assert:
-            - That expected Tasks a-a,a-b are equal to corresponding Tasks 
+            - That expected Tasks a-a, a-b are equal to corresponding Tasks 
             in working TaskTree.
         """
         ### Arrange ###
@@ -1332,7 +1346,7 @@ class TaskTreePositionTest(ManagedFixturesTestSupport, unittest.TestCase):
         
         actual_task_aa = copy.deepcopy(expected_task_aa)
         actual_task_ab = copy.deepcopy(expected_task_ab)
-        expected_task_aa.previous_task_id = expected_task_aa.parent_id # None
+        expected_task_aa.previous_task_id = None
         expected_task_ab.previous_task_id = expected_task_aa.entity_id
         
         ### Act ###
@@ -1340,8 +1354,55 @@ class TaskTreePositionTest(ManagedFixturesTestSupport, unittest.TestCase):
         tasktree.add_entity(actual_task_ab)
         
         ### Assert ###
-        self.assertEqual(expected_task_aa, tasktree.get_entity_for_id(expected_task_aa.entity_id))
-        self.assertEqual(expected_task_ab, tasktree.get_entity_for_id(expected_task_ab.entity_id))
+        self.assertEqual(expected_task_aa, 
+            tasktree.get_entity_for_id(actual_task_aa.entity_id))
+        self.assertEqual(expected_task_ab, 
+            tasktree.get_entity_for_id(expected_task_ab.entity_id))
+    
+    def test_remove_entity_maintain_task_position(self):
+        """Test that removing Tasks updates the previous Task ID 
+        references of the sibling Tasks.
+        
+        After being added to a TaskTree, a new Task's previous_task_id 
+        property should no longer be None.
+        
+        Arrange:
+            - Create expected TaskList a, Tasks a-a, a-b, a-c.
+            - Create working TaskTree and add TaskList a.
+            - Create actual clones of expected Tasks.
+            - Update previous_task_id property of expected Tasks a-a, a-b, 
+            a-c to be None, Task a-a.entity_id, Task a-b.entity_id 
+            respectively.
+        Act:
+            - Add Task a-a.
+        Assert:
+            - That expected Tasks a-b, a-c are equal to corresponding Tasks 
+            in working TaskTree.
+        """
+        ### Arrange ###
+        expected_tasklist_a = TestDataTaskList('a')
+        expected_task_aa = TestDataTask('a-a', tasklist_id=expected_tasklist_a.entity_id)
+        expected_task_ab = TestDataTask('a-b', tasklist_id=expected_tasklist_a.entity_id)
+        expected_task_ac = TestDataTask('a-c', tasklist_id=expected_tasklist_a.entity_id)
+        
+        tasktree = TaskTree()
+        tasktree.add_entity(expected_tasklist_a)
+        
+        tasktree.add_entity(copy.deepcopy(expected_task_aa))
+        tasktree.add_entity(copy.deepcopy(expected_task_ab))
+        tasktree.add_entity(copy.deepcopy(expected_task_ac))
+        expected_task_ab.previous_task_id = None
+        expected_task_ac.previous_task_id = expected_task_ab.entity_id
+        
+        ### Act ###
+        tasktree.remove_entity(
+            tasktree.get_entity_for_id(expected_task_aa.entity_id))
+        
+        ### Assert ###
+        self.assertEqual(expected_task_ab, 
+            tasktree.get_entity_for_id(expected_task_ab.entity_id))
+        self.assertEqual(expected_task_ac, 
+            tasktree.get_entity_for_id(expected_task_ac.entity_id))
 #------------------------------------------------------------------------------ 
 
 class UpdatedDateFilteredTask(Task):
