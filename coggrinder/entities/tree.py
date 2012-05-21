@@ -148,8 +148,10 @@ class Tree(DeclaredPropertiesComparable):
                     else:
                         if adjacent_selected_nodes:
                             # Make all of the adjacent selected nodes children
-                            # of this sibling.
-                            for selected_node in adjacent_selected_nodes:
+                            # of this sibling, from highest ordered to lowest 
+                            # ordered.
+                            moving_nodes = self._sort_nodes_by_depth(*adjacent_selected_nodes)
+                            for selected_node in moving_nodes:
                                 self.move_node(sibling_node, selected_node)
 
                             # Reset the adjacent selected nodes collection.
