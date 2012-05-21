@@ -238,7 +238,7 @@ class Tree(DeclaredPropertiesComparable):
 
         return new_node
 
-    def insert_node(self, node_indices):
+    def insert_node(self, node_indices, node=None):
         assert node_indices, "A node address must be provided."
 
         parent_node_address = node_indices[:-1]
@@ -253,12 +253,15 @@ class Tree(DeclaredPropertiesComparable):
         if child_index < 0 or child_index > len(parent_node.children):
             raise IndexError("Node index {0} is not valid for the parent at path {1}".format(child_index, parent_node_address))
 
-        child_node = TreeNode(parent_node, node_indices)
-        parent_node.children.insert(child_index, child_node)
+        if node is None:
+            node = TreeNode(parent_node, node_indices)
+        
+        parent_node.children.insert(child_index, node)
+        node.parent = parent_node
 
-        return child_node
+        return node
 
-    def move_node(self, new_parent_node, node):
+    def move_node(self, new_parent_node, node, new_child_index=None):
         if node is self.get_node(Tree.ROOT_PATH):
             raise RootReorganizationError()
 
@@ -275,7 +278,10 @@ class Tree(DeclaredPropertiesComparable):
         self.remove_node(node)
 
         # Add the moving node to the new parent node's children.
-        self.append_node(new_parent_node, node)
+        if new_child_index is None:
+            self.append_node(new_parent_node, node)
+        else:
+            self.insert_node(new_parent_node.path + (new_child_index,), node)
 
         return node
 
@@ -290,13 +296,14 @@ class Tree(DeclaredPropertiesComparable):
             grandparent_node = node.parent.parent
 
             # If the node is already a direct descendant of root, don't 
-            # promote.
+            # promote (self will be this Tree instance).
             if grandparent_node is self:
                 continue
-
-            self.remove_node(node)
-            self.append_node(grandparent_node, node)
-
+            
+            old_parent_index = grandparent_node.children.index(node.parent)
+            self.move_node(grandparent_node, node,
+                new_child_index=old_parent_index + 1)
+        
     def _sort_nodes_by_depth(self, *nodes):
         sorted_nodes = list()
 
@@ -1596,6 +1603,7 @@ class TreePromoteTest(unittest.TestCase):
                 - C
                     - D
                         - E
+                    - F
     """
     def setUp(self):
         """Create a simple tree, as outlined in the class docstring."""
@@ -1608,6 +1616,7 @@ class TreePromoteTest(unittest.TestCase):
         self.node_c = self.tree.append(self.node_b, "C")
         self.node_d = self.tree.append(self.node_c, "D")
         self.node_e = self.tree.append(self.node_d, "E")
+        self.node_f = self.tree.append(self.node_c, "F")
 
     def test_promote_noop(self):
         """Test promoting node A.
@@ -1640,7 +1649,7 @@ class TreePromoteTest(unittest.TestCase):
         with self.assertRaises(RootReorganizationError):
             self.tree.promote(self.root)
 
-    def test_promote_single_node(self):
+    def test_promote_single_node_no_previous_siblings(self):
         """Test promoting node B.
 
         This should result in node B being a sibling of node A (directly under
@@ -1671,6 +1680,37 @@ class TreePromoteTest(unittest.TestCase):
         self.assertEqual(self.node_a, self.tree.get_node((0, 0)))
         self.assertEqual(self.node_b, self.tree.get_node((0, 1)))
         self.assertEqual(self.node_c, self.tree.get_node((0, 1, 0)))
+
+    def test_promote_single_node_with_siblings(self):
+        """Test promoting node E.
+
+        This should result in node E being a sibling of nodes D, F (directly under
+        C) and ordered below D but above F.
+
+        Resulting tree architecture:
+        - root
+            - A
+                - B
+                    - C
+                        - D
+                        - E
+                        - F
+
+        Act:
+            - Promote node E.
+        Assert:
+            - Node E (0,0,0,1) is directly below C in the second position, behind
+            D (0,0,0,0,0).
+            - Node F is ordered below E (0,0,0,0,2).
+        """
+        ### Act ###
+        actual_node_e = self.tree.get_node(self.node_e.path)
+        self.tree.promote(actual_node_e)
+
+        ### Assert ###
+        self.assertEqual(self.node_d, self.tree.get_node((0, 0, 0, 0, 0)))
+        self.assertEqual(self.node_e, self.tree.get_node((0, 0, 0, 0, 1)))
+        self.assertEqual(self.node_f, self.tree.get_node((0, 0, 0, 0, 2)))
 
     def test_promote_multiple_adjacent_nodes(self):
         """Test promoting nodes C,D.
@@ -1706,22 +1746,32 @@ class TreePromoteTest(unittest.TestCase):
         self.assertEqual(self.node_d, self.tree.get_node((0, 0, 0, 0)))
 
     def test_promote_multiple_separate_nodes(self):
-        """Test promoting nodes C,E.
+        """Test promoting nodes C, E.
 
         This should result in nodes B and C being siblings directly under A,
-        with C ordered after B. Nodes D and E should be a direct childredn of
+        with C ordered after B. Nodes D and E should be a direct children of
         C, with E ordered after D.
 
         Resulting tree architecture:
         - root
             - A
                 - B
+                    - C
+                        - D
+                            - E
+                        - F
+        
+        
+        - root
+            - A
+                - B
                 - C
                     - D
                     - E
+                    - F
 
         Act:
-            Promote nodes C,D.
+            Promote nodes C, E.
         Assert:
             Node B is still directly below A and in the first position
             (0,0,0).
