@@ -253,7 +253,7 @@ class TaskTree(Tree):
         entity_node = self.insert(entity_address, entity)
         self._register_entity_node(entity_node)
         
-        if len(entity_node.path) > 2:
+        if self._is_task_node(entity_node):
             # Entity is a Task, update the previous Task IDs of all siblings
             # in this Task group.
             self._update_child_task_relationships(parent_node)
@@ -273,14 +273,36 @@ class TaskTree(Tree):
         return parent_node.path + (position,)
     
     def _update_child_task_relationships(self, parent_node):
-        for sibling_task_node in parent_node.children:
-            child_index = parent_node.children.index(sibling_task_node)                
-            sibling_task = parent_node.children[child_index].value                 
+        parent_entity = parent_node.value
+        for sibling_task_node in parent_node.children:                            
+            sibling_task = sibling_task_node.value      
+            
+            # Ensure that the parent reference is accurate. If the current
+            # parent entity is a TaskList (indicated by equality between the 
+            # current parent entity ID and the sibling task's tasklist ref.), 
+            # set parent to None. Otherwise, set the sibling task's parent ref
+            # to point to the current parent Task.
+            if parent_entity.entity_id == sibling_task.tasklist_id:
+                sibling_task.parent_id = None
+            else:
+                sibling_task.parent_id = parent_entity.entity_id
+            
+            # Update Task sibling links.           
+            child_index = parent_node.children.index(sibling_task_node)
             if child_index == 0:
                 sibling_task.previous_task_id = sibling_task.parent_id
             else:
                 previous_task = parent_node.children[child_index - 1].value
                 sibling_task.previous_task_id = previous_task.entity_id
+
+    def _is_task_node(self, entity_node):
+        return self._is_task_node_path(entity_node.path)
+
+    def _is_task_node_path(self, entity_node_path):
+        if len(entity_node_path) > 2:
+            return True
+        
+        return False
 
     def clear(self):
         # Clear all of the nodes from the tree.
@@ -292,6 +314,25 @@ class TaskTree(Tree):
         # Create a new, default root node (all TaskTrees have a default root 
         # node that is the direct parent of any TaskLists in that tree).
         self.append(None, "root")
+        
+    def demote(self, *entities):
+        assert entities is not None
+        
+        task_nodes = list()
+        for entity in entities:
+            # Find the Task's node.
+            task_node = self._find_task_node(entity)
+            
+            task_nodes.append(task_node)
+        
+        # Demote the targeted Task nodes.
+        Tree.demote(self, *task_nodes)
+        
+        # Refresh the sibling links of both the old and new/current 
+        # sibling groups.
+        for task_node in task_nodes:
+            self._update_child_task_relationships(task_node.parent.parent)
+            self._update_child_task_relationships(task_node.parent)
 
     def get(self, node_indices):
         """Overrides the default get() implementation by prefixing the provided
@@ -363,6 +404,36 @@ class TaskTree(Tree):
         except KeyError:
             raise UnregisteredEntityError(entity_id)
         
+    def promote(self, *entities):
+        assert entities is not None
+        
+        task_nodes = list()
+        old_parent_nodes = list()
+        for entity in entities:
+            # Find the Task's node.
+            task_node = self._find_task_node(entity)
+            
+            task_nodes.append(task_node)
+            
+            # Get the current parent node now, as this reference will change 
+            # after the Tree.promote operation. This reference provides an 
+            # easy pointer to the correct node for refreshing child Task
+            # relationships.
+            old_parent_nodes.append(task_node.parent)
+        
+        # Promote the targeted Task nodes.
+        Tree.promote(self, *task_nodes)
+        
+        # Refresh the sibling links of both the new/current 
+        # sibling groups.
+        for task_node in task_nodes:            
+            self._update_child_task_relationships(task_node.parent)
+        
+        # Refresh the sibling links of both the new/current 
+        # sibling groups.
+        for old_parent_node in old_parent_nodes:
+            self._update_child_task_relationships(old_parent_node)
+        
     def remove_entity(self, entity):
         # Find the entity's node.        
         entity_node = self.find_node_for_entity(entity)
@@ -370,7 +441,7 @@ class TaskTree(Tree):
         # Remove the node from the entity id-to-node registry.
         self._deregister_entity_node(entity_node)
         
-        if len(entity_node.path) > 2:
+        if self._is_task_node(entity_node):
             # This entity is not a TaskList, so move all of the children up to
             # the position of the deleted entity. 
             
@@ -392,8 +463,38 @@ class TaskTree(Tree):
         
         # If the removed entity is a Task, update the task relationship IDs
         # for the remaining sibling Tasks.
-        if len(entity_node_path) > 2:
+        if self._is_task_node_path(entity_node_path):
             self._update_child_task_relationships(entity_node.parent) 
+            
+    def reorder_down(self, entity):
+        # Find the Task's node.
+        task_node = self._find_task_node(entity)
+        
+        # Reorder the node down.
+        Tree.reorder_down(self, task_node)
+        
+        # Refresh the Task's siblings' sibling links.
+        self._update_child_task_relationships(task_node.parent)
+            
+    def reorder_up(self, entity):
+        # Find the Task's node.
+        task_node = self._find_task_node(entity)        
+            
+        # Reorder the node up.
+        Tree.reorder_up(self, task_node)
+        
+        # Refresh the Task's siblings' sibling links.
+        self._update_child_task_relationships(task_node.parent)
+
+    def _find_task_node(self, task):
+        # Find the Task's node.
+        task_node = self.find_node_for_entity(task)
+        
+        # Ensure that the target task is a Task. Otherwise, raise an error.        
+        if not self._is_task_node(task_node):
+            raise InvalidReorderOperationTargetError(task)
+        
+        return task_node
             
     def sort(self, current_node=None):
         if current_node is None:
@@ -418,6 +519,393 @@ class TaskTree(Tree):
         node.value = entity
 
         return entity
+#------------------------------------------------------------------------------ 
+
+"""
+TODO: This seems to replicate the coggrinder.entities.tree.NodeMoveTargetError.
+Perhaps these two classes should either be combined, or share a common 
+ancestor?
+"""
+class InvalidReorderOperationTargetError(Exception):
+    def __init__(self, entity):
+        Exception.__init__(self,
+            "{entity_id} is not a valid target for a reorder operation.".format(entity_id=entity.entity_id))
+#------------------------------------------------------------------------------
+
+class UpdatedDateFilteredTask(Task):
+    def _get_comparable_properties(self):
+        comparable_props = Task._get_comparable_properties(self)
+
+        return set(comparable_props).difference(("updated_date",))
+#------------------------------------------------------------------------------ 
+
+class UpdatedDateFilteredTaskList(TaskList):
+    def _get_comparable_properties(self):
+        comparable_props = TaskList._get_comparable_properties(self)
+
+        return set(comparable_props).difference(("updated_date",))
+#------------------------------------------------------------------------------ 
+
+class TestDataTaskList(TaskList):
+    def __init__(self, short_title, **kwargs):
+        # Create a full title from the provided short title.
+        title = TestDataEntitySupport.create_full_title(self.__class__, short_title)
+
+        # Create an entity id from the full title.
+        entity_id = TestDataEntitySupport.convert_title_to_id(title)
+
+        TaskList.__init__(self, entity_id=entity_id, title=title,
+            updated_date=datetime.now(), **kwargs)
+        
+    @classmethod
+    def convert_short_title_to_id(cls, short_title):
+        # Create a full title from the provided short title.
+        title = TestDataEntitySupport.create_full_title(cls, short_title)
+
+        # Create an entity id from the full title.
+        entity_id = TestDataEntitySupport.convert_title_to_id(title)
+        
+        return entity_id
+#------------------------------------------------------------------------------ 
+
+class TestDataTaskListTest(unittest.TestCase):
+    def test_create_test_tasklist(self):
+        """Test the creation of a simple TestDataTaskList.
+
+        Ensure that the provided short title is properly converted into a
+        long title, and the ID is automatically generated from the full title.
+
+        Arrange:
+            - Create expected long title "TestDataTaskList A".
+            - Create expected entity ID "testdatatasklist-A".
+        Act:
+            - Create new TestDataTaskList A with short title of "A".
+        Assert:
+            - That TestDataTaskList A has the expected long title and entity
+            ID.
+        """
+        ### Arrange ###
+        expected_long_title = "TestDataTaskList A"
+        expected_id = "testdatatasklist-a"
+
+        ### Act ###
+        actual_tasklist_a = TestDataTaskList("A")
+
+        ### Assert ###
+        self.assertEqual(expected_long_title, actual_tasklist_a.title)
+        self.assertEqual(expected_id, actual_tasklist_a.entity_id)
+
+    def test_convert_short_title_to_id(self):
+        """Test converting a short title into an ID.
+
+        Should produce an ID of "testdatatasklist-a" when provided with a 
+        short title "A".
+
+        Arrange:
+            - Create expected entity ID.
+        Act:
+            - Convert the short title "A" to the actual entity ID.
+        Assert:
+            - That the expected and actual IDs are the same.
+        """
+        ### Arrange ###
+        expected_entity_id = "testdatatasklist-a"
+
+        ### Act ###
+        actual_entity_id = TestDataTaskList.convert_short_title_to_id("A")
+
+        ### Assert ###
+        self.assertEqual(expected_entity_id, actual_entity_id)
+#------------------------------------------------------------------------------ 
+
+class TestDataTask(Task):
+    def __init__(self, short_title, **kwargs):
+        # Create a full title from the provided short title.
+        title = TestDataEntitySupport.create_full_title(self.__class__, short_title)
+
+        # Create an entity id from the full title.
+        entity_id = self.convert_short_title_to_id(short_title)
+
+        Task.__init__(self, entity_id=entity_id, title=title,
+            updated_date=datetime.now(), **kwargs)
+        
+    """
+    TODO: As both TestDataTask and TestDataTaskList share this identical
+    method, it should probably be moved out to a common mixin class.
+    """ 
+    @classmethod
+    def convert_short_title_to_id(cls, short_title):
+        # Create a full title from the provided short title.
+        title = TestDataEntitySupport.create_full_title(cls, short_title)
+
+        # Create an entity id from the full title.
+        entity_id = TestDataEntitySupport.convert_title_to_id(title)
+        
+        return entity_id
+#------------------------------------------------------------------------------ 
+
+class TestDataTaskTest(unittest.TestCase):
+    def test_create_test_task(self):
+        """Test the creation of a simple TestDataTask.
+
+        Ensure that the provided short title is properly converted into a
+        long title, and the ID is automatically generated from the full title.
+
+        Arrange:
+            - Create expected long title "TestDataTask A".
+            - Create expected entity ID "testdatatask-A".
+        Act:
+            - Create new TestDataTask A with short title of "A".
+        Assert:
+            - That TestDataTask A has the expected long title and entity
+            ID.
+        """
+        ### Arrange ###
+        expected_long_title = "TestDataTask A"
+        expected_id = "testdatatask-a"
+
+        ### Act ###
+        actual_task_a = TestDataTask("A")
+
+        ### Assert ###
+        self.assertEqual(expected_long_title, actual_task_a.title)
+        self.assertEqual(expected_id, actual_task_a.entity_id)
+
+    def test_convert_short_title_to_id(self):
+        """Test converting a short title into an ID.
+
+        Should produce an ID of "testdatatask-a" when provided with a 
+        short title "A".
+
+        Arrange:
+            - Create expected entity ID.
+        Act:
+            - Convert the short title "A" to the actual entity ID.
+        Assert:
+            - That the expected and actual IDs are the same.
+        """
+        ### Arrange ###
+        expected_entity_id = "testdatatask-a"
+
+        ### Act ###
+        actual_entity_id = TestDataTask.convert_short_title_to_id("A")
+
+        ### Assert ###
+        self.assertEqual(expected_entity_id, actual_entity_id)
+#------------------------------------------------------------------------------ 
+
+class UpdatedDateIgnoredTestDataTaskList(TestDataTaskList, UpdatedDateFilteredTaskList):
+    pass
+#------------------------------------------------------------------------------ 
+
+class UpdatedDateIgnoredTestDataTask(TestDataTask, UpdatedDateFilteredTask):
+    pass
+#------------------------------------------------------------------------------ 
+
+class TaskDataTestSupport(object):
+    """Simple support class to make it more convenient to product mock TaskList
+    and Task data for use in testing."""
+    @classmethod
+    def create_tasklists(cls, tasklist_type=TaskList, entity_id_prefix="tl-",
+        title_prefix="TaskList ", begin_count=0, end_count=3):
+        """Create a dictionary of TaskList objects.
+
+        Each TaskList object will be given a unique ID and title, beginning
+        with the associated prefixes and ending with an alphabetic character
+        corresponding to the creation order of the TaskList.
+        The method will create begin_count - end_count TaskLists.
+
+        Args:
+            entity_id_prefix: str prefix for the TaskList ID.
+            title_prefix: str prefix for the TaskList title.
+            begin_count: int for the index of the first character suffix.
+            end_count: int for the index of the final character suffix.
+        Returns:
+            A dictionary keyed with the TaskList IDs, with values mapping to
+            the corresponding TaskList instance.
+        """
+        assert begin_count < end_count
+
+        updated_date = datetime.now()
+
+        tasklists = {entity_id_prefix + string.ascii_uppercase[x]:
+            tasklist_type(entity_id=entity_id_prefix + string.ascii_uppercase[x],
+            title=title_prefix + string.ascii_uppercase[x],
+            updated_date=updated_date)
+            for x in range(begin_count, end_count)}
+
+        return tasklists
+
+    @classmethod
+    def create_all_tasks(cls, tasklists, task_type=Task):
+        updated_date = datetime.now()
+
+        all_tasks = dict()
+        for tasklist in tasklists.values():
+            t_a = task_type(entity_id=tasklist.entity_id + "-t-A",
+                tasklist_id=tasklist.entity_id, title="Task A",
+                updated_date=updated_date)
+            t_b = task_type(entity_id=tasklist.entity_id + "-t-B",
+                tasklist_id=tasklist.entity_id, title="Task B",
+                parent_id=t_a.entity_id, updated_date=updated_date)
+            t_c = task_type(entity_id=tasklist.entity_id + "-t-C",
+                tasklist_id=tasklist.entity_id, title="Task C",
+                parent_id=t_a.entity_id, updated_date=updated_date)
+
+            all_tasks[tasklist.entity_id] = {t_a.entity_id:t_a,
+                t_b.entity_id:t_b, t_c.entity_id:t_c}
+
+        return all_tasks
+
+    @classmethod
+    def create_tasktree(cls, tasklist_type=TaskList, task_type=Task):
+        """This will establish a two-level tree of task data.
+
+        The tree consists of a single TaskList A, with child Tasks B..F.
+        The data should create a tree with the following architecture:
+
+        - tl-A
+            - t-B
+            - t-C
+                - t-E
+                - t-F
+            - t-D
+        """
+        tasklist_a = TestDataTaskList("A")
+
+        task_b = TestDataTask("B", tasklist_id=tasklist_a.entity_id,
+            position=1)
+
+        task_c = TestDataTask("C", tasklist_id=tasklist_a.entity_id,
+            position=2)
+        task_e = TestDataTask("E", tasklist_id=tasklist_a.entity_id,
+            position=1, parent_id=task_c.entity_id)
+        task_f = TestDataTask("F", tasklist_id=tasklist_a.entity_id,
+            position=2, parent_id=task_c.entity_id)
+
+        task_d = TestDataTask("D", tasklist_id=tasklist_a.entity_id,
+            position=3)
+
+        tasklists = {tasklist_a.entity_id: tasklist_a}
+        tasklist_a_tasks = {task_b.entity_id:task_b,
+            task_c.entity_id:task_c,
+            task_d.entity_id:task_d,
+            task_e.entity_id:task_e,
+            task_f.entity_id:task_f}
+        all_tasks = {tasklist_a.entity_id: tasklist_a_tasks}
+
+        """
+        TODO: This should be updated to provide the task data in a single, 
+        "flat" dictionary collection.
+        """
+        # Use the task data to build the TaskTree.
+        tasktree = TaskTree(tasklists=tasklists, all_tasks=all_tasks)
+
+        return tasktree
+    
+    @classmethod
+    def create_dynamic_tasktree(cls, tasklist_type=TestDataTaskList,
+        task_type=TestDataTask, siblings_count=3,
+        tree_depth=3):
+        
+        tasklists = dict()
+        all_tasks = dict()
+        
+        for tl_i in range(0, siblings_count):
+            tasklist_short_title = string.ascii_uppercase[tl_i]
+            tasklist = tasklist_type(tasklist_short_title)
+            tasklists[tasklist.entity_id] = tasklist
+                      
+            tasklist_tasks = cls._create_task_branch(task_type,
+                tasklist_short_title, tasklist.entity_id, None,
+                siblings_count, tree_depth - 1, 1)
+            all_tasks[tasklist.entity_id] = tasklist_tasks
+            
+        tasktree = TaskTree(tasklists=tasklists, all_tasks=all_tasks)
+        return tasktree
+    
+    @classmethod
+    def _create_task_branch(cls, task_type, parent_title, tasklist_id,
+        parent_task_id, siblings_count, tree_depth, current_depth):
+        
+        tasks = dict()
+        
+        for t_i in range(0, siblings_count):
+            task_short_title = parent_title + "-" + string.ascii_uppercase[t_i]
+            task = task_type(task_short_title, tasklist_id=tasklist_id,
+                parent_id=parent_task_id)
+            
+            tasks[task.entity_id] = task
+            
+            if current_depth < tree_depth:
+                child_tasks = cls._create_task_branch(task_type,
+                    task_short_title, tasklist_id, task.entity_id,
+                    siblings_count, tree_depth, current_depth + 1)
+                tasks.update(child_tasks)
+        
+        return tasks
+        
+    def find_entity(self, tasktree, entity_type, *short_title_sections):
+        entity_id = TestDataEntitySupport.short_title_to_id(entity_type,
+            *short_title_sections)
+        
+        entity = tasktree.get_entity_for_id(entity_id)
+        
+        return entity
+    
+    def find_tasklist(self, tasktree, *short_title_sections):
+        return self.find_entity(tasktree, TestDataTaskList,
+            *short_title_sections)
+    
+    def find_task(self, tasktree, *short_title_sections):
+        return self.find_entity(tasktree, TestDataTask,
+            *short_title_sections)
+        
+    def branch_str(self, tasktree, entity):
+        entity_node = tasktree.find_node_for_entity(entity)
+        branch_debug_output = tasktree._create_branch_str(node=entity_node)
+        
+        return branch_debug_output
+    
+    def tasklist_branch_str(self, tasktree, *short_title_sections):
+        tasklist = self.find_tasklist(tasktree, *short_title_sections)
+        return self.branch_str(tasktree, tasklist)        
+#------------------------------------------------------------------------------
+
+class TaskDataTestSupportTest(unittest.TestCase):
+    def test_create_dynamic_tasktree(self):
+        """Test the creation of a "4x3" TaskTree.
+        
+        A "4x3" TaskTree should have three siblings for every level, and a 
+        depth (height?) of four branches.
+        
+        Arrange:
+            - Create expected TaskList A and Task A-C-C.
+        Act:
+            - Create a TaskTree with three TaskLists and a depth of 3 
+            (TaskList plus two levels of Tasks).
+            - Find the actual TaskList A and Task A-C-C.
+        Assert:
+            - That the expected and actual TaskList A and Task A-C-C are equal.
+        """
+        ### Arrange ###
+        expected_tasklist_a = TestDataTaskList("A")
+        expected_task_acc = TestDataTask("A-C-C",
+            tasklist_id=expected_tasklist_a.entity_id,
+            parent_id="testdatatask-a-c",
+            previous_task_id=TestDataEntitySupport.short_title_to_id(TestDataTask, *list('acb')))
+            
+        ### Act ###
+        tasktree = TaskDataTestSupport.create_dynamic_tasktree(
+            tasklist_type=TestDataTaskList, task_type=TestDataTask,
+            siblings_count=3, tree_depth=3)
+        
+        actual_tasklist_a = tasktree.get_entity_for_id("testdatatasklist-a")
+        actual_task_acc = tasktree.get_entity_for_id("testdatatask-a-c-c")
+        
+        ### Assert ###
+        self.assertEqual(expected_tasklist_a, actual_tasklist_a)
+        self.assertEqual(expected_task_acc, actual_task_acc)
 #------------------------------------------------------------------------------ 
 
 class TaskTreeTest(unittest.TestCase):
@@ -808,15 +1296,15 @@ class TaskTreeSortTest(unittest.TestCase):
         expected_root = expected_tasktree.get_root_node()
         expected_tasklist_foo = TestDataTaskList("Foo")
         tasklist_foo_node = expected_tasktree.append(expected_root, expected_tasklist_foo)
-        expected_task_01 = TestDataTask("01", position=01, 
+        expected_task_01 = TestDataTask("01", position=01,
             tasklist_id=expected_tasklist_foo.entity_id,
             previous_task_id=None)
         expected_tasktree.append(tasklist_foo_node, expected_task_01)
-        expected_task_03 = TestDataTask("03", position=03, 
+        expected_task_03 = TestDataTask("03", position=03,
             tasklist_id=expected_tasklist_foo.entity_id,
             previous_task_id=expected_task_01.entity_id)
         expected_tasktree.append(tasklist_foo_node, expected_task_03)
-        expected_task_00 = TestDataTask("00", position=00, 
+        expected_task_00 = TestDataTask("00", position=00,
             tasklist_id=expected_tasklist_foo.entity_id,
             previous_task_id=expected_task_03.entity_id)
         expected_tasktree.append(tasklist_foo_node, expected_task_00)
@@ -896,8 +1384,8 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         expected_tasklist_a = self.expected_tasktree.get_entity_for_id(
             TestDataTaskList.convert_short_title_to_id("A"))
         task_b = self.expected_tasktree.get_entity_for_id("testdatatask-b")
-        task_foo = TestDataTask("Foo", 
-            tasklist_id=expected_tasklist_a.entity_id, 
+        task_foo = TestDataTask("Foo",
+            tasklist_id=expected_tasklist_a.entity_id,
             parent_id=task_b.entity_id,
             previous_task_id=task_b.entity_id)
         expected_task_foo = copy.deepcopy(task_foo)
@@ -1309,14 +1797,314 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         self.assertEqual(expected_task_c, postop_task_c)
 #------------------------------------------------------------------------------ 
 
-class TaskTreePositionTest(ManagedFixturesTestSupport, unittest.TestCase):
+class TaskTreeReorderTest(TaskDataTestSupport, ManagedFixturesTestSupport, unittest.TestCase):
     def setUp(self):
         """Set up basic test fixtures."""
-        self.expected_tasktree = TaskDataTestSupport.create_tasktree()
-        self.tasktree = TaskDataTestSupport.create_tasktree()
+        self.expected_tasktree = TaskDataTestSupport.create_dynamic_tasktree()
+        self.tasktree = copy.deepcopy(self.expected_tasktree)
 
         self._register_fixtures(self.expected_tasktree, self.tasktree)
+        
+    def test_reorder_up_task(self):
+        """Test that the reorder up operation properly updates the sibling
+        links of the Tasks within the targeted Task's sibling group.
+                
+        Arrange:
+            - Find expected Tasks a-a..c.
+            - Update previous_task_id properties of expected Tasks a..c.            
+        Act:
+            - Find actual Task a-c and reorder it up.
+        Assert:
+            - Tasks a-b, a-c from working TaskTree are identical to expected
+            Tasks.    
+        """
+        ### Arrange ###
+        expected_task_aa = self.find_task(self.expected_tasktree, *list('aa'))
+        expected_task_ab = self.find_task(self.expected_tasktree, *list('ab'))
+        expected_task_ac = self.find_task(self.expected_tasktree, *list('ac'))
+        
+        expected_task_ac.previous_task_id = expected_task_aa.entity_id
+        expected_task_ab.previous_task_id = expected_task_ac.entity_id
+        
+        ### Act ###
+        actual_task_ac = self.find_task(self.tasktree, *list('ac'))
+        self.tasktree.reorder_up(actual_task_ac)
+        
+        ### Assert ###
+        self.assertEqual(expected_task_ab,
+            self.find_task(self.tasktree, *list('ab')))
+        self.assertEqual(expected_task_ac,
+            self.find_task(self.tasktree, *list('ac')))
+        
+    def test_reorder_up_tasklist(self):
+        """Test that the reorder up operation raises an error if provided a 
+        TaskList target.
+                
+        Arrange:
+            - Find expected TaskList b.
+        Assert:
+            - Attempting to reorder up TaskList b raises an error.
+        """
+        ### Arrange ###
+        expected_tasklist_b = self.find_tasklist(self.expected_tasktree, *list('b'))
+        
+        ### Assert ###
+        with self.assertRaises(InvalidReorderOperationTargetError):
+            self.tasktree.reorder_up(expected_tasklist_b)
+        
+    def test_reorder_down_task(self):
+        """Test that the reorder down operation properly updates the sibling
+        links of the Tasks within the targeted Task's sibling group.
+        
+        Arrange:
+            - Find expected Tasks a-a..c.
+            - Update previous_task_id properties of expected Tasks.            
+        Act:
+            - Find actual Task a-a and reorder it down.
+        Assert:
+            - Tasks a..c from working TaskTree are identical to expected
+            Tasks.  
+        """
+        ### Arrange ###
+        expected_task_aa = self.find_task(self.expected_tasktree, *list('aa'))
+        expected_task_ab = self.find_task(self.expected_tasktree, *list('ab'))
+        expected_task_ac = self.find_task(self.expected_tasktree, *list('ac'))
+        
+        expected_task_ab.previous_task_id = None
+        expected_task_aa.previous_task_id = expected_task_ab.entity_id
+        expected_task_ac.previous_task_id = expected_task_aa.entity_id
+        
+        ### Act ###
+        actual_task_aa = self.find_task(self.tasktree, *list('aa'))
+        self.tasktree.reorder_down(actual_task_aa)
+        
+        ### Assert ###
+        self.assertEqual(expected_task_aa,
+            self.find_task(self.tasktree, *list('aa')))
+        self.assertEqual(expected_task_ab,
+            self.find_task(self.tasktree, *list('ab')))
+        self.assertEqual(expected_task_ac,
+            self.find_task(self.tasktree, *list('ac')))
+        
+    def test_reorder_down_tasklist(self):
+        """Test that the reorder down operation raises an error if provided a 
+        TaskList target.
+                
+        Arrange:
+            - Find expected TaskList b.
+        Assert:
+            - Attempting to reorder down TaskList b raises an error.
+        """
+        ### Arrange ###
+        expected_tasklist_b = self.find_tasklist(self.expected_tasktree, *list('b'))
+        
+        ### Assert ###
+        with self.assertRaises(InvalidReorderOperationTargetError):
+            self.tasktree.reorder_down(expected_tasklist_b)
+        
+    def test_promote_task_single(self):
+        """Test that the promote operation properly updates the sibling
+        links of the all Task sibling groups affected.
+        
+        This should update both the Task siblings that the Task moves up to 
+        join, and the Task siblings that the Task left.
+        
+        Arrange:
+            - Find expected Tasks a-b..c, a-b-a..b.
+            - Update previous_task_id properties of expected Tasks.
+        Act:
+            - Find actual Task a-b-a and promote it.
+        Assert:
+            - Tasks a-b-a..b and a-c from working TaskTree are identical 
+            to expected Tasks.  
+        """
+        ### Arrange ###
+        expected_task_ab = self.find_task(self.expected_tasktree, *list('ab'))
+        expected_task_ac = self.find_task(self.expected_tasktree, *list('ac'))
+        
+        expected_task_aba = self.find_task(self.expected_tasktree, *list('aba'))
+        expected_task_abb = self.find_task(self.expected_tasktree, *list('abb'))
+        
+        expected_task_aba.previous_task_id = expected_task_ab.entity_id
+        expected_task_aba.parent_id = None
+        expected_task_ac.previous_task_id = expected_task_aba.entity_id
+        
+        expected_task_abb.previous_task_id = expected_task_ab.entity_id
+        
+        ### Act ###
+        actual_task_aba = self.find_task(self.tasktree, *list('aba'))
+        self.tasktree.promote(actual_task_aba)
+        
+        ### Assert ###
+        self.assertEqual(expected_task_aba,
+            self.find_task(self.tasktree, *list('aba')))
+        self.assertEqual(expected_task_abb,
+            self.find_task(self.tasktree, *list('abb')))
+        self.assertEqual(expected_task_ac,
+            self.find_task(self.tasktree, *list('ac')))
     
+    def test_promote_task_multiple(self):
+        """Test that the promote operation properly moves the targeted set of
+        Tasks, and that it maintains the sibling links of all affected Task 
+        sibling groups.
+                
+        Arrange:
+            - Find expected Tasks a-a-a..c, a-b.
+            - Update previous_task_id properties of expected Tasks.
+        Act:
+            - Find actual Task a-b and demote it.
+        Assert:
+            - Tasks a-a-b..c previous_task_id references point to parent 
+            Task a-a-a.
+        """
+        ### Arrange ###
+        expected_task_aa = self.find_task(self.expected_tasktree, *list('aa'))
+        expected_task_ab = self.find_task(self.expected_tasktree, *list('ab'))
+        
+        expected_task_aaa = self.find_task(self.expected_tasktree, *list('aaa'))        
+        expected_task_aab = self.find_task(self.expected_tasktree, *list('aab'))
+        expected_task_aac = self.find_task(self.expected_tasktree, *list('aac'))
+        
+        expected_task_aaa.parent_id = None
+        expected_task_aaa.previous_task_id = expected_task_aa.entity_id
+                
+        expected_task_aab.previous_task_id = expected_task_aa.entity_id
+        
+        expected_task_aac.parent_id = None
+        expected_task_aac.previous_task_id = expected_task_aaa.entity_id
+        
+        expected_task_ab.previous_task_id = expected_task_aac.entity_id
+                        
+        ### Act ###
+        actual_task_aaa = self.find_task(self.tasktree, *list('aaa'))
+        actual_task_aac = self.find_task(self.tasktree, *list('aac'))
+        self.tasktree.promote(actual_task_aaa, actual_task_aac)
+        
+        ### Assert ###
+        self.assertEqual(expected_task_aaa,
+            self.find_task(self.tasktree, *list('aaa')))
+        self.assertEqual(expected_task_aab,
+            self.find_task(self.tasktree, *list('aab')))
+        self.assertEqual(expected_task_aac,
+            self.find_task(self.tasktree, *list('aac')))
+        
+        self.assertEqual(expected_task_ab,
+            self.find_task(self.tasktree, *list('ab')))
+        
+    def test_promote_tasklist(self):
+        """Test that the promote operation raises an error if provided a 
+        TaskList target.
+                
+        Arrange:
+            - Find expected TaskList b.
+        Assert:
+            - Attempting to promote TaskList b raises an error.
+        """
+        ### Arrange ###
+        expected_tasklist_b = self.find_tasklist(self.expected_tasktree, *list('b'))
+        
+        ### Assert ###
+        with self.assertRaises(InvalidReorderOperationTargetError):
+            self.tasktree.promote(expected_tasklist_b)
+    
+    def test_demote_task_single(self):
+        """Test that the demote operation properly updates the sibling
+        links of the all Task sibling groups affected.
+        
+        This should update both the Task siblings that the Task moves down to 
+        join, and the Task siblings that the Task left.
+        
+        Arrange:
+            - Find expected Tasks a-a?..c, a-b-a..b.
+            - Update previous_task_id properties of expected Tasks.
+        Act:
+            - Find actual Task a-b and demote it.
+        Assert:
+            - Tasks a-b-a..c remain children of Task a-b.
+            - Task a-b previous_task_id points to Task a-a-c.
+            - Task a-c previous_task_id points to Task a-a.
+        """
+        ### Arrange ###
+        expected_task_aa = self.find_task(self.expected_tasktree, *list('aa'))
+        expected_task_ab = self.find_task(self.expected_tasktree, *list('ab'))
+        expected_task_ac = self.find_task(self.expected_tasktree, *list('ac'))
+        
+        expected_task_aac = self.find_task(self.expected_tasktree, *list('aac'))
+        
+        expected_task_ab.previous_task_id = expected_task_aac.entity_id
+        expected_task_ab.parent_id = expected_task_aa.entity_id
+        expected_task_ac.previous_task_id = expected_task_aa.entity_id
+        
+        ### Act ###
+        actual_task_ab = self.find_task(self.tasktree, *list('ab'))
+        self.tasktree.demote(actual_task_ab)
+        
+        ### Assert ###
+        self.assertEqual(expected_task_ab.entity_id,
+            self.find_task(self.tasktree, *list('aba')).parent_id)
+        self.assertEqual(expected_task_ab.entity_id,
+            self.find_task(self.tasktree, *list('abb')).parent_id)
+        self.assertEqual(expected_task_ab.entity_id,
+            self.find_task(self.tasktree, *list('abc')).parent_id)
+                
+        self.assertEqual(expected_task_ab,
+            self.find_task(self.tasktree, *list('ab')))
+        
+        self.assertEqual(expected_task_ac,
+            self.find_task(self.tasktree, *list('ac')))
+    
+    def test_demote_task_multiple(self):
+        """Test that the demote operation properly moves the targeted set of
+        Tasks, and that it maintains the sibling links of all affected Task 
+        sibling groups.
+                
+        Arrange:
+            - Find expected Tasks a-a-a..c, a-b.
+            - Update previous_task_id properties of expected Tasks.
+        Act:
+            - Find actual Task a-b and demote it.
+        Assert:
+            - Tasks a-a-b..c previous_task_id references point to parent 
+            Task a-a-a.
+        """
+        ### Arrange ###
+        expected_task_aaa = self.find_task(self.expected_tasktree, *list('aaa'))        
+        expected_task_aab = self.find_task(self.expected_tasktree, *list('aab'))
+        expected_task_aac = self.find_task(self.expected_tasktree, *list('aac'))
+        
+        expected_task_aab.parent_id = expected_task_aaa.entity_id
+        expected_task_aab.previous_task_id = expected_task_aab.parent_id
+        expected_task_aac.parent_id = expected_task_aaa.entity_id
+                
+        ### Act ###
+        actual_task_aab = self.find_task(self.tasktree, *list('aab'))
+        actual_task_aac = self.find_task(self.tasktree, *list('aac'))
+        self.tasktree.demote(actual_task_aab, actual_task_aac)
+        
+        ### Assert ###
+        self.assertEqual(expected_task_aab,
+            self.find_task(self.tasktree, *list('aab')))
+        self.assertEqual(expected_task_aac,
+            self.find_task(self.tasktree, *list('aac')))
+        
+    def test_demote_tasklist(self):
+        """Test that the demote operation raises an error if provided a 
+        TaskList target.
+                
+        Arrange:
+            - Find expected TaskList b.
+        Assert:
+            - Attempting to demote TaskList b raises an error.
+        """
+        ### Arrange ###
+        expected_tasklist_b = self.find_tasklist(self.expected_tasktree, *list('b'))
+        
+        ### Assert ###
+        with self.assertRaises(InvalidReorderOperationTargetError):
+            self.tasktree.demote(expected_tasklist_b)
+#------------------------------------------------------------------------------
+
+class TaskTreePositionTest(unittest.TestCase):    
     def test_add_entity_maintain_task_position(self):
         """Test that adding Tasks updates the previous Task ID 
         references of the sibling Tasks.
@@ -1354,9 +2142,9 @@ class TaskTreePositionTest(ManagedFixturesTestSupport, unittest.TestCase):
         tasktree.add_entity(actual_task_ab)
         
         ### Assert ###
-        self.assertEqual(expected_task_aa, 
+        self.assertEqual(expected_task_aa,
             tasktree.get_entity_for_id(actual_task_aa.entity_id))
-        self.assertEqual(expected_task_ab, 
+        self.assertEqual(expected_task_ab,
             tasktree.get_entity_for_id(expected_task_ab.entity_id))
     
     def test_remove_entity_maintain_task_position(self):
@@ -1399,180 +2187,10 @@ class TaskTreePositionTest(ManagedFixturesTestSupport, unittest.TestCase):
             tasktree.get_entity_for_id(expected_task_aa.entity_id))
         
         ### Assert ###
-        self.assertEqual(expected_task_ab, 
+        self.assertEqual(expected_task_ab,
             tasktree.get_entity_for_id(expected_task_ab.entity_id))
-        self.assertEqual(expected_task_ac, 
+        self.assertEqual(expected_task_ac,
             tasktree.get_entity_for_id(expected_task_ac.entity_id))
-#------------------------------------------------------------------------------ 
-
-class UpdatedDateFilteredTask(Task):
-    def _get_comparable_properties(self):
-        comparable_props = Task._get_comparable_properties(self)
-
-        return set(comparable_props).difference(("updated_date",))
-#------------------------------------------------------------------------------ 
-
-class UpdatedDateFilteredTaskList(TaskList):
-    def _get_comparable_properties(self):
-        comparable_props = TaskList._get_comparable_properties(self)
-
-        return set(comparable_props).difference(("updated_date",))
-#------------------------------------------------------------------------------ 
-
-class TestDataTaskList(TaskList):
-    def __init__(self, short_title, **kwargs):
-        # Create a full title from the provided short title.
-        title = TestDataEntitySupport.create_full_title(self.__class__, short_title)
-
-        # Create an entity id from the full title.
-        entity_id = TestDataEntitySupport.convert_title_to_id(title)
-
-        TaskList.__init__(self, entity_id=entity_id, title=title,
-            updated_date=datetime.now(), **kwargs)
-        
-    @classmethod
-    def convert_short_title_to_id(cls, short_title):
-        # Create a full title from the provided short title.
-        title = TestDataEntitySupport.create_full_title(cls, short_title)
-
-        # Create an entity id from the full title.
-        entity_id = TestDataEntitySupport.convert_title_to_id(title)
-        
-        return entity_id
-#------------------------------------------------------------------------------ 
-
-class TestDataTaskListTest(unittest.TestCase):
-    def test_create_test_tasklist(self):
-        """Test the creation of a simple TestDataTaskList.
-
-        Ensure that the provided short title is properly converted into a
-        long title, and the ID is automatically generated from the full title.
-
-        Arrange:
-            - Create expected long title "TestDataTaskList A".
-            - Create expected entity ID "testdatatasklist-A".
-        Act:
-            - Create new TestDataTaskList A with short title of "A".
-        Assert:
-            - That TestDataTaskList A has the expected long title and entity
-            ID.
-        """
-        ### Arrange ###
-        expected_long_title = "TestDataTaskList A"
-        expected_id = "testdatatasklist-a"
-
-        ### Act ###
-        actual_tasklist_a = TestDataTaskList("A")
-
-        ### Assert ###
-        self.assertEqual(expected_long_title, actual_tasklist_a.title)
-        self.assertEqual(expected_id, actual_tasklist_a.entity_id)
-
-    def test_convert_short_title_to_id(self):
-        """Test converting a short title into an ID.
-
-        Should produce an ID of "testdatatasklist-a" when provided with a 
-        short title "A".
-
-        Arrange:
-            - Create expected entity ID.
-        Act:
-            - Convert the short title "A" to the actual entity ID.
-        Assert:
-            - That the expected and actual IDs are the same.
-        """
-        ### Arrange ###
-        expected_entity_id = "testdatatasklist-a"
-
-        ### Act ###
-        actual_entity_id = TestDataTaskList.convert_short_title_to_id("A")
-
-        ### Assert ###
-        self.assertEqual(expected_entity_id, actual_entity_id)
-#------------------------------------------------------------------------------ 
-
-class TestDataTask(Task):
-    def __init__(self, short_title, **kwargs):
-        # Create a full title from the provided short title.
-        title = TestDataEntitySupport.create_full_title(self.__class__, short_title)
-
-        # Create an entity id from the full title.
-        entity_id = self.convert_short_title_to_id(short_title)
-
-        Task.__init__(self, entity_id=entity_id, title=title,
-            updated_date=datetime.now(), **kwargs)
-        
-    """
-    TODO: As both TestDataTask and TestDataTaskList share this identical
-    method, it should probably be moved out to a common mixin class.
-    """ 
-    @classmethod
-    def convert_short_title_to_id(cls, short_title):
-        # Create a full title from the provided short title.
-        title = TestDataEntitySupport.create_full_title(cls, short_title)
-
-        # Create an entity id from the full title.
-        entity_id = TestDataEntitySupport.convert_title_to_id(title)
-        
-        return entity_id
-#------------------------------------------------------------------------------ 
-
-class TestDataTaskTest(unittest.TestCase):
-    def test_create_test_task(self):
-        """Test the creation of a simple TestDataTask.
-
-        Ensure that the provided short title is properly converted into a
-        long title, and the ID is automatically generated from the full title.
-
-        Arrange:
-            - Create expected long title "TestDataTask A".
-            - Create expected entity ID "testdatatask-A".
-        Act:
-            - Create new TestDataTask A with short title of "A".
-        Assert:
-            - That TestDataTask A has the expected long title and entity
-            ID.
-        """
-        ### Arrange ###
-        expected_long_title = "TestDataTask A"
-        expected_id = "testdatatask-a"
-
-        ### Act ###
-        actual_task_a = TestDataTask("A")
-
-        ### Assert ###
-        self.assertEqual(expected_long_title, actual_task_a.title)
-        self.assertEqual(expected_id, actual_task_a.entity_id)
-
-    def test_convert_short_title_to_id(self):
-        """Test converting a short title into an ID.
-
-        Should produce an ID of "testdatatask-a" when provided with a 
-        short title "A".
-
-        Arrange:
-            - Create expected entity ID.
-        Act:
-            - Convert the short title "A" to the actual entity ID.
-        Assert:
-            - That the expected and actual IDs are the same.
-        """
-        ### Arrange ###
-        expected_entity_id = "testdatatask-a"
-
-        ### Act ###
-        actual_entity_id = TestDataTask.convert_short_title_to_id("A")
-
-        ### Assert ###
-        self.assertEqual(expected_entity_id, actual_entity_id)
-#------------------------------------------------------------------------------ 
-
-class UpdatedDateIgnoredTestDataTaskList(TestDataTaskList, UpdatedDateFilteredTaskList):
-    pass
-#------------------------------------------------------------------------------ 
-
-class UpdatedDateIgnoredTestDataTask(TestDataTask, UpdatedDateFilteredTask):
-    pass
 #------------------------------------------------------------------------------ 
 
 class TestDataEntitySupport(object):
@@ -1712,201 +2330,6 @@ class TestDataEntitySupportTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_id, actual_id)
 #------------------------------------------------------------------------------ 
-
-class TaskDataTestSupport(object):
-    """Simple support class to make it more convenient to product mock TaskList
-    and Task data for use in testing."""
-    @classmethod
-    def create_tasklists(cls, tasklist_type=TaskList, entity_id_prefix="tl-",
-        title_prefix="TaskList ", begin_count=0, end_count=3):
-        """Create a dictionary of TaskList objects.
-
-        Each TaskList object will be given a unique ID and title, beginning
-        with the associated prefixes and ending with an alphabetic character
-        corresponding to the creation order of the TaskList.
-        The method will create begin_count - end_count TaskLists.
-
-        Args:
-            entity_id_prefix: str prefix for the TaskList ID.
-            title_prefix: str prefix for the TaskList title.
-            begin_count: int for the index of the first character suffix.
-            end_count: int for the index of the final character suffix.
-        Returns:
-            A dictionary keyed with the TaskList IDs, with values mapping to
-            the corresponding TaskList instance.
-        """
-        assert begin_count < end_count
-
-        updated_date = datetime.now()
-
-        tasklists = {entity_id_prefix + string.ascii_uppercase[x]:
-            tasklist_type(entity_id=entity_id_prefix + string.ascii_uppercase[x],
-            title=title_prefix + string.ascii_uppercase[x],
-            updated_date=updated_date)
-            for x in range(begin_count, end_count)}
-
-        return tasklists
-
-    @classmethod
-    def create_all_tasks(cls, tasklists, task_type=Task):
-        updated_date = datetime.now()
-
-        all_tasks = dict()
-        for tasklist in tasklists.values():
-            t_a = task_type(entity_id=tasklist.entity_id + "-t-A",
-                tasklist_id=tasklist.entity_id, title="Task A",
-                updated_date=updated_date)
-            t_b = task_type(entity_id=tasklist.entity_id + "-t-B",
-                tasklist_id=tasklist.entity_id, title="Task B",
-                parent_id=t_a.entity_id, updated_date=updated_date)
-            t_c = task_type(entity_id=tasklist.entity_id + "-t-C",
-                tasklist_id=tasklist.entity_id, title="Task C",
-                parent_id=t_a.entity_id, updated_date=updated_date)
-
-            all_tasks[tasklist.entity_id] = {t_a.entity_id:t_a,
-                t_b.entity_id:t_b, t_c.entity_id:t_c}
-
-        return all_tasks
-
-    @classmethod
-    def create_tasktree(cls, tasklist_type=TaskList, task_type=Task):
-        """This will establish a two-level tree of task data.
-
-        The tree consists of a single TaskList A, with child Tasks B..F.
-        The data should create a tree with the following architecture:
-
-        - tl-A
-            - t-B
-            - t-C
-                - t-E
-                - t-F
-            - t-D
-        """
-        tasklist_a = TestDataTaskList("A")
-
-        task_b = TestDataTask("B", tasklist_id=tasklist_a.entity_id,
-            position=1)
-
-        task_c = TestDataTask("C", tasklist_id=tasklist_a.entity_id,
-            position=2)
-        task_e = TestDataTask("E", tasklist_id=tasklist_a.entity_id,
-            position=1, parent_id=task_c.entity_id)
-        task_f = TestDataTask("F", tasklist_id=tasklist_a.entity_id,
-            position=2, parent_id=task_c.entity_id)
-
-        task_d = TestDataTask("D", tasklist_id=tasklist_a.entity_id,
-            position=3)
-
-        tasklists = {tasklist_a.entity_id: tasklist_a}
-        tasklist_a_tasks = {task_b.entity_id:task_b,
-            task_c.entity_id:task_c,
-            task_d.entity_id:task_d,
-            task_e.entity_id:task_e,
-            task_f.entity_id:task_f}
-        all_tasks = {tasklist_a.entity_id: tasklist_a_tasks}
-
-        """
-        TODO: This should be updated to provide the task data in a single, 
-        "flat" dictionary collection.
-        """
-        # Use the task data to build the TaskTree.
-        tasktree = TaskTree(tasklists=tasklists, all_tasks=all_tasks)
-
-        return tasktree
-    
-    @classmethod
-    def create_dynamic_tasktree(cls, tasklist_type=TestDataTaskList,
-        task_type=TestDataTask, siblings_count=3,
-        tree_depth=3):
-        
-        tasklists = dict()
-        all_tasks = dict()
-        
-        for tl_i in range(0, siblings_count):
-            tasklist_short_title = string.ascii_uppercase[tl_i]
-            tasklist = tasklist_type(tasklist_short_title)
-            tasklists[tasklist.entity_id] = tasklist
-                      
-            tasklist_tasks = cls._create_task_branch(task_type,
-                tasklist_short_title, tasklist.entity_id, None,
-                siblings_count, tree_depth - 1, 1)
-            all_tasks[tasklist.entity_id] = tasklist_tasks
-            
-        tasktree = TaskTree(tasklists=tasklists, all_tasks=all_tasks)
-        return tasktree
-    
-    @classmethod
-    def _create_task_branch(cls, task_type, parent_title, tasklist_id,
-        parent_task_id, siblings_count, tree_depth, current_depth):
-        
-        tasks = dict()
-        
-        for t_i in range(0, siblings_count):
-            task_short_title = parent_title + "-" + string.ascii_uppercase[t_i]
-            task = task_type(task_short_title, tasklist_id=tasklist_id,
-                parent_id=parent_task_id)
-            
-            tasks[task.entity_id] = task
-            
-            if current_depth < tree_depth:
-                child_tasks = cls._create_task_branch(task_type,
-                    task_short_title, tasklist_id, task.entity_id,
-                    siblings_count, tree_depth, current_depth + 1)
-                tasks.update(child_tasks)
-        
-        return tasks
-        
-    def find_entity(self, tasktree, entity_type, *short_title_sections):
-        entity_id = TestDataEntitySupport.short_title_to_id(entity_type,
-            *short_title_sections)
-        
-        entity = tasktree.get_entity_for_id(entity_id)
-        
-        return entity
-    
-    def find_tasklist(self, tasktree, *short_title_sections):
-        return self.find_entity(tasktree, TestDataTaskList,
-            *short_title_sections)
-    
-    def find_task(self, tasktree, *short_title_sections):
-        return self.find_entity(tasktree, TestDataTask,
-            *short_title_sections)
-#------------------------------------------------------------------------------
-
-class TaskDataTestSupportTest(unittest.TestCase):
-    def test_create_dynamic_tasktree(self):
-        """Test the creation of a "4x3" TaskTree.
-        
-        A "4x3" TaskTree should have three siblings for every level, and a 
-        depth (height?) of four branches.
-        
-        Arrange:
-            - Create expected TaskList A and Task A-C-C.
-        Act:
-            - Create a TaskTree with three TaskLists and a depth of 3 
-            (TaskList plus two levels of Tasks).
-            - Find the actual TaskList A and Task A-C-C.
-        Assert:
-            - That the expected and actual TaskList A and Task A-C-C are equal.
-        """
-        ### Arrange ###
-        expected_tasklist_a = TestDataTaskList("A")
-        expected_task_acc = TestDataTask("A-C-C",
-            tasklist_id=expected_tasklist_a.entity_id,
-            parent_id="testdatatask-a-c",
-            previous_task_id=TestDataEntitySupport.short_title_to_id(TestDataTask, *list('acb')))
-            
-        ### Act ###
-        tasktree = TaskDataTestSupport.create_dynamic_tasktree(
-            tasklist_type=TestDataTaskList, task_type=TestDataTask,
-            siblings_count=3, tree_depth=3)
-        
-        actual_tasklist_a = tasktree.get_entity_for_id("testdatatasklist-a")
-        actual_task_acc = tasktree.get_entity_for_id("testdatatask-a-c-c")
-        
-        ### Assert ###
-        self.assertEqual(expected_tasklist_a, actual_tasklist_a)
-        self.assertEqual(expected_task_acc, actual_task_acc)
         
 class TaskTreeComparator(object):
     @classmethod
