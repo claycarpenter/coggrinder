@@ -325,7 +325,7 @@ class TaskTree(Tree):
             
             task_nodes.append(task_node)
         
-        # Demote the targeted Task nodes.
+        # Demote the targeted Task nodes. 
         Tree.demote(self, *task_nodes)
         
         # Refresh the sibling links of both the old and new/current 
@@ -2612,6 +2612,187 @@ class TaskTreeComparatorFindUpdatedTest(TaskDataTestSupport, ManagedFixturesTest
         self.working_tasktree.update_entity(task_acc)
         
         expected_updated_ids = set([task_cac.entity_id])
+
+        ### Act ###
+        actual_updated_ids = self.comparator.find_updated_ids(
+            self.baseline_tasktree, self.working_tasktree)
+
+        ### Assert ###
+        self.assertEqual(expected_updated_ids, actual_updated_ids)
+        
+    def test_find_reorder_up_updated_task(self):
+        """Test that the TaskTreeComparator can identify any Tasks in a 
+        TaskTree that have updated tree positions due to a reorder operation.
+         
+        Tasks a-b, a-c will have their positions switched. The resulting 
+        relative branch of the tree will have this structure:
+        
+        - tl-a
+            - t-a-a
+                - [Unchanged]
+            - t-a-c
+                - t-a-c-a
+                - t-a-c-b
+                - t-a-c-c
+            - t-a-b
+                - t-a-b-a
+                - t-a-b-b
+                - t-a-b-c
+
+        Arrange:
+            - Find entities Tasks a-b, a-c in working TaskTree.
+            - Reorder up Task a-c.
+            - Create list of expected updated entity IDs.
+        Act:
+            - Use TaskTreeComparator.find_updated_id to locate the entity IDs
+            of every entity that was changed between the two TaskTrees.
+        Assert:
+            - That the expected and actual sets of updated entity IDs are
+            identical.
+        """
+        ### Arrange ###
+        task_ab = self.find_task(self.working_tasktree, *list('ab'))
+        task_ac = self.find_task(self.working_tasktree, *list('ac'))
+
+        self.working_tasktree.reorder_up(task_ac)
+        
+        expected_updated_ids = set([task_ab.entity_id, task_ac.entity_id])
+
+        ### Act ###
+        actual_updated_ids = self.comparator.find_updated_ids(
+            self.baseline_tasktree, self.working_tasktree)
+
+        ### Assert ###
+        self.assertEqual(expected_updated_ids, actual_updated_ids)
+        
+    def test_find_reorder_down_updated_task(self):
+        """Test that the TaskTreeComparator can identify any Tasks in a 
+        TaskTree that have updated tree positions due to a reorder operation.
+         
+        Tasks a-b, a-c will have their positions switched. The resulting 
+        relative branch of the tree will have this structure:
+        
+        - tl-a
+            - t-a-a
+                - [Unchanged]
+            - t-a-c
+                - t-a-c-a
+                - t-a-c-b
+                - t-a-c-c
+            - t-a-b
+                - t-a-b-a
+                - t-a-b-b
+                - t-a-b-c
+
+        Arrange:
+            - Find entities Tasks a-b, a-c in working TaskTree.
+            - Reorder down Task a-b.
+            - Create list of expected updated entity IDs.
+        Act:
+            - Use TaskTreeComparator.find_updated_id to locate the entity IDs
+            of every entity that was changed between the two TaskTrees.
+        Assert:
+            - That the expected and actual sets of updated entity IDs are
+            identical.
+        """
+        ### Arrange ###
+        task_ab = self.find_task(self.working_tasktree, *list('ab'))
+        task_ac = self.find_task(self.working_tasktree, *list('ac'))
+
+        self.working_tasktree.reorder_down(task_ab)
+        
+        expected_updated_ids = set([task_ab.entity_id, task_ac.entity_id])
+
+        ### Act ###
+        actual_updated_ids = self.comparator.find_updated_ids(
+            self.baseline_tasktree, self.working_tasktree)
+
+        ### Assert ###
+        self.assertEqual(expected_updated_ids, actual_updated_ids)
+        
+    def test_find_demote_updated_task(self):
+        """Test that the TaskTreeComparator can identify any Tasks in a 
+        TaskTree that have updated tree positions due to a reorder operation.
+         
+        Task a-b will be demoted. The resulting 
+        relative branch of the tree will have this structure:
+        
+        - tl-a
+            - t-a-a
+                - [Unchanged]
+                - t-a-b
+                    - t-a-b-a
+                    - t-a-b-b
+                    - t-a-b-c
+            - t-a-c
+                - t-a-c-a
+                - t-a-c-b
+                - t-a-c-c
+
+        Arrange:
+            - Find entities Tasks a-b, a-c in working TaskTree.
+            - Demote Task a-b.
+            - Create list of expected updated entity IDs.
+        Act:
+            - Use TaskTreeComparator.find_updated_id to locate the entity IDs
+            of every entity that was changed between the two TaskTrees.
+        Assert:
+            - That the expected and actual sets of updated entity IDs are
+            identical.
+        """
+        ### Arrange ###
+        task_ab = self.find_task(self.working_tasktree, *list('ab'))
+        task_ac = self.find_task(self.working_tasktree, *list('ac'))
+
+        self.working_tasktree.demote(task_ab)
+        
+        expected_updated_ids = set([task_ab.entity_id, task_ac.entity_id])
+
+        ### Act ###
+        actual_updated_ids = self.comparator.find_updated_ids(
+            self.baseline_tasktree, self.working_tasktree)
+
+        ### Assert ###
+        self.assertEqual(expected_updated_ids, actual_updated_ids)
+        
+    def test_find_promote_updated_task(self):
+        """Test that the TaskTreeComparator can identify any Tasks in a 
+        TaskTree that have updated tree positions due to a reorder operation.
+         
+        Task a-b-a will be promoted. The resulting 
+        relative branch of the tree will have this structure:
+        
+        - tl-a
+            - t-a-a
+                - [Unchanged]
+            - t-a-b
+                - t-a-b-b
+                - t-a-b-c
+            - t-a-b-a
+            - t-a-c
+                - t-a-c-a
+                - t-a-c-b
+                - t-a-c-c
+
+        Arrange:
+            - Find entities Tasks a-b-a, a-b-b, a-c in working TaskTree.
+            - Promote Task a-b.
+            - Create list of expected updated entity IDs.
+        Act:
+            - Use TaskTreeComparator.find_updated_id to locate the entity IDs
+            of every entity that was changed between the two TaskTrees.
+        Assert:
+            - That the expected and actual sets of updated entity IDs are
+            identical.
+        """
+        ### Arrange ###
+        task_aba = self.find_task(self.working_tasktree, *list('aba'))
+        task_abb = self.find_task(self.working_tasktree, *list('abb'))
+        task_ac = self.find_task(self.working_tasktree, *list('ac'))
+
+        self.working_tasktree.promote(task_aba)
+        
+        expected_updated_ids = set([task_aba.entity_id, task_abb.entity_id, task_ac.entity_id])
 
         ### Act ###
         actual_updated_ids = self.comparator.find_updated_ids(
