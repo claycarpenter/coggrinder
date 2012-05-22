@@ -1884,6 +1884,10 @@ class TaskTreeReorderTest(TaskDataTestSupport, ManagedFixturesTestSupport, unitt
         self.assertEqual(expected_task_ac,
             self.find_task(self.tasktree, *list('ac')))
     
+    """
+    TODO: This test still randomly fails. Frustratingly, every 
+    debug/step-through attempt has resulted in a successful test outcome.
+    """
     def test_demote_task_multiple(self):
         """Test that the demote operation properly moves the targeted set of
         Tasks, and that it maintains the sibling links of all affected Task 
