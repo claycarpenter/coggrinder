@@ -8,10 +8,9 @@ import unittest
 import apiclient.discovery
 from datetime import datetime
 from coggrinder.services.task_services import GoogleServicesTaskService, GoogleServicesTaskListService, InMemoryTaskListService, InMemoryTaskService, UnregisteredEntityError
-from coggrinder.entities.tasks import Task, TaskList
-from coggrinder.entities.tasktree import TaskTree, TaskDataTestSupport, UpdatedDateFilteredTask, UpdatedDateFilteredTaskList, \
-    TestDataTaskList, TestDataTask, TaskTreeComparator, UpdatedDateIgnoredTestDataTaskList, UpdatedDateIgnoredTestDataTask, \
-    TestDataEntitySupport
+from coggrinder.entities.tasks import UpdatedDateFilteredTask, UpdatedDateFilteredTaskList, TestDataTaskList, TestDataTask, UpdatedDateIgnoredTestDataTaskList, UpdatedDateIgnoredTestDataTask, TestDataEntitySupport
+from coggrinder.entities.tasktree import TaskTree, TaskDataTestSupport, TaskTreeComparator
+    
 from coggrinder.core.test import ManagedFixturesTestSupport
 from mockito import mock, when, any
 import copy
@@ -339,7 +338,7 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
             tasklist_id=expected_tasklist_a.entity_id)
         actual_task_foo = copy.deepcopy(expected_task_foo)
         expected_task_foo.previous_task_id = TestDataEntitySupport.short_title_to_id(
-            TestDataTask,*list('ac'))
+            TestDataTask, *list('ac'))
 
         ### Act ###
         self.tasktree_srvc.add_entity(actual_task_foo)
