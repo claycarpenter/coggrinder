@@ -165,7 +165,7 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
         str_dict = self.to_str_dict()
         ordered_entity_info = self._ordered_entity_info(str_dict)
         
-        return ", ".join(ordered_entity_info)
+        return "<" + ("; ".join(ordered_entity_info)) + ">"
 
     def __repr__(self):
         return self.__str__()
@@ -512,12 +512,12 @@ class UpdatedDateFilteredTaskList(TaskList):
 #------------------------------------------------------------------------------ 
 
 class TestDataTaskList(TaskList):
-    def __init__(self, short_title, **kwargs):
+    def __init__(self, *short_title_sections, **kwargs):
         # Create a full title from the provided short title.
-        title = TestDataEntitySupport.create_full_title(self.__class__, short_title)
+        title = TestDataEntitySupport.create_full_title(self.__class__, *short_title_sections)
 
         # Create an entity id from the full title.
-        entity_id = TestDataEntitySupport.convert_title_to_id(title)
+        entity_id = self.convert_short_title_to_id(*short_title_sections)
 
         TaskList.__init__(self, entity_id=entity_id, title=title,
             updated_date=datetime.now(), **kwargs)
@@ -584,12 +584,12 @@ class TestDataTaskListTest(unittest.TestCase):
 #------------------------------------------------------------------------------ 
 
 class TestDataTask(Task):
-    def __init__(self, short_title, **kwargs):
+    def __init__(self, *short_title_sections, **kwargs):
         # Create a full title from the provided short title.
-        title = TestDataEntitySupport.create_full_title(self.__class__, short_title)
+        title = TestDataEntitySupport.create_full_title(self.__class__, *short_title_sections)
 
         # Create an entity id from the full title.
-        entity_id = self.convert_short_title_to_id(short_title)
+        entity_id = self.convert_short_title_to_id(*short_title_sections)
 
         Task.__init__(self, entity_id=entity_id, title=title,
             updated_date=datetime.now(), **kwargs)
@@ -804,3 +804,192 @@ class TestDataEntitySupportTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_id, actual_id)
 #------------------------------------------------------------------------------ 
+
+class TaskDataSorter(object):
+    @classmethod
+    def sort_task_data(cls, task_data):
+        # Group all of the entities in the task data by their direct parents.
+        # TaskLists, which have no parent, will be grouped by None. 
+        task_data_by_parent = dict()
+        for entity in task_data:
+            parent_entity_id = cls._find_direct_parent(entity)
+            
+            try:
+                task_data_by_parent[parent_entity_id].append(entity)
+            except (KeyError, AttributeError):
+                task_data_by_parent[parent_entity_id] = [entity]
+        
+        # Sort the task entities recursively.
+        sorted_task_data = cls._sort_recursively(task_data_by_parent, None)        
+        
+        return sorted_task_data
+    
+    @classmethod
+    def _sort_recursively(cls, task_data_by_parent, parent_id):        
+        # Get all entities belonging to the current parent_id.
+        try:
+            child_entities = task_data_by_parent[parent_id]
+            
+            # Iterate through the sorted entities, adding each to the sorted
+            # task data list before recursively adding the entity's children.        
+            sorted_task_data = list()
+            for child_entity in sorted(child_entities):
+                sorted_task_data.append(child_entity)
+                
+                sorted_children = cls._sort_recursively(task_data_by_parent, child_entity.entity_id)
+                if sorted_children:
+                    sorted_task_data.extend(sorted_children)
+            
+            return sorted_task_data
+        except KeyError:
+            # The specified parent entity has no child entities.
+            return []        
+    
+    @classmethod
+    def _find_direct_parent(cls, entity):        
+        try:
+            parent_entity_id = entity.parent_id
+            
+            if parent_entity_id is None:
+                parent_entity_id = entity.tasklist_id
+                
+            return parent_entity_id
+        except AttributeError:
+            # Entity is a TaskList, parent ID is None.
+            return None
+    
+    @classmethod
+    def sort_entity_group(cls, entity_group):            
+        sorted_entities = sorted(entity_group)
+        
+        return sorted_entities
+#------------------------------------------------------------------------------ 
+
+class TaskDataSorterTest(unittest.TestCase):
+    def test_sort_entity_group_tasklists(self):
+        """Verify the TaskDataSorter sorting a collection of TaskLists.
+        
+        Arrange:
+            - Create TaskLists.
+            - Create a collection of expected, sorted TaskLists.
+            - Create a collection of unordered TaskLists.            
+        Act:
+            - Retrieve the actual sorted collection of TaskLists 
+            from TaskDataSorter.
+        Assert:
+            - That the expected sorted and actual sorted TaskList collections 
+            are equal.
+        """    
+        ### Arrange ###
+        tasklist_foo = TestDataTaskList("foo")
+        tasklist_bar = TestDataTaskList("bar")
+        tasklist_baz = TestDataTaskList("Baz")
+        
+        expected_sorted_tasklists = [tasklist_bar, tasklist_baz, tasklist_foo]
+        input_tasklists = [tasklist_foo, tasklist_bar, tasklist_baz]
+        
+        ### Act ###
+        actual_sorted_tasklists = TaskDataSorter.sort_entity_group(input_tasklists)
+        
+        ### Assert ###
+        self.assertEqual(expected_sorted_tasklists, actual_sorted_tasklists)
+        
+    def test_sort_entity_group_tasks(self):
+        """Verify the TaskDataSorter sorting a collection of Tasks.
+        
+        Arrange:
+            - Create Tasks.
+            - Create a collection of expected, sorted Tasks.
+            - Create a collection of unordered Tasks.            
+        Act:
+            - Retrieve the actual sorted collection of Tasks 
+            from TaskDataSorter.
+        Assert:
+            - That the expected sorted and actual sorted Task collections 
+            are equal.
+        """    
+        ### Arrange ###
+        task_one = Task(title="one", position=1)
+        task_two = Task(title="two", position=2)
+        task_three = Task(title="three", position=3)
+        
+        expected_sorted_tasks = [task_one, task_two, task_three]
+        input_tasks = [task_two, task_one, task_three]
+        
+        ### Act ###
+        actual_sorted_tasks = TaskDataSorter.sort_entity_group(input_tasks)
+        
+        ### Assert ###
+        self.assertEqual(expected_sorted_tasks, actual_sorted_tasks)
+        
+    def test_sort_task_data_tasklists_only(self):
+        """Verify the TaskDataSorter sorting a collection of task data that 
+        contains only TaskLists.
+        
+        Arrange:
+            - Create TaskLists.
+            - Create a collection of expected, sorted TaskLists.
+            - Create a collection of unordered TaskLists.            
+        Act:
+            - Retrieve the actual sorted collection of TaskLists 
+            from TaskDataSorter.
+        Assert:
+            - That the expected sorted and actual sorted TaskList collections 
+            are equal.
+        """    
+        ### Arrange ###
+        tasklist_foo = TestDataTaskList("foo")
+        tasklist_bar = TestDataTaskList("bar")
+        tasklist_baz = TestDataTaskList("Baz")
+        
+        expected_sorted_task_data = [tasklist_bar, tasklist_baz, tasklist_foo]
+        input_task_data = [tasklist_foo, tasklist_bar, tasklist_baz]
+        
+        ### Act ###
+        actual_sorted_task_data = TaskDataSorter.sort_task_data(input_task_data)
+        
+        ### Assert ###
+        self.assertEqual(expected_sorted_task_data, actual_sorted_task_data)
+        
+    def test_sort_task_data_simple_tree(self):
+        """Verify the TaskDataSorter sorting a collection of task data that 
+        contains the entities that make this simple task data tree:
+        
+        - tl-a
+            - t-a-a
+            - t-a-b
+        - tl-b
+            - t-b-a
+                - t-b-a-a        
+        
+        Arrange:
+            - Create task data entities.
+            - Create a collection of expected, sorted TaskLists.
+            - Create a collection of unordered TaskLists.            
+        Act:
+            - Retrieve the actual sorted collection of TaskLists 
+            from TaskDataSorter.
+        Assert:
+            - That the expected sorted and actual sorted TaskList collections 
+            are equal.
+        """    
+        ### Arrange ###
+        tasklist_a = TestDataTaskList("a")
+        tasklist_b = TestDataTaskList("b")
+
+        task_aa = TestDataTask("a-a", tasklist_id=tasklist_a.entity_id, position=1)
+        task_ab = TestDataTask("a-b", tasklist_id=tasklist_a.entity_id, position=2)
+
+        task_ba = TestDataTask("b-a", tasklist_id=tasklist_b.entity_id, position=1)
+        task_bba = TestDataTask("b-b-a", tasklist_id=tasklist_b.entity_id, 
+            parent_id=task_ba.entity_id, position=1)
+        
+        input_task_data = [task_ba, tasklist_b, tasklist_a, task_aa, task_bba, task_ab]
+        expected_sorted_task_data = [tasklist_a, task_aa, task_ab, tasklist_b, task_ba, task_bba]
+        
+        ### Act ###
+        actual_sorted_task_data = TaskDataSorter.sort_task_data(input_task_data)
+        
+        ### Assert ###
+        self.assertEqual(expected_sorted_task_data, actual_sorted_task_data)
+#------------------------------------------------------------------------------
