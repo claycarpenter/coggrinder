@@ -233,6 +233,34 @@ class BaseTaskEntityTest(unittest.TestCase):
         self.assertLess(entity_empty, entity_bar)
         self.assertLess(entity_special_char, entity_bar)
         self.assertLess(entity_empty, entity_special_char)
+        
+    def test_sort_collection(self):
+        """Verify that a collection of BaseTaskEntities sorts in the 
+        correct order.
+        
+        Arrange:
+            - Create BaseTaskEntities.
+            - Create a collection of expected, sorted BaseTaskEntities.
+            - Create a collection of unordered BaseTaskEntities.            
+        Act:
+            - Create the actual sorted collection of BaseTaskEntities.
+        Assert:
+            - That the expected sorted and actual sorted BaseTaskEntity 
+            collections are equal.
+        """    
+        ### Arrange ###
+        foo = BaseTaskEntity(title="foo")
+        bar = BaseTaskEntity(title="bar")
+        baz = BaseTaskEntity(title="Baz")
+        
+        expected_sorted_entities = [bar, baz, foo]
+        input_entities = [foo, bar, baz]
+        
+        ### Act ###
+        actual_sorted_entities = sorted(input_entities)
+        
+        ### Assert ###
+        self.assertEqual(expected_sorted_entities, actual_sorted_entities)
 
     def test_from_str_dict(self):
         expected_entity = BaseTaskEntity(entity_id="1",
@@ -490,6 +518,33 @@ class TaskTest(unittest.TestCase):
         self.assertRichComparison(entity_1, entity_undefined)
         self.assertRichComparison(entity_3403, entity_undefined)
         self.assertRichComparison(entity_undefined_bar, entity_undefined_foo)
+        
+    def test_sort_collection(self):
+        """Verify that a collection of Tasks sorts in the correct order.
+        
+        Arrange:
+            - Create Tasks.
+            - Create a collection of expected, sorted Tasks.
+            - Create a collection of unordered Tasks.            
+        Act:
+            - Calculate the actual sorted collection of Tasks.
+        Assert:
+            - That the expected sorted and actual sorted Task collections 
+            are equal.
+        """    
+        ### Arrange ###
+        task_one = Task(title="one", position=1)
+        task_two = Task(title="two", position=2)
+        task_three = Task(title="three", position=3)
+        
+        expected_sorted_tasks = [task_one, task_two, task_three]
+        input_tasks = [task_two, task_one, task_three]
+        
+        ### Act ###
+        actual_sorted_tasks = sorted(input_tasks)
+        
+        ### Assert ###
+        self.assertEqual(expected_sorted_tasks, actual_sorted_tasks)
         
     def assertRichComparison(self, lesser, greater):
         self.assertNotEqual(greater, lesser)
@@ -857,71 +912,9 @@ class TaskDataSorter(object):
         except AttributeError:
             # Entity is a TaskList, parent ID is None.
             return None
-    
-    @classmethod
-    def sort_entity_group(cls, entity_group):            
-        sorted_entities = sorted(entity_group)
-        
-        return sorted_entities
 #------------------------------------------------------------------------------ 
 
-class TaskDataSorterTest(unittest.TestCase):
-    def test_sort_entity_group_tasklists(self):
-        """Verify the TaskDataSorter sorting a collection of TaskLists.
-        
-        Arrange:
-            - Create TaskLists.
-            - Create a collection of expected, sorted TaskLists.
-            - Create a collection of unordered TaskLists.            
-        Act:
-            - Retrieve the actual sorted collection of TaskLists 
-            from TaskDataSorter.
-        Assert:
-            - That the expected sorted and actual sorted TaskList collections 
-            are equal.
-        """    
-        ### Arrange ###
-        tasklist_foo = TestDataTaskList("foo")
-        tasklist_bar = TestDataTaskList("bar")
-        tasklist_baz = TestDataTaskList("Baz")
-        
-        expected_sorted_tasklists = [tasklist_bar, tasklist_baz, tasklist_foo]
-        input_tasklists = [tasklist_foo, tasklist_bar, tasklist_baz]
-        
-        ### Act ###
-        actual_sorted_tasklists = TaskDataSorter.sort_entity_group(input_tasklists)
-        
-        ### Assert ###
-        self.assertEqual(expected_sorted_tasklists, actual_sorted_tasklists)
-        
-    def test_sort_entity_group_tasks(self):
-        """Verify the TaskDataSorter sorting a collection of Tasks.
-        
-        Arrange:
-            - Create Tasks.
-            - Create a collection of expected, sorted Tasks.
-            - Create a collection of unordered Tasks.            
-        Act:
-            - Retrieve the actual sorted collection of Tasks 
-            from TaskDataSorter.
-        Assert:
-            - That the expected sorted and actual sorted Task collections 
-            are equal.
-        """    
-        ### Arrange ###
-        task_one = Task(title="one", position=1)
-        task_two = Task(title="two", position=2)
-        task_three = Task(title="three", position=3)
-        
-        expected_sorted_tasks = [task_one, task_two, task_three]
-        input_tasks = [task_two, task_one, task_three]
-        
-        ### Act ###
-        actual_sorted_tasks = TaskDataSorter.sort_entity_group(input_tasks)
-        
-        ### Assert ###
-        self.assertEqual(expected_sorted_tasks, actual_sorted_tasks)
-        
+class TaskDataSorterTest(unittest.TestCase):        
     def test_sort_task_data_tasklists_only(self):
         """Verify the TaskDataSorter sorting a collection of task data that 
         contains only TaskLists.
