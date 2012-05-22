@@ -8,6 +8,7 @@ from coggrinder.entities.tasks import TaskList, Task
 from coggrinder.resources.icons import buttons
 from coggrinder.gui.events import Event
 from coggrinder.gui.task_treestore import TaskTreeStore, TreeNode
+from coggrinder.entities.tasktree import TaskTree, TaskTreeComparator
 
 
 class TaskTreeWindowController(object):
@@ -120,13 +121,13 @@ class TaskTreeWindowController(object):
 
         # Create an empty new task with only the parent ID and tasklist ID 
         # specified.
-        new_task = Task(parent_id=parent_id, tasklist_id=tasklist_id)
+        new_task = Task(title="", parent_id=parent_id, tasklist_id=tasklist_id)
 
         # Add the new task.
-        new_task = self.task_service.add_task(new_task)
+        new_task = self._tasktree_service.add_entity(new_task)
 
-        # Refresh the task data, tree.
-        self.refresh_task_data()
+        # Refresh the task tree UI.
+        self.refresh_task_view()
 
         # Override existing selection. Select new task and set the tree node 
         # to be "editable". This will need to expand any collapsed parent nodes
@@ -561,7 +562,9 @@ class TaskTreeViewController(object):
     """
     def __init__(self, tasktree=None):
         self.view = TaskTreeView()
-
+        
+        if tasktree is None:
+            tasktree = TaskTree()
         self._tasktree = tasktree
 
         # TODO: Connect edited and (selection) changed event handlers.
@@ -631,7 +634,7 @@ class TaskTreeViewController(object):
 #        # select_path method?
 #        self.view.get_selection().select_path(entity_tree_path)
 
-    def set_entity_editable(self, entity, is_editable=True):
+    def set_entity_editable(self, entity):
         # Find the entity within the task tree.        
         entity_tree_path = self._get_path_for_entity_id(entity.entity_id)
         assert entity_tree_path is not None
