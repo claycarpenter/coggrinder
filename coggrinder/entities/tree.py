@@ -16,7 +16,7 @@ class Tree(DeclaredPropertiesComparable):
         self.path = ()
 
     def append(self, parent_node, value):
-        """Adds a new TreeNode to the tree, below the indicated parent node.
+        """Adds a new TaskTreeStoreNode to the tree, below the indicated parent node.
         
         The new node will be added in the lowest order position under the 
         parent node. This operation will leave the ordering positions of the
@@ -31,7 +31,7 @@ class Tree(DeclaredPropertiesComparable):
         Returns:
             Node created by the insert process.
         """
-        new_node = TreeNode(value=value)
+        new_node = TaskTreeStoreNode(value=value)
 
         return self.append_node(parent_node, new_node)
 
@@ -195,7 +195,7 @@ class Tree(DeclaredPropertiesComparable):
                 tree. Must be convertible to type int. Should always begin
                 with the root node (0).
         Returns:
-            The TreeNode if it can be found. If no node is found, then None is
+            The TaskTreeStoreNode if it can be found. If no node is found, then None is
             returned.
         """
         assert node_indices, "A node address must be provided."
@@ -216,7 +216,7 @@ class Tree(DeclaredPropertiesComparable):
         return self.get_node(self.ROOT_PATH, must_find)
 
     def insert(self, node_indices, value=None):
-        """Inserts a new TreeNode with the provided value into the tree at the 
+        """Inserts a new TaskTreeStoreNode with the provided value into the tree at the 
         provided address.
         
         Any sibling nodes of the same parent as this new node that are ordered
@@ -256,7 +256,7 @@ class Tree(DeclaredPropertiesComparable):
             raise IndexError("Node index {0} is not valid for the parent at path {1}".format(child_index, parent_node_address))
 
         if node is None:
-            node = TreeNode(parent_node, node_indices)
+            node = TaskTreeStoreNode(parent_node, node_indices)
         
         parent_node.children.insert(child_index, node)
         node.parent = parent_node
@@ -439,7 +439,7 @@ class Tree(DeclaredPropertiesComparable):
         return "".join(branch_str)
 #------------------------------------------------------------------------------ 
 
-class TreeNode(DeclaredPropertiesComparable):
+class TaskTreeStoreNode(DeclaredPropertiesComparable):
     """Simple tree node that contains an arbitrary value and allows 
     traversal up (towards root) and down (to children).
     
@@ -453,7 +453,7 @@ class TreeNode(DeclaredPropertiesComparable):
         """Create the node with a parent and option value.
 
         Args:
-            parent: The parent TreeNode of this node, or None if the parent
+            parent: The parent TaskTreeStoreNode of this node, or None if the parent
                 is the Tree itself (i.e., this is the root node).
             value: The value to be stored at this tree node.
         """
@@ -903,9 +903,9 @@ class PopulatedTreeTest(unittest.TestCase):
             - Create TreeNodes root, A, B.
             - Create expected Tree with nodes root, B.
         Act:
-            - Remove TreeNode A.
+            - Remove TaskTreeStoreNode A.
         Assert:
-            - Node at path 0,1 is TreeNode B.
+            - Node at path 0,1 is TaskTreeStoreNode B.
             - The expected and actual Trees are identical.
         """
         ### Arrange ###
@@ -1331,10 +1331,10 @@ class PopulatedTreeTest(unittest.TestCase):
         n2_value = "n2"
 
         ### Act ###        
-        root = tree.append_node(None, TreeNode(value=root_value))
+        root = tree.append_node(None, TaskTreeStoreNode(value=root_value))
 
-        tree.append_node(root, TreeNode(value=n1_value))
-        tree.append_node(root, TreeNode(value=n2_value))
+        tree.append_node(root, TaskTreeStoreNode(value=n1_value))
+        tree.append_node(root, TaskTreeStoreNode(value=n2_value))
 
         ### Assert ###
         self.assertEqual(root_value, tree.get((0,)))
@@ -2087,15 +2087,15 @@ class TreeEqualityTest(unittest.TestCase):
 
 class TreeNodeEqualityTest(unittest.TestCase):
     def test_equality_identity(self):
-        """Test that a TreeNode is equal to itself.
+        """Test that a TaskTreeStoreNode is equal to itself.
 
         Act:
-            Create one TreeNode.
+            Create one TaskTreeStoreNode.
         Assert:
-            That the TreeNode is equal to itself.
+            That the TaskTreeStoreNode is equal to itself.
         """
         ### Act ###
-        treenode_one = TreeNode()
+        treenode_one = TaskTreeStoreNode()
 
         ### Assert ###
         self.assertEqual(treenode_one, treenode_one)
@@ -2115,8 +2115,8 @@ class TreeNodeEqualityTest(unittest.TestCase):
         expected_value = "root"
 
         ### Act ###
-        treenode_one = TreeNode(parent=expected_parent, value=expected_value)
-        treenode_two = TreeNode(parent=expected_parent, value=expected_value)
+        treenode_one = TaskTreeStoreNode(parent=expected_parent, value=expected_value)
+        treenode_two = TaskTreeStoreNode(parent=expected_parent, value=expected_value)
 
         ### Assert ###
         self.assertEqual(treenode_one, treenode_two)
@@ -2129,8 +2129,8 @@ class TreeNodeEqualityTest(unittest.TestCase):
             Establish expected parent, value property values sets for
             both nodes.
         Act:
-            Create TreeNode one with expected values.
-            Create TreeNode two with second set of expected values.
+            Create TaskTreeStoreNode one with expected values.
+            Create TaskTreeStoreNode two with second set of expected values.
         Assert:
             That the two TreeNodes are _not_ equal.
         """
@@ -2140,9 +2140,9 @@ class TreeNodeEqualityTest(unittest.TestCase):
         expected_value_two = "root 2"
 
         ### Act ###
-        treenode_one = TreeNode(parent=expected_parent,
+        treenode_one = TaskTreeStoreNode(parent=expected_parent,
             value=expected_value_one)
-        treenode_two = TreeNode(parent=expected_parent,
+        treenode_two = TaskTreeStoreNode(parent=expected_parent,
             value=expected_value_two)
 
         ### Assert ###
@@ -2168,7 +2168,7 @@ class TreeNodeEqualityTest(unittest.TestCase):
             Establish expected parent and value property values sets for
             all nodes.
         Act:
-            Create both TreeNode architectures as documented above.
+            Create both TaskTreeStoreNode architectures as documented above.
         Assert:
             That the two TreeNodes are _not_ equal.
         """
@@ -2178,15 +2178,15 @@ class TreeNodeEqualityTest(unittest.TestCase):
         b_value = "b"
 
         ### Act ###
-        tn_one_parent = TreeNode(parent=None, value=parent_value)
-        tn_one_a = TreeNode(parent=tn_one_parent, value=a_value)
-        tn_one_b = TreeNode(parent=tn_one_parent, value=b_value)
+        tn_one_parent = TaskTreeStoreNode(parent=None, value=parent_value)
+        tn_one_a = TaskTreeStoreNode(parent=tn_one_parent, value=a_value)
+        tn_one_b = TaskTreeStoreNode(parent=tn_one_parent, value=b_value)
         tn_one_parent.children.append(tn_one_a)
         tn_one_parent.children.append(tn_one_b)
 
-        tn_two_parent = TreeNode(parent=None, value=parent_value)
-        tn_two_b = TreeNode(parent=tn_two_parent, value=b_value)
-        tn_two_a = TreeNode(parent=tn_two_parent, value=a_value)
+        tn_two_parent = TaskTreeStoreNode(parent=None, value=parent_value)
+        tn_two_b = TaskTreeStoreNode(parent=tn_two_parent, value=b_value)
+        tn_two_a = TaskTreeStoreNode(parent=tn_two_parent, value=a_value)
         tn_two_parent.children.append(tn_two_b)
         tn_two_parent.children.append(tn_two_a)
 
