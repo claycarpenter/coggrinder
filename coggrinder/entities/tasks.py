@@ -880,6 +880,17 @@ class TaskDataSorter(object):
         return sorted_task_data
     
     @classmethod
+    def sort_task_data_subset(cls, task_data, subset_entity_ids):
+        sorted_task_data = cls.sort_task_data(task_data)
+        
+        sorted_task_data_subset = list()
+        for task_data_entity in sorted_task_data:
+            if task_data_entity.entity_id in subset_entity_ids:
+                sorted_task_data_subset.append(task_data_entity) 
+        
+        return sorted_task_data_subset
+    
+    @classmethod
     def _sort_recursively(cls, task_data_by_parent, parent_id):        
         # Get all entities belonging to the current parent_id.
         try:
@@ -946,8 +957,9 @@ class TaskDataSorterTest(unittest.TestCase):
         
     def test_sort_task_data_simple_tree(self):
         """Verify the TaskDataSorter sorting a collection of task data that 
-        contains the entities that make this simple task data tree:
+        a simple task data tree.
         
+        Test tree architecture:
         - tl-a
             - t-a-a
             - t-a-b
@@ -957,7 +969,7 @@ class TaskDataSorterTest(unittest.TestCase):
         
         Arrange:
             - Create task data entities.
-            - Create a collection of expected, sorted TaskLists.
+            - Create a collection of expected, sorted subset entities.
             - Create a collection of unordered TaskLists.            
         Act:
             - Retrieve the actual sorted collection of TaskLists 
@@ -974,7 +986,7 @@ class TaskDataSorterTest(unittest.TestCase):
         task_ab = TestDataTask("a-b", tasklist_id=tasklist_a.entity_id, position=2)
 
         task_ba = TestDataTask("b-a", tasklist_id=tasklist_b.entity_id, position=1)
-        task_bba = TestDataTask("b-b-a", tasklist_id=tasklist_b.entity_id, 
+        task_bba = TestDataTask("b-b-a", tasklist_id=tasklist_b.entity_id,
             parent_id=task_ba.entity_id, position=1)
         
         input_task_data = [task_ba, tasklist_b, tasklist_a, task_aa, task_bba, task_ab]
@@ -985,4 +997,48 @@ class TaskDataSorterTest(unittest.TestCase):
         
         ### Assert ###
         self.assertEqual(expected_sorted_task_data, actual_sorted_task_data)
+        
+    def test_sort_task_data_subset_simple_tree(self):
+        """Verify the TaskDataSorter finding a subset of ordered entities 
+        amongst a large task data set.
+        
+        Test tree architecture:        
+        - tl-a
+            - t-a-a
+            - t-a-b
+        - tl-b
+            - t-b-a
+                - t-b-a-a        
+        
+        Arrange:
+            - Create task data entities.
+            - Create a collection of expected, sorted entities.
+            - Create a collection of unordered task data.            
+        Act:
+            - Retrieve the actual sorted subset collection of task data 
+            from TaskDataSorter.
+        Assert:
+            - That the expected sorted and actual sorted subset collections 
+            are equal.
+        """    
+        ### Arrange ###
+        tasklist_a = TestDataTaskList("a")
+        tasklist_b = TestDataTaskList("b")
+
+        task_aa = TestDataTask("a-a", tasklist_id=tasklist_a.entity_id, position=1)
+        task_ab = TestDataTask("a-b", tasklist_id=tasklist_a.entity_id, position=2)
+
+        task_ba = TestDataTask("b-a", tasklist_id=tasklist_b.entity_id, position=1)
+        task_bba = TestDataTask("b-b-a", tasklist_id=tasklist_b.entity_id,
+            parent_id=task_ba.entity_id, position=1)
+        
+        input_task_data = [task_ba, tasklist_b, tasklist_a, task_aa, task_bba, task_ab]
+        task_data_subset_ids = [x.entity_id for x in [tasklist_a, task_aa, task_bba]]
+        expected_task_data_subset = [tasklist_a, task_aa, task_bba]
+        
+        ### Act ###
+        actual_task_data_subset = TaskDataSorter.sort_task_data_subset(input_task_data, task_data_subset_ids)
+        
+        ### Assert ###
+        self.assertEqual(expected_task_data_subset, actual_task_data_subset)
 #------------------------------------------------------------------------------
