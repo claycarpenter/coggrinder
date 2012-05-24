@@ -11,6 +11,7 @@ from coggrinder.gui.task_treestore import TaskTreeStore, TaskTreeStoreNode
 from coggrinder.entities.tasktree import TaskTree, TaskTreeComparator
 import copy
 from datetime import datetime
+from coggrinder.services.task_services import UnregisteredEntityError
 
 class TaskTreeWindowController(object):
     def __init__(self, tasktree_service=None):
@@ -110,7 +111,7 @@ class TaskTreeWindowController(object):
 
     def _handle_remove_list_event(self, button):
         # Locate the selected TaskList.
-        selected_entities = self.view.get_selected_entities()
+        selected_entities = self.view.get_selected_tasklists()
         assert len(selected_entities) == 1, "Should only allow a single TaskList to be selected for deletion."
         tasklist = selected_entities[0]
 
@@ -127,8 +128,6 @@ class TaskTreeWindowController(object):
         """
         # Clear away any existing tree selections.
         self.clear_treeview_selections()
-        
-        print "Tree states: {0}".format(self.view.treeview_controller.tree_states)
 
     def _handle_add_task_event(self, button):
         # Find selected entity. This will determine the new tasks's parent 
@@ -170,17 +169,9 @@ class TaskTreeWindowController(object):
 
     def _handle_remove_task_event(self, button):
         # Locate the selected task or tasks.
-        selected_entities = self.view.get_selected_entities()
-        assert len(selected_entities) > 0
-
-        # Collect all of the selected entities that are tasks.
-        # TODO: This filtering may not really be necessary.
-        selected_tasks = list()
-        for selected_entity in selected_entities:
-            if isinstance(selected_entity, Task):
-                selected_tasks.append(selected_entity)
+        selected_tasks = self.view.get_selected_tasks()
         assert len(selected_tasks) > 0
-
+        
         # TODO: Should this code be moved to the services layer? I think so.
         # TODO: Fix or remove the following comment.
         # For each task, delete the task. Promote any children of the task to 
@@ -351,8 +342,17 @@ class TaskTreeWindow(Gtk.Window):
     def get_selected_entities(self):
         return self.treeview_controller.get_selected_entities()
     
+    def get_selected_tasklists(self):
+        return self.treeview_controller.get_selected_tasklists()
+    
+    def get_selected_tasks(self):
+        return self.treeview_controller.get_selected_tasks()
+    
     def clear_treeview_state(self):
         self.treeview_controller.clear_treeview_state()
+    
+    def refresh_treeview_state(self):
+        self.treeview_controller.refresh_treeview_state()
     
     def clear_treeview_selections(self):
         self.treeview_controller.clear_treeview_selections()
@@ -637,7 +637,9 @@ class TaskTreeViewController(object):
     def build_tasktree(self, tasktree):
         # Build a new TaskTreeStore (Gtk TreeStore) with the updated task data.
         self._tasktree = copy.deepcopy(tasktree)
-        self.task_treestore.build_tree(tasktree)        
+        self.task_treestore.build_tree(tasktree)       
+        
+        self.refresh_treeview_state() 
 
     def update_tasktree(self, updated_tasktree):
         """Collect the current tree state, replace the tree model, and then
@@ -647,6 +649,8 @@ class TaskTreeViewController(object):
         # Pass the updates along to the task tree store.
         self.task_treestore.update_tree(self._tasktree, updated_tasktree, self.view)
         self._tasktree = copy.deepcopy(updated_tasktree)
+        
+        self.refresh_treeview_state()
 
     def set_entity_editable(self, entity):
         # Find the entity within the task tree.        
@@ -677,26 +681,47 @@ class TaskTreeViewController(object):
         assert (not self.selection_state.tasklist_selection_state == TaskTreeSelectionState.NONE 
             or not self.selection_state.task_selection_state == TaskTreeSelectionState.NONE)
 
-        # Ensure tree state information is up to date.
-        self._rebuild_tree_state()
+        return self.selection_state.selected_entities
+    
+    def get_selected_tasklists(self):
+        return self.selection_state.selected_tasklists
+    
+    def get_selected_tasks(self):
+        return self.selection_state.selected_tasks
 
-        # Loop through the tree states, looking for selected entity IDs.
-        selected_entities = list()
+    def refresh_treeview_state(self):
+        # Check each existing tree state to see if it's valid or not.
         for entity_id in self.tree_states.keys():
-            tree_state = self.tree_states.get(entity_id)
-
-            if tree_state.is_selected:
-                entity = self._tasktree.get_entity_for_id(entity_id)
-
-                selected_entities.append(entity)
-
-        return selected_entities
-
-    def _rebuild_tree_state(self):
-        # Clear out existing tree states.
-        self._clear_tree_state()
-
-        self._collect_tree_state()
+            try:
+                # Ask the TaskTree if the entity exists.
+                self._tasktree.find_node_for_entity_id(entity_id)
+            except UnregisteredEntityError:
+                # Entity is no longer in the task data set, remove state.
+                del self.tree_states[entity_id]
+                
+        # Make sure all selected entities still exist.
+        for entity in self.selection_state.selected_tasklists:            
+            try:
+                # Ask the TaskTree if the entity exists.
+                self._tasktree.find_node_for_entity(entity)
+            except UnregisteredEntityError:
+                # Entity is no longer in the task data set, remove from
+                # selected collection.
+                self.selection_state.selected_tasklists.remove(entity)
+                
+        for entity in self.selection_state.selected_tasks:            
+            try:
+                # Ask the TaskTree if the entity exists.
+                self._tasktree.find_node_for_entity(entity)
+            except UnregisteredEntityError:
+                # Entity is no longer in the task data set, remove from
+                # selected collection.
+                self.selection_state.selected_tasks.remove(entity)
+                
+#        # Clear out existing tree states.
+#        self._clear_tree_state()
+#
+#        self._collect_tree_state()
         
     def clear_treeview_state(self):
         # Clear existing tree state information.
