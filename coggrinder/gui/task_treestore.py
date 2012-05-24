@@ -9,6 +9,7 @@ from coggrinder.entities.tasks import TaskList, Task, TaskStatus, TaskDataSorter
 from coggrinder.resources.icons import task_tree
 from coggrinder.entities.tasktree import TaskTreeComparator
 from coggrinder.services.task_services import UnregisteredEntityError
+import copy
 
 class TaskTreeStore(Gtk.TreeStore):
     def __init__(self):
@@ -19,7 +20,7 @@ class TaskTreeStore(Gtk.TreeStore):
         # entity is.
         self.entity_path_index = dict()
         
-        self.is_updating_tree  = False
+        self.is_updating_tree = False
 
     def build_tree(self, tasktree):
         """Build a Gtk.TreeStore model representing all of the user's 
@@ -35,9 +36,9 @@ class TaskTreeStore(Gtk.TreeStore):
             their path (as a str) in the TreeModel.
         """        
         # Reset the entity id-tree path registry. 
-        self.entity_path_index = dict()
+        self._clear_entity_path_index()
         
-        self.is_updating_tree  = True
+        self.is_updating_tree = True
         
         # Reset (clear) current tree model.
         self.clear() 
@@ -46,25 +47,30 @@ class TaskTreeStore(Gtk.TreeStore):
         # a TaskList reference.
         tasktree_root_node = tasktree.get_root_node()
         for tasklist_node in tasktree_root_node.children:            
-            self._build_task_tree(tasktree, tasklist_node)
+            self._build_tasktree_branch(tasktree, tasklist_node, None)
             
-        self._rebuild_entity_path_index(tasktree)
+#        self._rebuild_entity_path_index(tasktree)
         
-        self.is_updating_tree  = False
+        self.is_updating_tree = False
         
-    def _build_task_tree(self, tasktree, current_node, parent_node_iter=None):        
+    def _build_tasktree_branch(self, tasktree, current_node, parent_node_iter, insert_position=None):        
         # Collect the entity data into a TreeView-compatible list, and then
         # add the row to the tree under the parent node.
         entity = current_node.value
         row_model_data = TaskTreeStoreNode(entity).row_data
-        entity_iter = self.append(parent_node_iter, row_model_data)
         
-        # Add the TaskList to the path index.
-        treepath = self.get_path(entity_iter)
+        if insert_position is not None:
+            entity_iter = self.insert(parent_node_iter, insert_position, row_model_data)
+        else:
+            entity_iter = self.append(parent_node_iter, row_model_data)
+        
+        # Register the entity.
+        treepath = self.get_string_from_iter(entity_iter)
+        self._register_entity(entity, treepath)
         
         # Recursively add all descendants of this current node.
         for child_node in current_node.children:
-            self._build_task_tree(tasktree, child_node, entity_iter)       
+            self._build_tasktree_branch(tasktree, child_node, entity_iter)       
 
     def get_entity(self, tree_path):
         """Retrieves the entity targeted by the specified tree path.
@@ -110,7 +116,7 @@ class TaskTreeStore(Gtk.TreeStore):
     def update_tree(self, baseline_tasktree, updated_tasktree, treeview):
         # Need to figure out what changes have occurred in the TaskTree.
         
-        self.is_updating_tree  = True
+        self.is_updating_tree = True
         
         # Find deleted entities, and sort by reverse order (deepest entity, 
         # lowest order/position first).
@@ -121,14 +127,11 @@ class TaskTreeStore(Gtk.TreeStore):
             deleted_entities = TaskDataSorter.sort_task_data_subset(
                 task_data, deleted_entity_ids)
             deleted_entities = reversed(deleted_entities)
-            
+        
+            temp_tasktree = copy.deepcopy(baseline_tasktree)     
             for entity in deleted_entities:
-                # Lookup the tree path in the entity-path map, then convert it
-                # to a Gtk TreeIter pointer to the (tree) row to be deleted. 
-                tree_path = self.entity_path_index[entity.entity_id]
-                tree_iter = self.get_iter(tree_path)
-
-                self.remove(tree_iter)      
+                self.remove_entity(temp_tasktree, entity)      
+                temp_tasktree.remove_entity(entity)
         
         # Find added entities.
         
@@ -140,7 +143,7 @@ class TaskTreeStore(Gtk.TreeStore):
         """
         self._rebuild_entity_path_index(updated_tasktree)
         
-        self.is_updating_tree  = False
+        self.is_updating_tree = False
             
     def get_entity_id_for_path(self, tree_path):
         if tree_path in self.entity_path_index.values():
@@ -164,14 +167,46 @@ class TaskTreeStore(Gtk.TreeStore):
 
         return entity
     
+    def remove_entity(self, tasktree, entity):
+        # Lookup the tree path in the entity-path map, then convert it
+        # to a Gtk TreeIter pointer to the (tree) row to be deleted. 
+        tree_path = self.entity_path_index[entity.entity_id]
+        tree_iter = self.get_iter(tree_path)
+
+        if not self._is_tasklist_iter(tree_iter) and self.iter_has_child(tree_iter):
+            parent_iter = self.iter_parent(tree_iter)
+            entity_node = tasktree.find_node_for_entity(entity)
+            
+            # Find the position of the current entity in the tree.
+            deleted_entity_position = entity_node.child_index
+            
+            # For each Task child, build a branch for it.
+            for child_task_node in entity_node.children:
+                self._build_tasktree_branch(tasktree, child_task_node, parent_iter, deleted_entity_position)
+                
+                deleted_entity_position = deleted_entity_position + 1
+                
+        # Deregister the entity and delete the targeted node.
+        self._deregister_entity(entity)
+        self.remove(tree_iter)
+        
+    def _is_tasklist_iter(self, tree_iter):
+        if self.iter_depth(tree_iter) == 0:
+            return True
+        
+        return False
+    
     def _register_entity(self, entity, treepath):
         self.entity_path_index[entity.entity_id] = str(treepath)
         
     def _deregister_entity(self, entity):
         del self.entity_path_index[entity.entity_id]
+    
+    def _clear_entity_path_index(self):
+        self.entity_path_index = dict()
 
     def _rebuild_entity_path_index(self, tasktree):        
-        self.entity_path_index = dict()
+        self._clear_entity_path_index()
         
         for entity_id in tasktree.all_entity_ids:
             tasktree_node = tasktree.find_node_for_entity_id(entity_id)
