@@ -810,32 +810,6 @@ class TaskTreeViewController(object):
                 # This row represents a Task.
                 self.selection_state.selected_tasks.append(selected_entity)
 
-        if len(self.selection_state.selected_tasklists) == 1:
-            self.selection_state.tasklist_selection_state = TaskTreeSelectionState.SINGLE
-        elif len(self.selection_state.selected_tasklists) > 1:
-            self.selection_state.tasklist_selection_state = TaskTreeSelectionState.MULTIPLE_HETERGENOUS
-        else:
-            self.selection_state.tasklist_selection_state = TaskTreeSelectionState.NONE
-
-        if len(self.selection_state.selected_tasks) == 1:
-            self.selection_state.task_selection_state = TaskTreeSelectionState.SINGLE
-        elif len(self.selection_state.selected_tasks) > 1:
-            # Determine if all selected tasks belong to the same tasklist or
-            # not.
-            is_homogenous = True
-            prev_tasklist_id = None
-            for selected_task in self.selection_state.selected_tasks:
-                if prev_tasklist_id is not None and selected_task.tasklist_id != prev_tasklist_id:
-                    is_homogenous = False
-                    break
-
-            if is_homogenous:
-                self.selection_state.task_selection_state = TaskTreeSelectionState.MULTIPLE_HOMOGENOUS
-            else:
-                self.selection_state.task_selection_state = TaskTreeSelectionState.MULTIPLE_HETERGENOUS
-        else:
-            self.selection_state.task_selection_state = TaskTreeSelectionState.NONE
-
         """
         TODO: Make this a bit smarter/more efficient by only firing when the
         selection state actually changes, instead of on every selection 
@@ -870,13 +844,41 @@ class TaskTreeSelectionState(object):
     # All selections are in the same tasklist.
     MULTIPLE_HOMOGENOUS = 2 
     # Selections are spread across multiple tasklists.
-    MULTIPLE_HETERGENOUS = 3 
+    MULTIPLE_HETEROGENOUS = 3 
             
     def __init__(self):
-        self.tasklist_selection_state = TaskTreeSelectionState.NONE
-        self.task_selection_state = TaskTreeSelectionState.NONE
         self.selected_tasks = list()
         self.selected_tasklists = list()
+        
+    @property
+    def tasklist_selection_state(self):
+        if len(self.selected_tasklists) == 1:
+            return TaskTreeSelectionState.SINGLE
+        elif len(self.selected_tasklists) > 1:
+            return TaskTreeSelectionState.MULTIPLE_HETEROGENOUS
+        
+        return TaskTreeSelectionState.NONE
+    
+    @property
+    def task_selection_state(self):
+        if len(self.selected_tasks) == 1:
+            return TaskTreeSelectionState.SINGLE
+        elif len(self.selected_tasks) > 1:
+            # Determine if all selected tasks belong to the same tasklist or
+            # not.
+            is_homogenous = True
+            prev_tasklist_id = None
+            for selected_task in self.selected_tasks:
+                if prev_tasklist_id is not None and selected_task.tasklist_id != prev_tasklist_id:
+                    is_homogenous = False
+                    break
+
+            if is_homogenous:
+                return TaskTreeSelectionState.MULTIPLE_HOMOGENOUS
+            else:
+                return TaskTreeSelectionState.MULTIPLE_HETEROGENOUS
+        
+        return TaskTreeSelectionState.NONE
         
     @property
     def selected_entities(self):
