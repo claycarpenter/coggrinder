@@ -6,7 +6,7 @@ Created on May 5, 2012
 
 import unittest
 from datetime import datetime
-from coggrinder.entities.tasks import Task, TaskList, TestDataEntitySupport,\
+from coggrinder.entities.tasks import Task, TaskList, TestDataEntitySupport, \
     TestDataTaskList, TestDataTask
 from coggrinder.entities.tree import Tree, NodeNotFoundError
 from coggrinder.core.test import ManagedFixturesTestSupport
@@ -206,7 +206,7 @@ class TaskTree(Tree):
         
         self._entity_node_map[entity.entity_id] = entity_node
     
-    def _deregister_entity_node(self, entity_node):
+    def _deregister_entity_node(self, entity_node, recursively_deregister=False):
         entity = entity_node.value
         
         try:
@@ -214,9 +214,12 @@ class TaskTree(Tree):
         except KeyError:
             raise UnregisteredEntityError(entity.entity_id)
         
-        # Recursively deregister all of the node's descendants.
-        for child_node in entity_node.children:
-            self._deregister_entity_node(child_node)
+        if recursively_deregister:
+            # Recursively deregister all of the node's descendants.
+            # This should probably only need to be done when the 
+            # deregistration target is a TaskList.
+            for child_node in entity_node.children:
+                self._deregister_entity_node(child_node)
 
     def add_entity(self, entity):
         assert entity is not None
@@ -438,20 +441,25 @@ class TaskTree(Tree):
     def remove_entity(self, entity):
         # Find the entity's node.        
         entity_node = self.find_node_for_entity(entity)
-        
-        # Remove the node from the entity id-to-node registry.
-        self._deregister_entity_node(entity_node)
-        
+                
         if self._is_task_node(entity_node):
             # This entity is not a TaskList, so move all of the children up to
             # the position of the deleted entity. 
+            
+            # Deregister just the current Task node (not the descendants).
+            self._deregister_entity_node(entity_node)
             
             # Insert any children of the current entity into the entity's old 
             # position in reverse order. Using reverse order allows the ordering of
             # the children to be preserved as they're re-inserted into the tree.
             for child_node in reversed(entity_node.children):
-                child_node = self.insert(entity_node.path, child_node.value)
-                self._register_entity_node(child_node)
+                child_index = entity_node.parent.children.index(entity_node)
+                child_node = self.move_node(entity_node.parent, child_node, child_index)
+        else:
+            # Deregister the current TaskList node as well as all Task
+            # descendants.
+            self._deregister_entity_node(entity_node, 
+                recursively_deregister=True)
         
         # Store the entity node's path. This must be done before the node is
         # removed from the tree, as the calculation of the node's path relies
@@ -1157,7 +1165,7 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
     def setUp(self):
         """Set up basic test fixtures."""
         self.expected_tasktree = TaskDataTestSupport.create_tasktree()
-        self.tasktree = TaskDataTestSupport.create_tasktree()
+        self.tasktree = copy.deepcopy(self.expected_tasktree)
 
         self._register_fixtures(self.expected_tasktree, self.tasktree)
 
@@ -1573,6 +1581,63 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
         actual_task_f = self.tasktree.get_entity_for_id(
             TestDataTask.convert_short_title_to_id("F"))
         self.assertEqual(expected_task_f, actual_task_f)
+        
+    def test_remove_task_great_grandchild_survives(self):
+        """Test that deleting Tasks from a Task hierarchy chain only deletes 
+        the targeted Tasks, and no untargeted descendants. 
+        
+        For instance, in the simple tree:
+        -tl-a
+            -t-b
+                -t-c
+                    -t-d
+                        -t-e
+        
+        Deleting Tasks c, d should produce this result (t-e 
+        becomes child of great grandparent t-b):
+        -tl-a
+            -t-b
+                -t-e
+        
+        Arrange:
+            - Create actual/initial TaskTree.
+            - Create expected TaskTree by cloning initial TaskTree.
+            - Update expected TaskTree to mirror final expected tree 
+            architecture.
+        Act:
+            - Delete Tasks c, d from actual TaskTree.
+        Assert:
+            - That expected and actual TaskTrees are identical.
+        """
+        ### Arrange ###
+        tl_a = TestDataTaskList('a')
+        t_b = TestDataTask('b', tasklist_id=tl_a.entity_id)
+        t_c = TestDataTask('c', tasklist_id=tl_a.entity_id, parent_id=t_b.entity_id)
+        t_d = TestDataTask('d', tasklist_id=tl_a.entity_id, parent_id=t_c.entity_id)
+        t_e = TestDataTask('e', tasklist_id=tl_a.entity_id, parent_id=t_d.entity_id)
+        
+        expected_t_b = copy.deepcopy(t_b)
+        expected_t_e = copy.deepcopy(t_e)
+        expected_t_e.parent_id = expected_t_b.entity_id
+        
+        expected_tasktree = TaskTree()
+        expected_tasktree.add_entity(copy.deepcopy(tl_a))  
+        expected_tasktree.add_entity(expected_t_b)
+        expected_tasktree.add_entity(expected_t_e)
+        
+        actual_tasktree = TaskTree()
+        actual_tasktree.add_entity(tl_a)
+        actual_tasktree.add_entity(t_b)
+        actual_tasktree.add_entity(t_c)
+        actual_tasktree.add_entity(t_d)
+        actual_tasktree.add_entity(t_e)
+                
+        ### Act ###        
+        actual_tasktree.remove_entity(t_c)
+        actual_tasktree.remove_entity(t_d)
+        
+        ### Assert ###
+        self.assertEqual(expected_tasktree, actual_tasktree)
 
     def test_find_node_for_entity(self):
         """Test that given an entity, the TaskTree can correctly find the node
