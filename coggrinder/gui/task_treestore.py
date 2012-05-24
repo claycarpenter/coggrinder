@@ -5,20 +5,25 @@ Created on Apr 9, 2012
 """
 from gi.repository import Gtk, GdkPixbuf
 import unittest
-from coggrinder.entities.tasks import TaskList, Task, TaskStatus
+from coggrinder.entities.tasks import TaskList, Task, TaskStatus, TaskDataSorter
 from coggrinder.resources.icons import task_tree
+from coggrinder.entities.tasktree import TaskTreeComparator
+from coggrinder.services.task_services import UnregisteredEntityError
 
 class TaskTreeStore(Gtk.TreeStore):
     def __init__(self):
-#        self.store = Gtk.TreeStore(str, str, GdkPixbuf.Pixbuf)
         Gtk.TreeStore.__init__(self, str, str, GdkPixbuf.Pixbuf)
 
-        # TODO: Document keys, values, uses.
+        # TODO: Better document keys, values, uses.
+        # This index allows us to quickly look up where in the tree a given
+        # entity is.
         self.entity_path_index = dict()
+        
+        self.is_updating_tree  = False
 
     def build_tree(self, tasktree):
-        """Build a tree representing all of the user's task data (TaskLists and
-        Tasks).
+        """Build a Gtk.TreeStore model representing all of the user's 
+        task data (TaskLists and Tasks).
 
         TaskLists will always be first-level nodes, while Tasks will always be
         at least second-level nodes or deeper.
@@ -28,30 +33,34 @@ class TaskTreeStore(Gtk.TreeStore):
         Returns:
             A dict that maps entity (both TaskList and Task) ID keys to
             their path (as a str) in the TreeModel.
-        """
+        """        
         # Reset the entity id-tree path registry. 
         self.entity_path_index = dict()
         
-        # Access the TaskTree using node methods, TreeNode info.
+        self.is_updating_tree  = True
         
+        # Reset (clear) current tree model.
+        self.clear() 
+                       
         # Get the depth-1 child nodes of the TaskTree. Each of these will hold
         # a TaskList reference.
         tasktree_root_node = tasktree.get_root_node()
         for tasklist_node in tasktree_root_node.children:            
             self._build_task_tree(tasktree, tasklist_node)
             
-        return self.entity_path_index
+        self._rebuild_entity_path_index(tasktree)
+        
+        self.is_updating_tree  = False
         
     def _build_task_tree(self, tasktree, current_node, parent_node_iter=None):        
         # Collect the entity data into a TreeView-compatible list, and then
         # add the row to the tree under the parent node.
         entity = current_node.value
-        row_model_data = TreeNode(entity).row_data
+        row_model_data = TaskTreeStoreNode(entity).row_data
         entity_iter = self.append(parent_node_iter, row_model_data)
         
         # Add the TaskList to the path index.
         treepath = self.get_path(entity_iter)
-        self.entity_path_index[entity.entity_id] = treepath.to_string()
         
         # Recursively add all descendants of this current node.
         for child_node in current_node.children:
@@ -86,15 +95,90 @@ class TaskTreeStore(Gtk.TreeStore):
             entity. Defaults to None.
         """
         # Add the tasklist as a direct descendant of the root of the task tree.
-        tasklist_iter = self.append(self._root, TreeNode(tasklist).row_data)
+        tasklist_iter = self.append(self._root, TaskTreeStoreNode(tasklist).row_data)
 
         # Recursively build the task tree with the given tasks.
         if tasks is not None:
             self._build_tree_from_tasks(tasks, tasklist_iter)
 
     def add_entity(self, entity, parent_iter=None):
-        new_node_iter = self.append(parent_iter, TreeNode(entity).row_data)
-        self.entity_path_index[entity.entity_id] = self.get_string_from_iter(new_node_iter)
+        new_node_iter = self.append(parent_iter, TaskTreeStoreNode(entity).row_data)
+        treepath = self.get_string_from_iter(new_node_iter)
+        
+        self._register_entity(entity, treepath)
+        
+    def update_tree(self, baseline_tasktree, updated_tasktree, treeview):
+        # Need to figure out what changes have occurred in the TaskTree.
+        
+        self.is_updating_tree  = True
+        
+        # Find deleted entities, and sort by reverse order (deepest entity, 
+        # lowest order/position first).
+        deleted_entity_ids = TaskTreeComparator.find_deleted_ids(baseline_tasktree,
+            updated_tasktree)
+        if deleted_entity_ids:
+            task_data = baseline_tasktree.task_data.values()
+            deleted_entities = TaskDataSorter.sort_task_data_subset(
+                task_data, deleted_entity_ids)
+            deleted_entities = reversed(deleted_entities)
+            
+            for entity in deleted_entities:
+                # Lookup the tree path in the entity-path map, then convert it
+                # to a Gtk TreeIter pointer to the (tree) row to be deleted. 
+                tree_path = self.entity_path_index[entity.entity_id]
+                tree_iter = self.get_iter(tree_path)
+
+                self.remove(tree_iter)      
+        
+        # Find added entities.
+        
+        # Find updated entities.
+        
+        """
+        TODO: Is this one-shot entity-path update a better idea than 
+        individually altering the entities-path map for each separate change?
+        """
+        self._rebuild_entity_path_index(updated_tasktree)
+        
+        self.is_updating_tree  = False
+            
+    def get_entity_id_for_path(self, tree_path):
+        if tree_path in self.entity_path_index.values():
+            key_index = self.entity_path_index.values().index(tree_path)
+            return self.entity_path_index.keys()[key_index]
+        else:
+            raise KeyError(
+                "Could not find an entity registered with Gtk tree path {0}".format(
+                tree_path))
+
+    def get_path_for_entity_id(self, entity_id):
+        try:
+            return self.entity_path_index.get(entity_id)
+        except KeyError:
+            raise UnregisteredEntityError(entity_id)
+
+    def get_entity_for_path(self, tasktree, tree_path):
+        entity_id = self.get_entity_id_for_path(tree_path)
+
+        entity = tasktree.get_entity_for_id(entity_id)
+
+        return entity
+    
+    def _register_entity(self, entity, treepath):
+        self.entity_path_index[entity.entity_id] = str(treepath)
+        
+    def _deregister_entity(self, entity):
+        del self.entity_path_index[entity.entity_id]
+
+    def _rebuild_entity_path_index(self, tasktree):        
+        self.entity_path_index = dict()
+        
+        for entity_id in tasktree.all_entity_ids:
+            tasktree_node = tasktree.find_node_for_entity_id(entity_id)
+            entity_tree_indices = [str(x) for x in tasktree_node.path[1:]]
+            entity_tree_path = ":".join(entity_tree_indices)
+            
+            self.entity_path_index[entity_id] = entity_tree_path
 
     def __str__(self):
         return self._create_branch_str()
@@ -114,8 +198,8 @@ class TaskTreeStore(Gtk.TreeStore):
         while node_iter != None:               
             # Collect node information.
             node_path = self.get_path(node_iter)
-            entity_id = self.get_value(node_iter, TreeNode.ENTITY_ID)
-            label = self.get_value(node_iter, TreeNode.LABEL)
+            entity_id = self.get_value(node_iter, TaskTreeStoreNode.ENTITY_ID)
+            label = self.get_value(node_iter, TaskTreeStoreNode.LABEL)
             if label is None:
                 label = "<Empty title>"
             node_values_str = "'{label}' - id: '{entity_id}'".format(
@@ -293,15 +377,15 @@ class TaskTreeStoreTest(unittest.TestCase):
         self.assertEqual(expected_task_l2, actual_task_l2)
 #------------------------------------------------------------------------------ 
 
-class TreeNode(object):
+class TaskTreeStoreNode(object):
     ENTITY_ID = 0
     LABEL = 1
     ICON = 2
 
     def __init__(self, entity):
         self.row_data = list()
-        self.row_data.insert(TreeNode.ENTITY_ID, entity.entity_id)
-        self.row_data.insert(TreeNode.LABEL, entity.title)
+        self.row_data.insert(TaskTreeStoreNode.ENTITY_ID, entity.entity_id)
+        self.row_data.insert(TaskTreeStoreNode.LABEL, entity.title)
 
         # Create icons needed to present the task tree.
         self.list_image = Gtk.Image.new_from_file(task_tree.FILES["folder.png"])
@@ -322,7 +406,7 @@ class TreeNode(object):
         else:
             raise ValueError("Cannot determine type of provided entity {0}".format(entity))
 
-        self.row_data.insert(TreeNode.ICON, icon)
+        self.row_data.insert(TaskTreeStoreNode.ICON, icon)
 #------------------------------------------------------------------------------ 
 
 class TaskListTree(object):
