@@ -482,6 +482,10 @@ class TreeNode(DeclaredPropertiesComparable):
         
     path = property(_get_path)
 
+    @property
+    def child_index(self):
+        return self.parent.children.index(self)
+
     def has_children(self):
         if len(self.children) > 0:
             return True
