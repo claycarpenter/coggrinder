@@ -644,34 +644,9 @@ class TaskTreeViewController(object):
         restore the tree state (as much as possible).
         """
         
-        # Reset and collect the current tree state.
-#        self._rebuild_tree_state()
-
-        # Clear out current TreeStore. Set clearing flag to disable 
-        # selection change handling, as the clear operation will fire 
-        # those events.
-#        self._is_clearing = True
-#        self.task_treestore.clear()
-#        self._is_clearing = False
-        
-#        self.view.clear_selection()
-        
         # Pass the updates along to the task tree store.
         self.task_treestore.update_tree(self._tasktree, updated_tasktree, self.view)
         self._tasktree = copy.deepcopy(updated_tasktree)
-
-        # With the new tree structure in place, try to restore the old tree 
-        # state to the fullest extent possible.
-#        self._restore_tree_state()
-
-#    def select_entity(self, target_entity):
-#        entity_tree_path = self._get_path_for_entity_id(target_entity.entity_id)
-#        assert entity_tree_path is not None
-#        
-#        # TODO: Should the controller really be digging this deep into the 
-#        # view, or should the view provide an interface that includes a 
-#        # select_path method?
-#        self.view.get_selection().select_path(entity_tree_path)
 
     def set_entity_editable(self, entity):
         # Find the entity within the task tree.        
@@ -697,14 +672,6 @@ class TaskTreeViewController(object):
         assert isinstance(entity, Task)
 
         return None
-
-#    def _set_entity_expanded(self, entity, is_expanded=True):
-#        # Find the entity within the task tree.
-#        entity_tree_path = self._get_path_for_entity_id(entity.entity_id)
-#        assert entity_tree_path is not None
-#
-#        # Expand or collapse the entity.
-#        if is_expanded:
 
     def get_selected_entities(self):
         assert (not self.selection_state.tasklist_selection_state == TaskTreeSelectionState.NONE 
@@ -869,10 +836,12 @@ class TaskTreeViewController(object):
         else:
             self.selection_state.task_selection_state = TaskTreeSelectionState.NONE
 
+        """
+        TODO: Make this a bit smarter/more efficient by only firing when the
+        selection state actually changes, instead of on every selection 
+        event.
+        """
         # Notify any listeners of the change in selection state.
-        # TODO: Make this a bit smarter/more efficient by only firing when the
-        # selection state actually changes, instead of on every selection 
-        # event.
         self.selection_state_changed.fire(self.selection_state)
 
     class TreeState(object):
