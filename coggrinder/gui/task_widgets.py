@@ -120,12 +120,7 @@ class TaskTreeWindowController(object):
 
         # Refresh the UI.
         self.refresh_view()
-        
-        """
-        TODO: This only clears away tree selections, not expansion states. This
-        could cause an issue with invalid expansion state markers for Tasks
-        not being cleared when the parent TaskList is also removed.
-        """
+
         # Clear away any existing tree selections.
         self.clear_treeview_selections()
 
@@ -172,9 +167,8 @@ class TaskTreeWindowController(object):
         selected_tasks = self.view.get_selected_tasks()
         assert len(selected_tasks) > 0
         
-        # TODO: Should this code be moved to the services layer? I think so.
-        # TODO: Fix or remove the following comment.
-        # For each task, delete the task. Promote any children of the task to 
+        # For each task, delete the task. The service layer will handle 
+        # promoting any children of the task to 
         # be children of the task's parent (task or tasklist).
         # Keep track of the child tasks that have their parent updated, as 
         # they will need to be updated as well.
@@ -183,6 +177,9 @@ class TaskTreeWindowController(object):
 
         # Update the UI.
         self.refresh_task_view()
+        
+        # Clear away any existing tree selections.
+        self.clear_treeview_selections()
 
     def _handle_promote_task_event(self, button):
         raise NotImplementedError
