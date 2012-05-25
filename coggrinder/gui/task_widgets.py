@@ -34,7 +34,7 @@ class TaskTreeWindowController(object):
         self.view.remove_list_button_clicked.register(self._handle_remove_list_event)
 
         self.view.add_task_button_clicked.register(self._handle_add_task_event)
-        self.view.edit_task_button_clicked.register(self._handle_edit_task_event)
+        self.view.edit_task_button_clicked.register(self._handle_edit_task_details_event)
         self.view.complete_task_button_clicked.register(self._handle_complete_task_event)
         self.view.remove_task_button_clicked.register(self._handle_remove_task_event)
 
@@ -156,7 +156,7 @@ class TaskTreeWindowController(object):
         # new node could be hidden.
         self.view.set_entity_editable(new_task)
 
-    def _handle_edit_task_event(self, button):
+    def _handle_edit_task_details_event(self, button):
         raise NotImplementedError
 
     def _handle_complete_task_event(self, button):
@@ -196,20 +196,21 @@ class TaskTreeWindowController(object):
     def _handle_configure_event(self, button):
         raise NotImplementedError
 
-    def _handle_entity_title_updated(self, target_entity, updated_title):
-        assert (target_entity is not None and target_entity.entity_id is not None)
-
+    def _handle_entity_title_updated(self, target_entity_id, updated_title):
+        # Get the entity from the TaskTreeService.
+        target_entity = self._tasktree_service.get_entity_for_id(target_entity_id)
+        
         # Set the entity's updated title.
         target_entity.title = updated_title
       
-        # Send the updated entity to the server.
+        # Send the updated entity to the TaskTreeService.
         target_entity = self._tasktree_service.update_entity(target_entity)
         
         # Reorder the tree.
         self._tasktree_service.tree.sort() 
 
         # Update the task data view.
-        self.refresh_task_view()
+        self.refresh_view()
 
     def _find_child_tasks(self, parent_task):
         """
@@ -795,12 +796,11 @@ class TaskTreeViewController(object):
 
     def _handle_cell_edited(self, tree_title_cell, tree_path, updated_title):
         # Find the entity that was edited through the tree view.
-        target_entity = self.task_treestore.get_entity_for_path(self._tasktree, tree_path)
-        assert target_entity is not None
+        target_entity_id = self.task_treestore.get_entity_id_for_path(tree_path)
 
-        # Fire event, sending along the (unmodified) target entity and the
+        # Fire event, sending along the target entity ID and the
         # updated title text.
-        self.entity_title_edited.fire(target_entity, updated_title)
+        self.entity_title_edited.fire(target_entity_id, updated_title)
 
     def _handle_selection_changed(self, selection_data):
         has_selected_rows = True
