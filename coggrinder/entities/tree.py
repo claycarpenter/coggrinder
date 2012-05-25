@@ -461,7 +461,8 @@ class TreeNode(DeclaredPropertiesComparable):
         self.value = value
         self.children = list()
         
-    def _get_path(self):
+    @property
+    def path(self):
         if self.parent is None:
             # Special case for root.
             return ()
@@ -479,8 +480,6 @@ class TreeNode(DeclaredPropertiesComparable):
             raise NodeRelationshipError(parent_node=self.parent)
         
         return self.parent.path + (node_index,)
-        
-    path = property(_get_path)
 
     @property
     def child_index(self):
