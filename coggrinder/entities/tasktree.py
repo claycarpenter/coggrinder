@@ -219,7 +219,8 @@ class TaskTree(Tree):
             # This should probably only need to be done when the 
             # deregistration target is a TaskList.
             for child_node in entity_node.children:
-                self._deregister_entity_node(child_node)
+                self._deregister_entity_node(child_node, 
+                    recursively_deregister=recursively_deregister)
 
     def add_entity(self, entity):
         assert entity is not None
@@ -1293,6 +1294,43 @@ class PopulatedTaskTreeTest(ManagedFixturesTestSupport, unittest.TestCase):
 
         ### Assert ###
         self.assertEqual(expected_entity_ids, self.tasktree.all_entity_ids)
+
+    def test_all_entity_ids_updated(self):
+        """Test the all_entity_ids property of TaskTree, ensuring that it
+        is maintained as the TaskTree changes.
+
+        Arrange:
+            - Clear the TaskTree under test.
+            - Create task data TaskList A and Task B, and add them to the 
+            TaskTree.
+            - Create a set of expected entity IDs reflecting the task data 
+            added to TaskTree.
+        Assert:
+            - That the expected IDs set is equal to the test fixture's
+            TaskTree.all_entity_ids property.
+        """
+        ### Arrange ###
+        tasktree = TaskTree()
+        
+        tasklist_a = TestDataTaskList("a")
+        tasktree.add_entity(tasklist_a)
+        task_aa = TestDataTask("a-a", tasklist_id=tasklist_a.entity_id)        
+        tasktree.add_entity(task_aa)
+        task_aaa = TestDataTask("a-a-a", tasklist_id=tasklist_a.entity_id,parent_id=task_aa.entity_id)        
+        tasktree.add_entity(task_aaa)
+        
+        tasklist_b = TestDataTaskList("b")
+        tasktree.add_entity(tasklist_b)
+        task_ba = TestDataTask("b-a", tasklist_id=tasklist_b.entity_id)        
+        tasktree.add_entity(task_ba)
+        
+        expected_entity_ids = set([tasklist_b.entity_id, task_ba.entity_id])
+        
+        ### Act ###
+        tasktree.remove_entity(tasklist_a)
+
+        ### Assert ###
+        self.assertEqual(expected_entity_ids, tasktree.all_entity_ids)
 
     def test_init_provided_data(self):
         """Test that providing TaskList and Task data through the constructor
