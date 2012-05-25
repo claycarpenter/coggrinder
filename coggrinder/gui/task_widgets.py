@@ -103,7 +103,7 @@ class TaskTreeWindowController(object):
         new_tasklist = self._tasktree_service.add_entity(TaskList(title=""))
         
         # Update the UI with the new TaskList.
-        self.refresh_task_view()
+        self.refresh_view()
 
         # Find the new tasklist, select it (wiping out other selections), and
         # set it to editable/editing.
@@ -176,7 +176,7 @@ class TaskTreeWindowController(object):
             self._tasktree_service.delete_entity(selected_task)
 
         # Update the UI.
-        self.refresh_task_view()
+        self.refresh_view()
         
         # Clear away any existing tree selections.
         self.clear_treeview_selections()
