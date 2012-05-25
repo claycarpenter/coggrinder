@@ -10,6 +10,7 @@ from coggrinder.resources.icons import task_tree
 from coggrinder.entities.tasktree import TaskTreeComparator
 from coggrinder.services.task_services import UnregisteredEntityError
 import copy
+from coggrinder.entities.tree import NodeRelationshipError
 
 class TaskTreeStore(Gtk.TreeStore):
     def __init__(self):
@@ -118,11 +119,15 @@ class TaskTreeStore(Gtk.TreeStore):
         
         self.is_updating_tree = True
         
+        tree_updated = False
+        
         # Find deleted entities, and sort by reverse order (deepest entity, 
         # lowest order/position first).
         deleted_entity_ids = TaskTreeComparator.find_deleted_ids(baseline_tasktree,
             updated_tasktree)
         if deleted_entity_ids:
+            tree_updated = True
+            
             task_data = baseline_tasktree.task_data.values()
             deleted_entities = TaskDataSorter.sort_task_data_subset(
                 task_data, deleted_entity_ids)
@@ -141,7 +146,8 @@ class TaskTreeStore(Gtk.TreeStore):
         TODO: Is this one-shot entity-path update a better idea than 
         individually altering the entities-path map for each separate change?
         """
-        self._rebuild_entity_path_index(updated_tasktree)
+        if tree_updated:
+            self._rebuild_entity_path_index(updated_tasktree)
         
         self.is_updating_tree = False
             
@@ -182,7 +188,8 @@ class TaskTreeStore(Gtk.TreeStore):
             
             # For each Task child, build a branch for it.
             for child_task_node in entity_node.children:
-                self._build_tasktree_branch(tasktree, child_task_node, parent_iter, deleted_entity_position)
+                self._build_tasktree_branch(tasktree, child_task_node, 
+                    parent_iter, insert_position=deleted_entity_position)
                 
                 deleted_entity_position = deleted_entity_position + 1
                 
