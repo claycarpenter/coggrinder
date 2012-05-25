@@ -2307,11 +2307,15 @@ class TaskTreeComparatorFindUpdatedTest(TaskDataTestSupport, ManagedFixturesTest
         """Test that the TaskTreeComparator can identify any entities in a 
         TaskTree that have updated title properties.
 
-        TaskList a and Task a-b will have their title props updated to "updated".
+        TaskList a and Task a-b will have their title props updated to 
+        "updated". A new TaskList Foo will also be added to the working tree
+        before the comparison is made. TaskList Foo should _not_ appear in the
+        list of updated IDs (only in the added IDs comparison). 
 
         Arrange:
             - Find entities TaskList a, Task a-b in working TaskTree.
             - Update the titles of each entity.
+            - Create new TaskList Foo, and add it to the working TaskTree.
             - Create list of expected updated entity IDs.
         Act:
             - Use TaskTreeComparator.find_updated_id to locate the entity IDs
@@ -2329,6 +2333,9 @@ class TaskTreeComparatorFindUpdatedTest(TaskDataTestSupport, ManagedFixturesTest
         
         self.working_tasktree.update_entity(tasklist_a)
         self.working_tasktree.update_entity(task_b)
+                
+        tasklist_foo = TestDataTaskList('foo')
+        self.working_tasktree.add_entity(tasklist_foo)
         
         expected_updated_ids = set([tasklist_a.entity_id, task_b.entity_id])
 
