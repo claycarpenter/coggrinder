@@ -453,8 +453,8 @@ class TaskTree(Tree):
             # Insert any children of the current entity into the entity's old 
             # position in reverse order. Using reverse order allows the ordering of
             # the children to be preserved as they're re-inserted into the tree.
+            child_index = entity_node.parent.children.index(entity_node)
             for child_node in reversed(entity_node.children):
-                child_index = entity_node.parent.children.index(entity_node)
                 child_node = self.move_node(entity_node.parent, child_node, child_index)
         else:
             # Deregister the current TaskList node as well as all Task
