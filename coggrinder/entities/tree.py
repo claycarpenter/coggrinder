@@ -476,7 +476,7 @@ class TreeNode(DeclaredPropertiesComparable):
                 node_index = i
                 break
         else:
-            raise NodeRelationshipError()
+            raise NodeRelationshipError(parent_node=self.parent)
         
         return self.parent.path + (node_index,)
         
@@ -499,7 +499,12 @@ class TreeNode(DeclaredPropertiesComparable):
         return self.__repr__()
 
     def __repr__(self):
-        return "[Node at {path}, value: {value}]".format(path=self.path, value=self.value)
+        try:
+            path = self.path
+        except NodeRelationshipError as node_rel_err:
+            path = "(error in ancestor)".format(ancestor=node_rel_err.parent_node)
+            
+        return "[Node at {path}, value: {value}]".format(path=path, value=self.value)
 #------------------------------------------------------------------------------ 
 
 class NodeNotFoundError(Exception):
@@ -509,9 +514,13 @@ class NodeNotFoundError(Exception):
 #------------------------------------------------------------------------------
 
 class NodeRelationshipError(Exception):
-    def __init(self, message=None):
+    def __init__(self, message=None, parent_node=None, child_node=None):
         if message is None:
-            message = "Node could not identify self in the collection of children held by the node's parent." 
+            if parent_node is not None:                
+                message = "Parent node {parent} does not contain expected child.".format(parent=parent_node)
+            else:
+                message = "Node could not identify self in the collection of children held by the node's parent." 
+                 
         Exception.__init__(self, message)
 #------------------------------------------------------------------------------ 
 
