@@ -168,36 +168,6 @@ class TaskTreeStore(Gtk.TreeStore):
         tree_path = self.get_path_for_entity(entity)
         
         return self.get_iter(tree_path)
-    
-    def remove_entity(self, tasktree, entity):
-        # Lookup the tree path in the entity-path map, then convert it
-        # to a Gtk TreeIter pointer to the (tree) row to be deleted.
-        tree_iter = self.get_iter_for_entity(entity)
-
-        if not self._is_tasklist_iter(tree_iter) and self.iter_has_child(tree_iter):
-            parent_iter = self.iter_parent(tree_iter)
-            entity_node = tasktree.find_node_for_entity(entity)
-            
-            # Find the position of the current entity in the tree.
-            deleted_entity_position = entity_node.child_index
-            
-            # For each Task child, build a branch for it.
-            for child_task_node in entity_node.children:
-                self._build_tasktree_branch(tasktree, child_task_node,
-                    parent_iter, insert_position=deleted_entity_position)
-                
-                deleted_entity_position = deleted_entity_position + 1
-                
-        # Deregister the entity and delete the targeted node.
-        self._deregister_entity(entity)
-        self.remove(tree_iter)
-        
-    def update_entity(self, entity):
-        # Find the TreeIter pointing to the entity.
-        tree_iter = self.get_iter_for_entity(entity)
-        
-        # Update the title column of the entity's TreeStore row.
-        self.set_value(tree_iter, TaskTreeStoreNode.LABEL, entity.title)
         
     def _is_tasklist_iter(self, tree_iter):
         if self.iter_depth(tree_iter) == 0:
