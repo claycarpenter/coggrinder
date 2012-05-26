@@ -124,64 +124,20 @@ class TaskTreeStore(Gtk.TreeStore):
         if tasks is not None:
             self._build_tree_from_tasks(tasks, tasklist_iter)
 
-    def add_entity(self, entity, parent_iter=None):
-        new_node_iter = self.append(parent_iter, TaskTreeStoreNode(entity).row_data)
-        treepath = self.get_string_from_iter(new_node_iter)
+    def add_entity(self, tasktree, entity):
+        # Find the new node's position in the TaskTree (task data set).
+        new_entity_node = tasktree.find_node_for_entity(entity)
         
-        self._register_entity(entity, treepath)
+        # Find the parent TreeIter for the new path.
+        parent_iter = self._find_parent_iter(new_entity_node)
         
-    def update_tree(self, baseline_tasktree, updated_tasktree, treeview):
-        # Need to figure out what changes have occurred in the TaskTree.
+        # Get the insert position for the new row. This will be identical to 
+        # the child index of the new TaskTree node. 
+        insert_position = new_entity_node.child_index
         
-        self.is_updating_tree = True
-        
-        tree_updated = False
-        
-        """
-        TODO: Why do these need to be sorted by reverse order/deepest 
-        entity first?
-        """
-        # Find deleted entities, and sort by reverse order (deepest entity, 
-        # lowest order/position first).
-        deleted_entity_ids = TaskTreeComparator.find_deleted_ids(baseline_tasktree,
-            updated_tasktree)
-        if deleted_entity_ids:
-            tree_updated = True
-            
-            task_data = baseline_tasktree.task_data.values()
-            deleted_entities = TaskDataSorter.sort_task_data_subset(
-                task_data, deleted_entity_ids)
-            deleted_entities = reversed(deleted_entities)
-        
-            temp_tasktree = copy.deepcopy(baseline_tasktree)     
-            for entity in deleted_entities:
-                self.remove_entity(temp_tasktree, entity)      
-                temp_tasktree.remove_entity(entity)
-        
-        # Find added entities.
-        
-        # Find updated entities (this will only find updated entities, not
-        # added or removed entities).
-        updated_entity_ids = TaskTreeComparator.find_updated_ids(baseline_tasktree, 
-            updated_tasktree)
-        if updated_entity_ids:
-            tree_updated = True
-            
-            # For each updated entity id, get the entity from the updated
-            # tasktree and then update the corresponding TreeModel row's data.
-            for entity_id in updated_entity_ids:
-                entity = updated_tasktree.get_entity_for_id(entity_id)
-                
-                self.update_entity(entity)
-        
-        """
-        TODO: Is this one-shot entity-path update a better idea than 
-        individually altering the entities-path map for each separate change?
-        """
-        if tree_updated:
-            self._rebuild_entity_path_index(updated_tasktree)
-        
-        self.is_updating_tree = False
+        # Insert a new GtkTreeStore row/node.
+        new_node_iter = self.insert(parent_iter, insert_position, 
+            TaskTreeStoreNode(entity).row_data)
             
     def get_entity_id_for_path(self, tree_path):
         if tree_path in self.entity_path_index.values():
@@ -194,7 +150,7 @@ class TaskTreeStore(Gtk.TreeStore):
 
     def get_path_for_entity_id(self, entity_id):
         try:
-            return self.entity_path_index.get(entity_id)
+            return self.entity_path_index[entity_id]
         except KeyError:
             raise UnregisteredEntityError(entity_id)
         
@@ -263,10 +219,26 @@ class TaskTreeStore(Gtk.TreeStore):
         
         for entity_id in tasktree.all_entity_ids:
             tasktree_node = tasktree.find_node_for_entity_id(entity_id)
-            entity_tree_indices = [str(x) for x in tasktree_node.path[1:]]
-            entity_tree_path = ":".join(entity_tree_indices)
+            entity_treepath = self._get_treestore_path(tasktree_node)
             
-            self.entity_path_index[entity_id] = entity_tree_path
+            self.entity_path_index[entity_id] = entity_treepath
+            
+    def _validate_entity_path_index(self, tasktree):
+        # Check for matching sets of registered entity IDs.
+        if tasktree.all_entity_ids != set(self.entity_path_index.keys()):
+            raise EntityPathIndexError(
+                "TaskTree and entity-path index have different sets of registered entity IDs.")
+            
+        # Check that each entity registered has a TreeStore path that is 
+        # equivalent to the TaskTree node path.
+        for entity_id in tasktree.all_entity_ids:
+            tasktree_node = tasktree.find_node_for_entity_id(entity_id)
+            expected_treepath = self._get_treestore_path(tasktree_node)
+            
+            if expected_treepath != self.get_path_for_entity_id(entity_id):
+                raise EntityPathIndexError(
+                    "Entity with ID '{id}' has path in TaskTree of {tasktree_path}, while entity-path registry has path recorded as {treestore_path}".format(
+                        id=entity_id,tasktree_path=expected_treepath, treestore_path = self.get_path_for_entity_id()))
 
     def __str__(self):
         return self._create_branch_str()
@@ -463,6 +435,11 @@ class TaskTreeStoreTest(unittest.TestCase):
 
         actual_task_l2 = task_treestore.get_entity_for_id("0:0:0")
         self.assertEqual(expected_task_l2, actual_task_l2)
+#------------------------------------------------------------------------------ 
+
+class EntityPathIndexError(Exception):
+    def __init__(self, message):
+        Exception.__init__(self, message)
 #------------------------------------------------------------------------------ 
 
 class TaskTreeStoreNode(object):
