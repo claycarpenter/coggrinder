@@ -21,6 +21,9 @@ class CogGrinderApp(object):
         Begin the CogGrinder application by authenticating the user, and then
         creating and starting the controller for the primary app view.
         """
+        print "CogGrinder initializing..."
+        
+        print "Building connection to the task data services."
         # Begin by establishing the auth service.
         credentials_storage = CredentialsStorage(
             directory_path=self.preferences.config_dir_path)
@@ -48,7 +51,9 @@ class CogGrinderApp(object):
         # service so it can populate the task tree widget.
         main_controller = TaskTreeWindowController(
             tasktree_service=self.tasktree_service)
+        print "Fetching initial task data set."
         main_controller.refresh_task_data()
+        print "Done fetching task data, displaying primary UI."
         main_controller.show()
 
         # Begin the main program loop.
