@@ -170,9 +170,11 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
     def __repr__(self):
         return self.__str__()
     
-    def __lt__(self, other):
+    def __lt__(self, other):        
         if self.title.lower() < other.title.lower():
             return True
+        elif self.title == other.title:
+            return self.entity_id.lower() < self.entity_id.lower()
         
         return False
     
