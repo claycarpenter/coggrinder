@@ -5,6 +5,7 @@ Created on Mar 20, 2012
 """
 
 import unittest
+import logging 
 
 class GoogleKeywords(object):
     # Base properties
@@ -126,4 +127,23 @@ class DictUtilitiesTest(unittest.TestCase):
             # Check that the key is equal in both the original and filtered
             # dicts.
             self.assertEqual(orig_dict[key], filtered_dict[key])        
+#------------------------------------------------------------------------------ 
+
+class TraceLogUtils(object):
+    TRACE_START="TRACE - START"
+    TRACE_EXIT="TRACE - EXIT"
+    
+    @staticmethod
+    def trace_start(message=None):
+        if message is not None:
+            message = " - " + message
+            
+        logging.debug(TraceLogUtils.TRACE_START + message)
+    
+    @staticmethod
+    def trace_exit(message=None):
+        if message is not None:
+            message = " - " + message
+            
+        logging.debug(TraceLogUtils.TRACE_EXIT + message)
 #------------------------------------------------------------------------------ 
