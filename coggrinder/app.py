@@ -9,6 +9,8 @@ from coggrinder.gui.authentication_widgets import AuthenticationController
 from coggrinder.services.authentication_services import AuthenticationService, CredentialsStorage
 from coggrinder.services.tasktree_services import TaskTreeService
 from coggrinder.preferences import Preferences
+import logging
+from logging import info
 
 class CogGrinderApp(object):
     def __init__(self, preferences=None):
@@ -21,10 +23,10 @@ class CogGrinderApp(object):
         Begin the CogGrinder application by authenticating the user, and then
         creating and starting the controller for the primary app view.
         """
-        print "CogGrinder initializing..."
-        
-        print "Building connection to the task data services."
+        info("CogGrinder initializing...")
+                
         # Begin by establishing the auth service.
+        info("Building connection to the task data services.")
         credentials_storage = CredentialsStorage(
             directory_path=self.preferences.config_dir_path)
         self.auth_service = AuthenticationService(storage=credentials_storage)
@@ -51,9 +53,9 @@ class CogGrinderApp(object):
         # service so it can populate the task tree widget.
         main_controller = TaskTreeWindowController(
             tasktree_service=self.tasktree_service)
-        print "Fetching initial task data set."
+        info("Fetching initial task data set.")
         main_controller.refresh_task_data()
-        print "Done fetching task data, displaying primary UI."
+        info("Done fetching task data, displaying primary UI.")
         main_controller.show()
 
         # Begin the main program loop.
@@ -70,6 +72,12 @@ if __name__ == '__main__':
     # Create and configure the app.
     coggrinder = CogGrinderApp()
     coggrinder.preferences = preferences
-
+    
+    # Set up a default logger. Eventually, this should probably be configurable
+    # via the app preferences.
+    log_format = "%(asctime)s %(levelname)s [%(module)s - %(funcName)s] %(message)s"
+    logging.basicConfig(filename='coggrinder.log', filemode='w',
+        level=logging.DEBUG, format=log_format)
+    
     # Start up the application.
     coggrinder.start()
