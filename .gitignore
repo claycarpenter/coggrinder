@@ -32,3 +32,6 @@ pip-log.txt
 
 # App config files
 .coggrinder
+
+# All log files
+*.log
