@@ -10,6 +10,7 @@ from coggrinder.resources.icons import task_tree
 from coggrinder.entities.tasktree import TaskTreeComparator
 from coggrinder.services.task_services import UnregisteredEntityError
 import copy
+from logging import debug
 from coggrinder.entities.tree import NodeRelationshipError
 
 class TaskTreeStore(Gtk.TreeStore):
@@ -36,10 +37,12 @@ class TaskTreeStore(Gtk.TreeStore):
             A dict that maps entity (both TaskList and Task) ID keys to
             their path (as a str) in the TreeModel.
         """        
+        # Prevent events that are fired due to updates made to the TreeStore
+        # from being responded to.
+        self.is_updating_tree = True
+        
         # Reset the entity id-tree path registry. 
         self._clear_entity_path_index()
-        
-        self.is_updating_tree = True
         
         # Reset (clear) current tree model.
         self.clear() 
@@ -48,9 +51,11 @@ class TaskTreeStore(Gtk.TreeStore):
         # a TaskList reference.
         tasktree_root_node = tasktree.get_root_node()
         for tasklist_node in tasktree_root_node.children:            
-            self._build_tasktree_branch(tasktree, tasklist_node, None)
-            
-#        self._rebuild_entity_path_index(tasktree)
+            self._build_tasktree_branch(tasktree, tasklist_node, None)        
+
+        # Rebuild the entity-path index (cleared before the TreeStore was built).
+        self._rebuild_entity_path_index(tasktree)        
+        debug("Post-build/expand state:\n{0}".format(self))
         
         self.is_updating_tree = False
         
@@ -64,10 +69,6 @@ class TaskTreeStore(Gtk.TreeStore):
             entity_iter = self.insert(parent_node_iter, insert_position, row_model_data)
         else:
             entity_iter = self.append(parent_node_iter, row_model_data)
-        
-        # Register the entity.
-        treepath = self.get_string_from_iter(entity_iter)
-        self._register_entity(entity, treepath)
         
         # Recursively add all descendants of this current node.
         for child_node in current_node.children:
