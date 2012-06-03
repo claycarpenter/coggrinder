@@ -85,38 +85,109 @@ class Event(object):
         
         return propagation_event
 #------------------------------------------------------------------------------
+
+class EventRegistry(object):
+    _LISTENER_REGISTRY = dict()
     
-"""
-TODO: How do I want the event decorator to work?
-"""
-class DecoratorTest(unittest.TestCase):
-    def test_listener_model_view(self):
-        """
-        This isn't a great test case, but it gets the job done.
-        """
-        controller = DecoratorTest.Controller()
-        
-        self.assertEqual(0, controller.value)
-        
-        controller.view.button_click()
-                
-        self.assertEqual(1, controller.value)
-        
-    class View():
-        def __init__(self):
-            self.click_event = Event()
+    @classmethod
+    def create_notifier_callback(cls, event_name):        
+        def notifying_callback(*args, **kwargs):
+            # Create a new EventInfo to transmit the event data.
+            event_info = EventInfo(event_name)
             
-        def button_click(self):
-            self.click_event.fire(self)
+            # Notify the EventRegistry of the event.
+            EventRegistry.notify(event_info)
+        
+        return notifying_callback
+
+    @classmethod
+    def register_listener(cls, listener, event_name):
+        registry_entry = EventRegistry.ListenerRegistryEntry(listener, event_name)
+        
+        try:
+            EventRegistry._LISTENER_REGISTRY[registry_entry.event_name].append(registry_entry)
+        except KeyError:
+            EventRegistry._LISTENER_REGISTRY[registry_entry.event_name] = [registry_entry]
+
+    @classmethod
+    def notify(cls, event_info):
+        try:
+            # Iterate over the listeners registered for the provided event
+            # name, notifying each in turn.
+            for listener in EventRegistry._LISTENER_REGISTRY[event_info.event_name]:
+                listener.notify(event_info)
+        except KeyError:
+            # This is fine, just indicates that there are no registered 
+            # listeners for the event.
+            return
+        
+    class ListenerRegistryEntry(object):
+        def __init__(self, listener, event_name):
+            self.listener = listener
+            self.event_name = event_name  
+            
+        def notify(self, event_info):
+                self.listener(event_info)           
+#------------------------------------------------------------------------------
     
-    class Controller():
+class EventInfo(object):    
+    def __init__(self, event_name):
+        self.event_name = event_name
+        
+    def __eq__(self, other):
+        try:
+            return self.event_name == other.event_name
+        except AttributeError:
+            return NotImplemented
+#------------------------------------------------------------------------------
+
+class EventTest(unittest.TestCase):
+    EVENT_NAME = "event_test"
+    
+    class Listener(object):
         def __init__(self):
-            self.view = DecoratorTest.View()
-            self.value = 0
+            self.event_info = None
             
-            # Register event listener.
-            self.view.click_event.register(self.handle_button_click)
+        def listen(self, event_info):
+            self.event_info = event_info
             
-        def handle_button_click(self, button):
-            self.value += 1
-#------------------------------------------------------------------------------ 
+    def test_eventregistry_notify_listen(self):
+        ### Arrange ###
+        listener_1 = EventTest.Listener()
+        EventRegistry.register_listener(listener_1.listen, EventTest.EVENT_NAME)
+        
+        listener_2 = EventTest.Listener()
+        EventRegistry.register_listener(listener_2.listen, EventTest.EVENT_NAME)
+        
+        expected_event_info = EventInfo(EventTest.EVENT_NAME)
+        
+        ### Act ###
+        EventRegistry.notify(expected_event_info)
+        
+        ### Assert ###
+        self.assertEqual(expected_event_info, listener_1.event_info)
+        self.assertEqual(expected_event_info, listener_2.event_info)
+    
+    def test_notifying_callback(self):
+        ### Arrange ###
+        expected_event_info = EventInfo(EventTest.EVENT_NAME)
+        
+        listener = EventTest.Listener()
+        EventRegistry.register_listener(listener.listen, EventTest.EVENT_NAME)
+        
+        ### Act ###
+        notifying_callback = EventRegistry.create_notifier_callback(
+            EventTest.EVENT_NAME)
+        
+        # This should call the listener and pass to it the event info.
+        notifying_callback()
+        
+        ### Assert ###
+        self.assertEqual(expected_event_info, listener.event_info)
+    
+#    def test_listener_registration(self):
+#        listener = Listener()
+#        
+#        EventRegistry.register_listener(EventTest.EVENT_NAME, listener.listen)
+#        pass
+#------------------------------------------------------------------------------
