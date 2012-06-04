@@ -267,7 +267,7 @@ class TaskTreeWindowController(object):
         # Clear the editable tree state for the target entity.
         try:
             self.view.update_tree_state(target_entity.entity_id, is_editable=False)
-        except TaskTreeViewController.EmptyTreeStateError:
+        except EmptyTreeStateError:
             # This is ok, it just means the tree state ended up empty 
             # (entity is no longer selected).
             pass
@@ -626,7 +626,7 @@ class TaskTreeViewController(object):
         
         self.is_treeview_change_ignored = False
 
-        # TODO: Document the expected keys and values for this TreeState dict; 
+        # TODO: Document the expected keys and values for this TaskTreeViewState dict; 
         # how it will be used.
         self._clear_tree_state()
 
@@ -727,7 +727,7 @@ class TaskTreeViewController(object):
                 self.update_tree_state(tree_state.entity_id,
                     is_editable=False, is_selected=False,
                     is_expanded=tree_state.is_expanded)
-            except TaskTreeViewController.EmptyTreeStateError:
+            except EmptyTreeStateError:
                 # This is fine, an empty state has been established but will 
                 # be cleaned up in the following prune call.
                 pass
@@ -743,7 +743,7 @@ class TaskTreeViewController(object):
             tree_state = self._tree_states[entity_id]
         except KeyError:
             # No existing tree state.
-            tree_state = self.TreeState(entity_id, is_expanded=False)
+            tree_state = TaskTreeViewState(entity_id, is_expanded=False)
         
         # Create a new tree state for the entity, marking it as selected and 
         # editable.
@@ -797,7 +797,7 @@ class TaskTreeViewController(object):
             tree_state = self._tree_states[entity_id]
         except KeyError:
             # No existing tree state.
-            tree_state = self.TreeState(entity_id)
+            tree_state = TaskTreeViewState(entity_id)
             
         if is_editable is not None:
             tree_state.is_editable = is_editable
@@ -826,7 +826,7 @@ class TaskTreeViewController(object):
                 self.update_tree_state(tree_state.entity_id,
                     is_editable=is_editable, is_selected=is_selected,
                     is_expanded=is_expanded)
-            except TaskTreeViewController.EmptyTreeStateError:
+            except EmptyTreeStateError:
                 # That's fine, empty state will get cleaned up afterwards.
                 pass
             
@@ -861,7 +861,6 @@ class TaskTreeViewController(object):
             
             entity_id = self.task_treestore[tree_iter][TaskTreeStoreNode.ENTITY_ID]
             
-
             if is_expanded or is_selected:               
                 entity_id = self.task_treestore[tree_iter][TaskTreeStoreNode.ENTITY_ID]
                                 
@@ -873,7 +872,7 @@ class TaskTreeViewController(object):
                     tree_state = self._tree_states[entity_id]
                 except KeyError:
                     # No existing tree state.
-                    tree_state = self.TreeState(entity_id)
+                    tree_state = TaskTreeViewState(entity_id)
                     
                 tree_state.is_expanded = is_expanded
                 # If tree state is editable, it should also always be selected.
@@ -971,7 +970,7 @@ class TaskTreeViewController(object):
         
         if not (tree_state.is_expanded or tree_state.is_selected 
             or tree_state.is_editable):
-            raise TaskTreeViewController.EmptyTreeStateError("Tree state has no flags enabled.")
+            raise EmptyTreeStateError("Tree state has no flags enabled.")
         
         return True
                 
@@ -1015,34 +1014,36 @@ class TaskTreeViewController(object):
         """
         # Notify any listeners of the change in selection state.
         self.selection_state_changed.fire(self.selection_state)
+#------------------------------------------------------------------------------ 
 
-    class TreeState(object):
-        """
-        Very simple convenience class to group the two tree node states
-        (is expanded, is selected) together.
-        """
-        def __init__(self, entity_id, is_expanded=False, is_selected=False,
-            is_editable=False):
-            self.entity_id = entity_id
-            self.is_expanded = is_expanded
-            self.is_selected = is_selected
-            self.is_editable = is_editable
+class TaskTreeViewState(object):
+    """
+    Very simple convenience class to group the three tree node states
+    (is expanded, is selected, is_editable) together.
+    """
+    def __init__(self, entity_id, is_expanded=None, is_selected=None,
+        is_editable=None):
+        self.entity_id = entity_id
+        self.is_expanded = is_expanded
+        self.is_selected = is_selected
+        self.is_editable = is_editable
+
+    def __str__(self):
+        info_str = "<id: {id}; expnd: {expanded}; slctd: {selected}; edit: {editable}>"
+        info_str = info_str.format(expanded=self.is_expanded,
+            selected=self.is_selected, editable=self.is_editable,
+            id=self.entity_id)
+        
+        return info_str
     
-        def __str__(self):
-            info_str = "<id: {id}; expnd: {expanded}; slctd: {selected}; edit: {editable}>"
-            info_str = info_str.format(expanded=self.is_expanded,
-                selected=self.is_selected, editable=self.is_editable,
-                id=self.entity_id)
-            
-            return info_str
+    def __repr__(self):
+        return self.__str__()
+#------------------------------------------------------------------------------ 
         
-        def __repr__(self):
-            return self.__str__()
-        
-    class EmptyTreeStateError(ValueError):
-        """Simple error type indicator/marker class."""
-        def __init__(self, *args, **kwargs):
-            ValueError.__init__(self, *args, **kwargs)
+class EmptyTreeStateError(ValueError):
+    """Simple error type indicator/marker class."""
+    def __init__(self, *args, **kwargs):
+        ValueError.__init__(self, *args, **kwargs)
 #------------------------------------------------------------------------------ 
 
 class TaskTreeSelectionState(object):
