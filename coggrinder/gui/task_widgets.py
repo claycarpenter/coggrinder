@@ -52,24 +52,6 @@ class TaskTreeWindowController(object):
 
     def _wire_events(self):
         # Connect to all events that need to be listened for.
-        self.view.save_button_clicked.register(self._handle_save_event)
-        self.view.sync_button_clicked.register(self._handle_sync_event)
-
-        self.view.add_list_button_clicked.register(self._handle_add_list_event)
-        self.view.remove_list_button_clicked.register(self._handle_remove_list_event)
-
-        self.view.add_task_button_clicked.register(self._handle_add_task_event)
-        self.view.edit_task_button_clicked.register(self._handle_edit_task_details_event)
-        self.view.complete_task_button_clicked.register(self._handle_complete_task_event)
-        self.view.remove_task_button_clicked.register(self._handle_remove_task_event)
-
-        self.view.promote_task_button_clicked.register(self._handle_promote_task_event)
-        self.view.demote_task_button_clicked.register(self._handle_demote_task_event)
-        self.view.reorder_task_up_button_clicked.register(self._handle_reorder_task_up_event)
-        self.view.reorder_task_down_button_clicked.register(self._handle_reorder_task_down_event)
-
-        self.view.configure_button_clicked.register(self._handle_configure_event)
-
         self.view.entity_title_edited.register(self._handle_entity_title_updated)
 
     def refresh_task_data(self):
@@ -112,10 +94,12 @@ class TaskTreeWindowController(object):
         # task data set.
         self.view.build_tasktree(self._tasktree_service.tree)
 
+    @eventListener(event_name=TaskTreeEvents.SAVE)
     def _handle_save_event(self, button):
         raise NotImplementedError
         self._tasktree_service.push_task_data()
 
+    @eventListener(event_name=TaskTreeEvents.SYNC)
     def _handle_sync_event(self, button):
         raise NotImplementedError
         self._tasktree_service.pull_task_data()
@@ -134,7 +118,8 @@ class TaskTreeWindowController(object):
         # Refresh the UI.
         self.refresh_view()
 
-    def _handle_add_list_event(self, button):        
+    @eventListener(event_name=TaskTreeEvents.ADD_TASKLIST)
+    def _handle_add_tasklist_event(self, button):        
         # Create the new (blank) TaskList, and add it to the task data.
         new_tasklist = self._tasktree_service.add_entity(TaskList(title="Middle..."))
         
@@ -152,7 +137,8 @@ class TaskTreeWindowController(object):
         # Request an editing callback (edit the title of the new list).
         self._request_editing_callback()
 
-    def _handle_remove_list_event(self, button):
+    @eventListener(event_name=TaskTreeEvents.DELETE_TASKLIST)
+    def _handle_delete_tasklist_event(self, button):
         # Locate the selected TaskList.
         selected_entities = self.view.selected_tasklist_ids
         assert len(selected_entities) == 1, "Should only allow a single TaskList to be selected for deletion."
@@ -167,6 +153,7 @@ class TaskTreeWindowController(object):
         # Refresh the UI.
         self.refresh_view()
 
+    @eventListener(event_name=TaskTreeEvents.ADD_TASK)
     def _handle_add_task_event(self, button):
         raise NotImplementedError
         # Find the ID of the selected parent entity. This will determine the 
@@ -205,6 +192,7 @@ class TaskTreeWindowController(object):
         # Refresh the UI.
         self.refresh_view()
 
+    @eventListener(event_name=TaskTreeEvents.EDIT_TASK)
     def _handle_edit_task_details_event(self, button):
         raise NotImplementedError
         # Locate the selected Task.
@@ -224,10 +212,12 @@ class TaskTreeWindowController(object):
         # Refresh the UI.
         self.refresh_view()
 
+    @eventListener(event_name=TaskTreeEvents.COMPLETE_TASK)
     def _handle_complete_task_event(self, button):
         raise NotImplementedError
 
-    def _handle_remove_task_event(self, button):
+    @eventListener(event_name=TaskTreeEvents.DELETE_TASK)
+    def _handle_delete_task_event(self, button):
         raise NotImplementedError
         # Locate the selected task or tasks.
         selected_tasks = self.view.get_selected_tasks()
@@ -244,18 +234,23 @@ class TaskTreeWindowController(object):
         # Update the UI.
         self.refresh_view()
 
+    @eventListener(event_name=TaskTreeEvents.PROMOTE_TASK)
     def _handle_promote_task_event(self, button):
         raise NotImplementedError
 
+    @eventListener(event_name=TaskTreeEvents.DEMOTE_TASK)
     def _handle_demote_task_event(self, button):
         raise NotImplementedError
 
+    @eventListener(event_name=TaskTreeEvents.REORDER_TASK_UP)
     def _handle_reorder_task_up_event(self, button):
         raise NotImplementedError
 
+    @eventListener(event_name=TaskTreeEvents.REORDER_TASK_DOWN)
     def _handle_reorder_task_down_event(self, button):
         raise NotImplementedError
 
+    @eventListener(event_name=TaskTreeEvents.OPEN_CONFIG_WINDOW)
     def _handle_configure_event(self, button):
         raise NotImplementedError
 
@@ -359,39 +354,6 @@ class TaskTreeWindow(Gtk.Window):
         self.toolbar_controller = TaskToolbarViewController()
         self._base_layout.pack_start(self.toolbar_controller.view, False, False, 0)
 
-        # Propagate toolbar events.
-        # TODO: Fix all of this redundant/boilerplate code.
-        self.save_button_clicked = Event.propagate(
-            self.toolbar_controller.save_button_clicked)
-        self.sync_button_clicked = Event.propagate(
-            self.toolbar_controller.sync_button_clicked)
-
-        self.add_list_button_clicked = Event.propagate(
-            self.toolbar_controller.add_list_button_clicked)
-        self.remove_list_button_clicked = Event.propagate(
-            self.toolbar_controller.remove_list_button_clicked)
-
-        self.add_task_button_clicked = Event.propagate(
-            self.toolbar_controller.add_task_button_clicked)
-        self.edit_task_button_clicked = Event.propagate(
-            self.toolbar_controller.edit_task_button_clicked)
-        self.complete_task_button_clicked = Event.propagate(
-            self.toolbar_controller.complete_task_button_clicked)
-        self.remove_task_button_clicked = Event.propagate(
-            self.toolbar_controller.remove_task_button_clicked)
-
-        self.promote_task_button_clicked = Event.propagate(
-            self.toolbar_controller.promote_task_button_clicked)
-        self.demote_task_button_clicked = Event.propagate(
-            self.toolbar_controller.demote_task_button_clicked)
-        self.reorder_task_up_button_clicked = Event.propagate(
-            self.toolbar_controller.reorder_task_up_button_clicked)
-        self.reorder_task_down_button_clicked = Event.propagate(
-            self.toolbar_controller.reorder_task_down_button_clicked)
-
-        self.configure_button_clicked = Event.propagate(
-            self.toolbar_controller.configure_button_clicked)
-
         # Add the task tree controller and view.
         self.treeview_controller = TaskTreeViewController()
         scrolling_window = Gtk.ScrolledWindow()
@@ -469,55 +431,11 @@ class TaskToolbarViewController(object):
 
     Converts UI button events into domain events.
     """
-    def __init__(self):
+    """
+    TODO: This init method may no longer be relevant.
+    """
+    def __init__(self):        
         self.view = TaskToolbarView()
-
-        # Register toolbar button Events and wire them to the Gtk event system
-        # for the actual button widgets.
-        # TODO: Fix redundant/boilerplate event declaration code.
-        self.save_button_clicked = Event()
-        self.view.save_button.connect("clicked",
-            self.save_button_clicked.fire)
-        self.sync_button_clicked = Event()
-        self.view.sync_button.connect("clicked",
-            self.sync_button_clicked.fire)
-
-        self.add_list_button_clicked = Event()
-        self.view.add_list_button.connect("clicked",
-            self.add_list_button_clicked.fire)
-        self.remove_list_button_clicked = Event()
-        self.view.delete_list_button.connect("clicked",
-            self.remove_list_button_clicked.fire)
-
-        self.add_task_button_clicked = Event()
-        self.view.add_task_button.connect("clicked",
-            self.add_task_button_clicked.fire)
-        self.edit_task_button_clicked = Event()
-        self.view.edit_task_button.connect("clicked",
-            self.edit_task_button_clicked.fire)
-        self.complete_task_button_clicked = Event()
-        self.view.complete_task_button.connect("clicked",
-            self.complete_task_button_clicked.fire)
-        self.remove_task_button_clicked = Event()
-        self.view.delete_task_button.connect("clicked",
-            self.remove_task_button_clicked.fire)
-
-        self.promote_task_button_clicked = Event()
-        self.view.promote_task_button.connect("clicked",
-            self.promote_task_button_clicked.fire)
-        self.demote_task_button_clicked = Event()
-        self.view.demote_task_button.connect("clicked",
-            self.demote_task_button_clicked.fire)
-        self.reorder_task_up_button_clicked = Event()
-        self.view.reorder_task_up_button.connect("clicked",
-            self.reorder_task_up_button_clicked.fire)
-        self.reorder_task_down_button_clicked = Event()
-        self.view.reorder_task_down_button.connect("clicked",
-            self.reorder_task_down_button_clicked.fire)
-
-        self.configure_button_clicked = Event()
-        self.view.configure_button.connect("clicked",
-            self.configure_button_clicked.fire)
 
     def selection_state_changed(self, tasktree_selection_state):
         self.view.update_button_states(tasktree_selection_state)
