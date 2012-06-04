@@ -7,15 +7,34 @@ from gi.repository import Gtk
 from gi.repository import GObject
 from coggrinder.entities.tasks import TaskList, Task
 from coggrinder.resources.icons import buttons
-from coggrinder.gui.events import Event
+from coggrinder.gui.events import Event, EventRegistry, eventListener, eventAware
 from coggrinder.gui.task_treestore import TaskTreeStore, TaskTreeStoreNode
-from coggrinder.entities.tasktree import TaskTree, TaskTreeComparator
+from coggrinder.entities.tasktree import TaskTree
 import copy
 import pprint
 from logging import debug
-from datetime import datetime
-from coggrinder.services.task_services import UnregisteredEntityError
 
+class TaskTreeEvents(object):
+    SAVE = "save"
+    SYNC = "sync"
+    REVERT = "revert"
+    
+    ADD_TASKLIST = "add_tasklist"
+    DELETE_TASKLIST = "delete_tasklist"
+    
+    ADD_TASK = "add_task"
+    EDIT_TASK = "edit_task"
+    COMPLETE_TASK = "complete_task"
+    DELETE_TASK = "delete_task"
+    
+    PROMOTE_TASK = "promote_task"
+    DEMOTE_TASK = "demote_task"
+    REORDER_TASK_UP = "reorder_task_up"
+    REORDER_TASK_DOWN = "reorder_task_down"   
+    
+    OPEN_CONFIG_WINDOW = "open_config_window" 
+
+@eventAware
 class TaskTreeWindowController(object):
     def __init__(self, tasktree_service=None):
         self._tasktree_service = tasktree_service
@@ -35,7 +54,6 @@ class TaskTreeWindowController(object):
         # Connect to all events that need to be listened for.
         self.view.save_button_clicked.register(self._handle_save_event)
         self.view.sync_button_clicked.register(self._handle_sync_event)
-        self.view.revert_button_clicked.register(self._handle_revert_event)
 
         self.view.add_list_button_clicked.register(self._handle_add_list_event)
         self.view.remove_list_button_clicked.register(self._handle_remove_list_event)
@@ -102,6 +120,7 @@ class TaskTreeWindowController(object):
         raise NotImplementedError
         self._tasktree_service.pull_task_data()
 
+    @eventListener(event_name=TaskTreeEvents.REVERT)
     def _handle_revert_event(self, button):        
         # Clear away any user changes.
         self._tasktree_service.revert_task_data()
@@ -346,8 +365,6 @@ class TaskTreeWindow(Gtk.Window):
             self.toolbar_controller.save_button_clicked)
         self.sync_button_clicked = Event.propagate(
             self.toolbar_controller.sync_button_clicked)
-        self.revert_button_clicked = Event.propagate(
-            self.toolbar_controller.revert_button_clicked)
 
         self.add_list_button_clicked = Event.propagate(
             self.toolbar_controller.add_list_button_clicked)
@@ -464,15 +481,12 @@ class TaskToolbarViewController(object):
         self.sync_button_clicked = Event()
         self.view.sync_button.connect("clicked",
             self.sync_button_clicked.fire)
-        self.revert_button_clicked = Event()
-        self.view.revert_button.connect("clicked",
-            self.revert_button_clicked.fire)
 
         self.add_list_button_clicked = Event()
         self.view.add_list_button.connect("clicked",
             self.add_list_button_clicked.fire)
         self.remove_list_button_clicked = Event()
-        self.view.remove_list_button.connect("clicked",
+        self.view.delete_list_button.connect("clicked",
             self.remove_list_button_clicked.fire)
 
         self.add_task_button_clicked = Event()
@@ -485,7 +499,7 @@ class TaskToolbarViewController(object):
         self.view.complete_task_button.connect("clicked",
             self.complete_task_button_clicked.fire)
         self.remove_task_button_clicked = Event()
-        self.view.remove_task_button.connect("clicked",
+        self.view.delete_task_button.connect("clicked",
             self.remove_task_button_clicked.fire)
 
         self.promote_task_button_clicked = Event()
@@ -550,13 +564,13 @@ class TaskToolbarView(Gtk.HBox):
         In the future, these should only be enabled when there are outstanding
         changes on the current task data set.
         """
-        self.save_button = BinaryIconButton(buttons.FILES["save.png"], is_enabled=True)
+        self.save_button = BinaryIconButton(TaskTreeEvents.SAVE, buttons.FILES["save.png"], is_enabled=True)
         button_box.add(self.save_button)
 
-        self.sync_button = BinaryIconButton(buttons.FILES["sync.png"])
+        self.sync_button = BinaryIconButton(TaskTreeEvents.SYNC, buttons.FILES["sync.png"])
         button_box.add(self.sync_button)
 
-        self.revert_button = BinaryIconButton(buttons.FILES["revert.png"], is_enabled=True)
+        self.revert_button = BinaryIconButton(TaskTreeEvents.REVERT, buttons.FILES["revert.png"], is_enabled=True)
         button_box.add(self.revert_button)
 
         return button_box
@@ -569,11 +583,11 @@ class TaskToolbarView(Gtk.HBox):
         """
         button_box = Gtk.HBox(spacing=5)
 
-        self.add_list_button = BinaryIconButton(buttons.FILES["folder_plus.png"])
+        self.add_list_button = BinaryIconButton(TaskTreeEvents.ADD_TASKLIST, buttons.FILES["folder_plus.png"])
         button_box.add(self.add_list_button)
 
-        self.remove_list_button = BinaryIconButton(buttons.FILES["folder_delete.png"], is_enabled=False)
-        button_box.add(self.remove_list_button)
+        self.delete_list_button = BinaryIconButton(TaskTreeEvents.DELETE_TASKLIST, buttons.FILES["folder_delete.png"], is_enabled=False)
+        button_box.add(self.delete_list_button)
 
         return button_box
 
@@ -587,17 +601,17 @@ class TaskToolbarView(Gtk.HBox):
         """
         button_box = Gtk.HBox(spacing=5)
 
-        self.add_task_button = BinaryIconButton(buttons.FILES["doc_plus.png"], is_enabled=False)
+        self.add_task_button = BinaryIconButton(TaskTreeEvents.ADD_TASK, buttons.FILES["doc_plus.png"], is_enabled=False)
         button_box.add(self.add_task_button)
 
-        self.edit_task_button = BinaryIconButton(buttons.FILES["doc_edit.png"], is_enabled=False)
+        self.edit_task_button = BinaryIconButton(TaskTreeEvents.EDIT_TASK, buttons.FILES["doc_edit.png"], is_enabled=False)
         button_box.add(self.edit_task_button)
 
-        self.complete_task_button = BinaryIconButton(buttons.FILES["checkbox_checked.png"], is_enabled=False)
+        self.complete_task_button = BinaryIconButton(TaskTreeEvents.COMPLETE_TASK, buttons.FILES["checkbox_checked.png"], is_enabled=False)
         button_box.add(self.complete_task_button)
 
-        self.remove_task_button = BinaryIconButton(buttons.FILES["doc_delete.png"], is_enabled=False)
-        button_box.add(self.remove_task_button)
+        self.delete_task_button = BinaryIconButton(TaskTreeEvents.DELETE_TASK, buttons.FILES["doc_delete.png"], is_enabled=False)
+        button_box.add(self.delete_task_button)
 
         return button_box
 
@@ -611,16 +625,16 @@ class TaskToolbarView(Gtk.HBox):
         """
         button_box = Gtk.HBox(spacing=5)
 
-        self.promote_task_button = BinaryIconButton(buttons.FILES["sq_br_prev.png"], is_enabled=False)
+        self.promote_task_button = BinaryIconButton(TaskTreeEvents.PROMOTE_TASK, buttons.FILES["sq_br_prev.png"], is_enabled=False)
         button_box.add(self.promote_task_button)
 
-        self.demote_task_button = BinaryIconButton(buttons.FILES["sq_br_next.png"], is_enabled=False)
+        self.demote_task_button = BinaryIconButton(TaskTreeEvents.DEMOTE_TASK, buttons.FILES["sq_br_next.png"], is_enabled=False)
         button_box.add(self.demote_task_button)
 
-        self.reorder_task_up_button = BinaryIconButton(buttons.FILES["sq_br_up.png"], is_enabled=False)
+        self.reorder_task_up_button = BinaryIconButton(TaskTreeEvents.REORDER_TASK_UP, buttons.FILES["sq_br_up.png"], is_enabled=False)
         button_box.add(self.reorder_task_up_button)
 
-        self.reorder_task_down_button = BinaryIconButton(buttons.FILES["sq_br_down.png"], is_enabled=False)
+        self.reorder_task_down_button = BinaryIconButton(TaskTreeEvents.REORDER_TASK_DOWN, buttons.FILES["sq_br_down.png"], is_enabled=False)
         button_box.add(self.reorder_task_down_button)
 
         return button_box
@@ -632,7 +646,7 @@ class TaskToolbarView(Gtk.HBox):
         """
         button_box = Gtk.HBox(spacing=5)
 
-        self.configure_button = BinaryIconButton(buttons.FILES["cog.png"])
+        self.configure_button = BinaryIconButton(TaskTreeEvents.OPEN_CONFIG_WINDOW, buttons.FILES["cog.png"])
         button_box.add(self.configure_button)
 
         return button_box
@@ -643,7 +657,7 @@ class TaskToolbarView(Gtk.HBox):
     """
     def update_button_states(self, tasktree_selection_state):        
         # Only enable when single TaskList is selected.
-        self.remove_list_button.set_state(
+        self.delete_list_button.set_state(
             tasktree_selection_state.tasklist_selection_state == TaskTreeSelectionState.SINGLE)
 
         # Only show add task when a single row/entity--either task or 
@@ -663,7 +677,7 @@ class TaskToolbarView(Gtk.HBox):
             task_detail_buttons_enabled = True
         self.edit_task_button.set_state(task_detail_buttons_enabled)
         self.complete_task_button.set_state(task_detail_buttons_enabled)
-        self.remove_task_button.set_state(task_detail_buttons_enabled)
+        self.delete_task_button.set_state(task_detail_buttons_enabled)
         self.promote_task_button.set_state(task_detail_buttons_enabled)
         self.demote_task_button.set_state(task_detail_buttons_enabled)
         self.reorder_task_up_button.set_state(task_detail_buttons_enabled)
@@ -891,8 +905,8 @@ class TaskTreeViewController(object):
         """
         for tree_state in self.tree_states:
             try:
-                self.update_tree_state(tree_state.entity_id, 
-                    is_editable=is_editable, is_selected=is_selected, 
+                self.update_tree_state(tree_state.entity_id,
+                    is_editable=is_editable, is_selected=is_selected,
                     is_expanded=is_expanded)
             except TaskTreeViewController.EmptyTreeStateError:
                 # That's fine, empty state will get cleaned up afterwards.
@@ -1223,9 +1237,11 @@ class TaskTreeView(Gtk.TreeView):
 #------------------------------------------------------------------------------ 
 
 class BinaryIconButton(Gtk.Button):
-    def __init__(self, icon_file_path, disabled_icon_file_path=None, is_enabled=True):
+    def __init__(self, click_event_name, icon_file_path,
+        disabled_icon_file_path=None, is_enabled=True):
         Gtk.Button.__init__(self)
 
+        self.click_event_name = click_event_name
         self.enabled_icon_file_path = icon_file_path
 
         if disabled_icon_file_path is None:
@@ -1251,6 +1267,10 @@ class BinaryIconButton(Gtk.Button):
         else:
             self.disable()
 
+        # Connect the click event to a EventRegistry notifier.
+        self.connect("clicked",
+            EventRegistry.create_notifier_callback(self.click_event_name))
+        
     def _set_icon(self):
         # Add the Image that reflects the current button state.
         if self.is_enabled:
