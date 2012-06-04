@@ -46,6 +46,7 @@ def listen_all(event_source, listener):
             method.register_listener(listener)
 """
 
+import inspect
 import unittest
 
 class Event(object):
@@ -85,6 +86,72 @@ class Event(object):
         
         return propagation_event
 #------------------------------------------------------------------------------
+    
+class EventInfo(object):    
+    def __init__(self, event_name):
+        self.event_name = event_name
+        
+    def __eq__(self, other):
+        try:
+            return self.event_name == other.event_name
+        except AttributeError:
+            return NotImplemented
+        
+    def __repr__(self):
+        return "<EventInfo - name: {event_name};>".format(event_name=self.event_name)
+#------------------------------------------------------------------------------
+
+def eventAware(klazz):    
+    class NewWrapper(object):
+        def __init__(self, wrapped_func):
+            self.wrapped_func = wrapped_func
+
+        def __get__(self, instance, instance_type):        
+            return self
+            
+        def __call__(self, *args, **kwargs):
+            return self.wrapped_func(*args, **kwargs)
+    
+    # Replace the actual/original class new_wrapper function with the wrapped version.
+    klazz.__new__ = NewWrapper(klazz.__new__)
+        
+    original_init = klazz.__init__
+    def init_wrapper(instance, *args, **kwargs):
+        result = original_init(instance, *args, **kwargs)
+        
+        # Collect all methods on this instance.
+        all_methods = inspect.getmembers(instance, inspect.ismethod)
+        
+        # Find the methods that have EventInfo metadata.
+        # method[1] is the instancemethod portion of a tuple returned by
+        # getmembers (method[0] is the name to which the method is bound to).
+        event_listener_methods = [method[1] for method in all_methods if hasattr(method[1], 'event_info')]
+        
+        for event_listener_method in event_listener_methods:
+            EventRegistry.register_listener(event_listener_method,
+                event_listener_method.event_info.event_name)
+        
+        return result
+    
+    klazz.__init__ = init_wrapper
+    
+    # Return the modified class definition.
+    return klazz
+#------------------------------------------------------------------------------
+
+class eventListener(object):
+    def __init__(self, event_name):        
+        self._event_name = event_name
+        
+    def __call__(self, wrapped_function):                
+        # Create wrapper to execute wrapped function.
+        def listener(*args, **kwargs):
+            return wrapped_function(*args, **kwargs)
+        
+        listener.event_info = EventInfo(self._event_name)  
+        
+        return listener
+#------------------------------------------------------------------------------
 
 class EventRegistry(object):
     _LISTENER_REGISTRY = dict()
@@ -101,7 +168,7 @@ class EventRegistry(object):
         return notifying_callback
 
     @classmethod
-    def register_listener(cls, listener, event_name):
+    def register_listener(cls, listener, event_name):        
         registry_entry = EventRegistry.ListenerRegistryEntry(listener, event_name)
         
         try:
@@ -128,38 +195,46 @@ class EventRegistry(object):
             
         def notify(self, event_info):
                 self.listener(event_info)           
-#------------------------------------------------------------------------------
     
-class EventInfo(object):    
-    def __init__(self, event_name):
-        self.event_name = event_name
-        
-    def __eq__(self, other):
+    @classmethod
+    def deregister_event_listeners(cls, event_name):
         try:
-            return self.event_name == other.event_name
-        except AttributeError:
-            return NotImplemented
+            del EventRegistry._LISTENER_REGISTRY[event_name]
+        except KeyError:
+            # This is fine, just indicates that there are no registered 
+            # listeners for the event.
+            return
 #------------------------------------------------------------------------------
 
-class EventTest(unittest.TestCase):
+class EventRegistryTestSupport(object):
     EVENT_NAME = "event_test"
     
+    def setUp(self):
+        # Clear the EventRegistry for the test event name.
+        EventRegistry.deregister_event_listeners(EventRegistryTestSupport.EVENT_NAME)
+    
+    def tearDown(self):
+        # Clear the EventRegistry for the test event name.
+        EventRegistry.deregister_event_listeners(EventRegistryTestSupport.EVENT_NAME)
+#------------------------------------------------------------------------------
+
+class EventTest(EventRegistryTestSupport, unittest.TestCase):    
     class Listener(object):
         def __init__(self):
             self.event_info = None
             
         def listen(self, event_info):
             self.event_info = event_info
-            
+    
     def test_eventregistry_notify_listen(self):
         ### Arrange ###
         listener_1 = EventTest.Listener()
-        EventRegistry.register_listener(listener_1.listen, EventTest.EVENT_NAME)
+        EventRegistry.register_listener(listener_1.listen, EventRegistryTestSupport.EVENT_NAME)
         
         listener_2 = EventTest.Listener()
-        EventRegistry.register_listener(listener_2.listen, EventTest.EVENT_NAME)
+        EventRegistry.register_listener(listener_2.listen, EventRegistryTestSupport.EVENT_NAME)
         
-        expected_event_info = EventInfo(EventTest.EVENT_NAME)
+        expected_event_info = EventInfo(EventRegistryTestSupport.EVENT_NAME)
         
         ### Act ###
         EventRegistry.notify(expected_event_info)
@@ -170,24 +245,58 @@ class EventTest(unittest.TestCase):
     
     def test_notifying_callback(self):
         ### Arrange ###
-        expected_event_info = EventInfo(EventTest.EVENT_NAME)
+        expected_event_info = EventInfo(EventRegistryTestSupport.EVENT_NAME)
         
         listener = EventTest.Listener()
-        EventRegistry.register_listener(listener.listen, EventTest.EVENT_NAME)
+        EventRegistry.register_listener(listener.listen, EventRegistryTestSupport.EVENT_NAME)
         
         ### Act ###
         notifying_callback = EventRegistry.create_notifier_callback(
-            EventTest.EVENT_NAME)
+            EventRegistryTestSupport.EVENT_NAME)
         
         # This should call the listener and pass to it the event info.
         notifying_callback()
         
         ### Assert ###
         self.assertEqual(expected_event_info, listener.event_info)
+        
+    def test_registry_clear(self):
+        ### Arrange ###
+        listener_1 = EventTest.Listener()
+        EventRegistry.register_listener(listener_1.listen, EventRegistryTestSupport.EVENT_NAME)
+        
+        expected_event_info = EventInfo(EventRegistryTestSupport.EVENT_NAME)
+        
+        ### Act ###
+        EventRegistry.deregister_event_listeners(EventRegistryTestSupport.EVENT_NAME)
+        
+        EventRegistry.notify(expected_event_info)
+        
+        ### Assert ###
+        self.assertIsNone(listener_1.event_info)        
+#------------------------------------------------------------------------------
+
+class EventAwareEventListenerTest(EventRegistryTestSupport, unittest.TestCase):    
+    @eventAware
+    class DecoratedListener(object):
+        def __init__(self):
+            self.event_info = None
+        
+        @eventListener(event_name="event_test")
+        def listen(self, event_info):
+            self.event_info = event_info
     
-#    def test_listener_registration(self):
-#        listener = Listener()
-#        
-#        EventRegistry.register_listener(EventTest.EVENT_NAME, listener.listen)
-#        pass
+    def test_eventlistener(self):
+        ### Arrange ###
+        listener_1 = EventAwareEventListenerTest.DecoratedListener()        
+        listener_2 = EventAwareEventListenerTest.DecoratedListener()
+        
+        expected_event_info = EventInfo(EventRegistryTestSupport.EVENT_NAME)
+        
+        ### Act ###
+        EventRegistry.notify(expected_event_info)
+        
+        ### Assert ###
+        self.assertEqual(expected_event_info, listener_1.event_info)
+        self.assertEqual(expected_event_info, listener_2.event_info)
 #------------------------------------------------------------------------------
