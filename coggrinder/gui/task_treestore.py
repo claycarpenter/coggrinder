@@ -14,6 +14,8 @@ from logging import debug
 from coggrinder.entities.tree import NodeRelationshipError
 
 class TaskTreeStore(Gtk.TreeStore):
+    PATH_SEPARATOR = ":"
+    
     def __init__(self):
         Gtk.TreeStore.__init__(self, str, str, GdkPixbuf.Pixbuf)
 
