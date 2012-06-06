@@ -55,6 +55,15 @@ class TaskTreeService(object):
 
         # Make a local copy of the clean (unmodified by the user) task data.
         self._original_tasktree = copy.deepcopy(self.tree)
+        
+    """
+    TODO: Does this method need a unit test, or should it simply rely on the 
+    unit test coverage in TaskTree (given that this is little more than a 
+    pass-through method)?
+    """
+    def sort(self):        
+        # Sort the working TaskTree.
+        self._current_tree.sort()
 
     def _create_tasktree(self):
         # Get refreshed task data from the TaskList and Task services.
