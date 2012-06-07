@@ -16,6 +16,7 @@ from coggrinder.services.task_services import UnregisteredTaskListError, \
     EntityOverwriteError, UnregisteredEntityError, UnregisteredTaskError
 from operator import attrgetter
 from coggrinder.entities.properties import TaskStatus
+from logging import debug as temp_debug
 
 class TaskTree(Tree):
     def __init__(self, tasklists=None, all_tasks=None, task_data=None):
@@ -248,24 +249,36 @@ class TaskTree(Tree):
                 parent_entity = parent_tasklist
 
             parent_node = self.find_node_for_entity(parent_entity)
+            
+            # Find the correct position for the new entity.
+            entity_address = self._find_new_entity_node_address(parent_node, entity)
         except AttributeError:
             # No TaskList ID found, assuming this is a TaskList.
             parent_node = self.get_node(self.ROOT_PATH)
 
-        # Find the correct position for the new entity.
-        entity_address = self._find_new_entity_address(parent_node, entity)
+            # Find the correct position for the new entity.
+            entity_address = self._find_new_entity_node_address(parent_node, entity)
         
         entity_node = self.insert(entity_address, entity)
         self._register_entity_node(entity_node)
+                
+        # If the entity is a Task, set the previous Task property.
+        try:
+            self._set_sibling_task_id(parent_node, entity_node)
+            temp_debug("Updated Task to have previous Task ID: {0}".format(entity.previous_task_id))                
+        except AttributeError:
+            # Ignore; simply indicates entity is not a Task.
+            pass        
         
         if self._is_task_node(entity_node):
+            temp_debug("Updating Task sibling relationships, possibly for no reason.")
             # Entity is a Task, update the previous Task IDs of all siblings
             # in this Task group.
             self._update_child_task_relationships(parent_node)
         
         return entity
     
-    def _find_new_entity_address(self, parent_node, entity):
+    def _find_new_entity_node_address(self, parent_node, entity):
         position = len(parent_node.children)
                 
         for sibling_entity_node in parent_node.children:
@@ -292,13 +305,25 @@ class TaskTree(Tree):
             else:
                 sibling_task.parent_id = parent_entity.entity_id
             
-            # Update Task sibling links.           
-            child_index = parent_node.children.index(sibling_task_node)
-            if child_index == 0:
-                sibling_task.previous_task_id = sibling_task.parent_id
-            else:
-                previous_task = parent_node.children[child_index - 1].value
-                sibling_task.previous_task_id = previous_task.entity_id
+            # Update Task sibling links.          
+            self._set_sibling_task_id(parent_node, sibling_task_node)
+                
+    def _set_sibling_task_id(self, parent_node, task_node):
+        # If the task has a previous task ID, use that to make sure that it's
+        # place in the correct position under the parent.
+        
+        # If the task doesn't have a previous Task ID, assign to that property 
+        # the parent ID if it's an only child, or the ID of the previous
+        # (last, or lowest ordered) Task in the sibling group.
+        
+        child_index = parent_node.children.index(task_node)
+        task = task_node.value
+        
+        if child_index == 0:
+            task.previous_task_id = task.parent_id
+        else:
+            previous_task = parent_node.children[child_index - 1].value
+            task.previous_task_id = previous_task.entity_id
 
     def _is_task_node(self, entity_node):
         return self._is_task_node_path(entity_node.path)
