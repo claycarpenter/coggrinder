@@ -26,6 +26,9 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
     _props_initialized = False
 
     def __init__(self, entity_id=None, title="", updated_date=None, children=None):
+        """
+        TODO: Remove these type checking assertions.
+        """
         if entity_id is not None:
             assert isinstance(entity_id, str), \
                 BaseTaskEntity._ARGUMENT_FAIL_MESSAGE.format("entity_id", "str")
@@ -95,7 +98,9 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
 
     @classmethod
     def _get_properties(cls):
-        cls._props_initialized = True
+        if not cls._props_initialized:
+            cls._props_initialized = True
+            
         return BaseTaskEntity._properties
 
     def to_str_dict(self, include_none_values=False):
@@ -333,10 +338,11 @@ class Task(BaseTaskEntity):
             EntityProperty("is_deleted", GoogleKeywords.DELETED, BooleanConverter()),
             EntityProperty("is_hidden", GoogleKeywords.HIDDEN, BooleanConverter()),
         )
+    _props_initialized = False
 
     def __init__(self, tasklist_id=None, entity_id=None, title="", updated_date=None,
             children=None, parent_id=None, task_status=TaskStatus.NEEDS_ACTION,
-            position=0, previous_task_id=None):
+            position=None, previous_task_id=None):
         super(Task, self).__init__(entity_id, title, updated_date, children)
 
         self.parent_id = parent_id
@@ -364,7 +370,7 @@ class Task(BaseTaskEntity):
         return taskitem_keys
 
     @classmethod
-    def _get_properties(cls):
+    def _get_properties(cls):        
         # Check the class initialization variable to see whether the properties
         # have been aggregated already or not.   
         if not cls._props_initialized:
@@ -406,10 +412,10 @@ class Task(BaseTaskEntity):
         # Check for an "undefined" position. This is indicated by a zero value,
         # and such positions should be considered _greater_ than any other
         # defined position value.
-        if self.position == 0:
+        if self.position == None:
             return False
         
-        if other.position == 0:
+        if other.position == None:
             return True
         
         if self.position < other.position:
