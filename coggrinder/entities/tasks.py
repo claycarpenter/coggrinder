@@ -579,21 +579,11 @@ class TestDataTaskList(TaskList):
         # Create a full title from the provided short title.
         title = TestDataEntitySupport.create_full_title(self.__class__, *short_title_sections)
 
-        # Create an entity id from the full title.
-        entity_id = self.convert_short_title_to_id(*short_title_sections)
+        # Create an entity id from the short title sections.
+        entity_id = TestDataEntitySupport.short_title_to_id(*short_title_sections)
 
         TaskList.__init__(self, entity_id=entity_id, title=title,
             updated_date=datetime.now(), **kwargs)
-        
-    @classmethod
-    def convert_short_title_to_id(cls, short_title):
-        # Create a full title from the provided short title.
-        title = TestDataEntitySupport.create_full_title(cls, short_title)
-
-        # Create an entity id from the full title.
-        entity_id = TestDataEntitySupport.convert_title_to_id(title)
-        
-        return entity_id
 #------------------------------------------------------------------------------ 
 
 class TestDataTaskListTest(unittest.TestCase):
@@ -614,7 +604,7 @@ class TestDataTaskListTest(unittest.TestCase):
         """
         ### Arrange ###
         expected_long_title = "TestDataTaskList A"
-        expected_id = "testdatatasklist-a"
+        expected_id = "a"
 
         ### Act ###
         actual_tasklist_a = TestDataTaskList("A")
@@ -622,28 +612,6 @@ class TestDataTaskListTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_long_title, actual_tasklist_a.title)
         self.assertEqual(expected_id, actual_tasklist_a.entity_id)
-
-    def test_convert_short_title_to_id(self):
-        """Test converting a short title into an ID.
-
-        Should produce an ID of "testdatatasklist-a" when provided with a 
-        short title "A".
-
-        Arrange:
-            - Create expected entity ID.
-        Act:
-            - Convert the short title "A" to the actual entity ID.
-        Assert:
-            - That the expected and actual IDs are the same.
-        """
-        ### Arrange ###
-        expected_entity_id = "testdatatasklist-a"
-
-        ### Act ###
-        actual_entity_id = TestDataTaskList.convert_short_title_to_id("A")
-
-        ### Assert ###
-        self.assertEqual(expected_entity_id, actual_entity_id)
 #------------------------------------------------------------------------------ 
 
 class TestDataTask(Task):
@@ -651,25 +619,11 @@ class TestDataTask(Task):
         # Create a full title from the provided short title.
         title = TestDataEntitySupport.create_full_title(self.__class__, *short_title_sections)
 
-        # Create an entity id from the full title.
-        entity_id = self.convert_short_title_to_id(*short_title_sections)
+        # Create an entity id from the short title sections.
+        entity_id = TestDataEntitySupport.short_title_to_id(*short_title_sections)
 
         Task.__init__(self, entity_id=entity_id, title=title,
             updated_date=datetime.now(), **kwargs)
-        
-    """
-    TODO: As both TestDataTask and TestDataTaskList share this identical
-    method, it should probably be moved out to a common mixin class.
-    """ 
-    @classmethod
-    def convert_short_title_to_id(cls, short_title):
-        # Create a full title from the provided short title.
-        title = TestDataEntitySupport.create_full_title(cls, short_title)
-
-        # Create an entity id from the full title.
-        entity_id = TestDataEntitySupport.convert_title_to_id(title)
-        
-        return entity_id
 #------------------------------------------------------------------------------ 
 
 class TestDataTaskTest(unittest.TestCase):
@@ -690,7 +644,7 @@ class TestDataTaskTest(unittest.TestCase):
         """
         ### Arrange ###
         expected_long_title = "TestDataTask A"
-        expected_id = "testdatatask-a"
+        expected_id = "a"
 
         ### Act ###
         actual_task_a = TestDataTask("A")
@@ -698,28 +652,6 @@ class TestDataTaskTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_long_title, actual_task_a.title)
         self.assertEqual(expected_id, actual_task_a.entity_id)
-
-    def test_convert_short_title_to_id(self):
-        """Test converting a short title into an ID.
-
-        Should produce an ID of "testdatatask-a" when provided with a 
-        short title "A".
-
-        Arrange:
-            - Create expected entity ID.
-        Act:
-            - Convert the short title "A" to the actual entity ID.
-        Assert:
-            - That the expected and actual IDs are the same.
-        """
-        ### Arrange ###
-        expected_entity_id = "testdatatask-a"
-
-        ### Act ###
-        actual_entity_id = TestDataTask.convert_short_title_to_id("A")
-
-        ### Assert ###
-        self.assertEqual(expected_entity_id, actual_entity_id)
 #------------------------------------------------------------------------------ 
 
 class UpdatedDateIgnoredTestDataTaskList(TestDataTaskList, UpdatedDateFilteredTaskList):
@@ -750,8 +682,7 @@ class TestDataEntitySupport(object):
 
         # Create full short title by combining short title sections with a
         # special divider character.
-        short_title = TestDataEntitySupport.TITLE_SECTION_DIVIDER.join(
-            short_title_sections)
+        short_title = TestDataEntitySupport.combine_short_title_sections(*short_title_sections)
 
         # Create a full title by combining the entity's class name and the
         # short title provided.
@@ -761,12 +692,28 @@ class TestDataEntitySupport(object):
         return full_title
     
     @staticmethod
-    def short_title_to_id(entity_class, *short_title_sections):
-        # Create the full title for the entity.
-        full_title = TestDataEntitySupport.create_full_title(entity_class, *short_title_sections)
+    def combine_short_title_sections(*short_title_sections):
+        """This method combines all of the short title sections provided into
+        a single string, separated by the separator defined under
+        TestDataEntitySupport.TITLE_SECTION_DIVIDER.
         
-        # Convert title to an ID.
-        entity_id = TestDataEntitySupport.convert_title_to_id(full_title)
+        This method filters out any None values to prevent adjacent title 
+        section dividers from appearing in the aggregated string.
+        """
+        
+        # Filter out any None values.
+        sections = [x for x in short_title_sections if x is not None]
+        
+        # Return the non-None sections, combined by the title section 
+        #$ separator.
+        return TestDataEntitySupport.TITLE_SECTION_DIVIDER.join(sections)
+    
+    @staticmethod
+    def short_title_to_id(*short_title_sections):
+        # Combine the short title sections, convert them to all lower case, and
+        # use that as the entity ID.
+        entity_id = TestDataEntitySupport.combine_short_title_sections(*short_title_sections)
+        entity_id = entity_id.lower()
         
         return entity_id
 #------------------------------------------------------------------------------ 
@@ -846,7 +793,7 @@ class TestDataEntitySupportTest(unittest.TestCase):
         """Test creating an entity ID for a Task entity from a series of short
         title sections.
 
-        Should produce an entity ID of "task-a-c-c" from the short title 
+        Should produce an entity ID of "a-c-c" from the short title 
         sections 'A','C','C'.
 
         Arrange:
@@ -858,11 +805,11 @@ class TestDataEntitySupportTest(unittest.TestCase):
             - That the expected and actual entity IDs are the same.
         """
         ### Arrange ###
-        expected_id = "task-a-c-c"
+        expected_id = "a-c-c"
         short_title_sections = ['A', 'C', 'C']
         
         ### Act ###
-        actual_id = TestDataEntitySupport.short_title_to_id(Task, *short_title_sections)
+        actual_id = TestDataEntitySupport.short_title_to_id(*short_title_sections)
 
         ### Assert ###
         self.assertEqual(expected_id, actual_id)
