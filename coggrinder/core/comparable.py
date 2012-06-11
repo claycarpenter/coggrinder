@@ -5,6 +5,7 @@ Created on Apr 27, 2012
 '''
 
 import unittest
+from logging import debug
 
 class DeclaredPropertiesComparable(object):
     '''Simply compares between two objects, using declared properties.
@@ -75,6 +76,8 @@ class DeclaredPropertiesComparable(object):
                     if self_value is not other and other_value is not self:
                         if self_value != other_value:
                             are_equal = False
+                            debug("Equality test difference -> prop: {0}, self val: '{1}', other: '{2}' --- self: {3} --- other: {4}".format(
+                                property_name, self_value, other_value, self, other))
                             break
 
             # Clear the comparing flag on other.            
