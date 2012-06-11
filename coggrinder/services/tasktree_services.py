@@ -175,7 +175,7 @@ class TaskTreeService(object):
             service.delete(entity)
 #------------------------------------------------------------------------------
 
-class TaskTreeServiceTestCommon(object):
+class TaskTreeServiceTestSupport(ManagedFixturesTestSupport):
     def setUp(self, tasklists=None, all_tasks=None):
         """Set up basic test fixtures.
 
@@ -187,18 +187,59 @@ class TaskTreeServiceTestCommon(object):
         if all_tasks is None:
             all_tasks = dict()
 
+        # Create mock Task/List services that store the task data in temporary
+        # in-memory collections.
         self.mock_tasklist_srvc = InMemoryTaskListService(tasklists)
         self.mock_task_srvc = InMemoryTaskService(all_tasks)
-
+        
+        # Create a TaskTreeService that uses the mock Task/List services for 
+        # its task data store access.
         self.tasktree_srvc = TaskTreeService(
             tasklist_service=self.mock_tasklist_srvc,
             task_service=self.mock_task_srvc)
 
+        # Update the TaskTreeService task data.
+        self.tasktree_srvc.refresh_task_data()
+
         self._register_fixtures(self.tasktree_srvc, self.mock_task_srvc,
             self.mock_tasklist_srvc)
+#------------------------------------------------------------------------------
+
+class PopulatedTaskTreeServiceTestSupport(TaskTreeServiceTestSupport):
+    def setUp(self):
+        """Establish test fixtures common to all tests within this setup.
+
+        - Create the expected task data.
+        - Create mock in-memory task data services.
+        - Wire the test fixture TaskTreeService to use both of these services
+        for data storage.
+        """
+
+        # Create the expected task data and their containers.
+        self.expected_tasklists = TaskDataTestSupport.create_tasklists(
+            tasklist_type=UpdatedDateIgnoredTestDataTaskList)
+        self.expected_all_tasks = TaskDataTestSupport.create_all_tasks(
+            self.expected_tasklists, task_type=UpdatedDateIgnoredTestDataTask)
+
+        # Create cloned copies of the expected task data that can be given to 
+        # the mock task data services.
+        # This is done so that modifying the expected TaskLists and expected 
+        # Tasks fixtures doesn't also changes the data held by the 
+        # TaskTreeService under test.
+        cloned_tasklists = copy.deepcopy(self.expected_tasklists)
+        cloned_all_tasks = copy.deepcopy(self.expected_all_tasks)
+
+        # Create a basic, blank TaskTreeService with TaskService and 
+        # TaskListService mocks.
+        TaskTreeServiceTestSupport.setUp(self, tasklists=cloned_tasklists,
+            all_tasks=cloned_all_tasks)
+
+        # Register test fixtures.
+        self._register_fixtures(self.expected_tasklists,
+            self.expected_all_tasks)
 #------------------------------------------------------------------------------ 
 
-class TaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):
+class TaskTreeServiceTest(TaskTreeServiceTestSupport, unittest.TestCase):
     def test_no_task_data(self):
         """Test creating an empty tree.
 
@@ -227,45 +268,11 @@ class TaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon,
         self.assertEqual(expected_tasktree, self.tasktree_srvc.tree)
 #------------------------------------------------------------------------------ 
 
-class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):
+class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport, unittest.TestCase):
     """This collection of tests examines the TaskTreeService's ability to
     manage and synchronize the task data it holds with the task data services
     that manage the TaskList and Task entities.
     """
-    def setUp(self):
-        """Establish test fixtures common to all tests within this test case.
-
-        - Create the expected and working/actual TaskTrees.
-        - Create mock in-memory task data services.
-        - Wire the test fixture TaskTreeService to use both of these mock services
-        for data storage.
-        """
-
-        # Create the expected and actual TaskTrees
-        self.expected_tasktree = TaskDataTestSupport.create_dynamic_tasktree(
-            TestDataTaskList, TestDataTask, 3, 3)
-        self.actual_tasktree = copy.deepcopy(self.expected_tasktree)
-
-        # Create cloned copies of the expected task data that can be given to 
-        # the mock task data services.
-        # This is done so that modifying the expected TaskLists and expected 
-        # Tasks fixtures doesn't also changes the data held by the 
-        # TaskTreeService under test.
-        cloned_tasklists = copy.deepcopy(self.expected_tasktree.tasklists)
-        cloned_all_tasks = copy.deepcopy(self.expected_tasktree.all_tasks)
-
-        # Create a basic, blank TaskTreeService with TaskService and 
-        # TaskListService mocks.
-        TaskTreeServiceTestCommon.setUp(self, tasklists=cloned_tasklists,
-            all_tasks=cloned_all_tasks)
-
-        # Register test fixtures.
-        self._register_fixtures(self.expected_tasktree,
-            self.actual_tasktree)
-
-        # Update the TaskTreeService task data.
-        self.tasktree_srvc.refresh_task_data()
-
     def test_revert_task_data(self):
         """Test reverting the changes on the current task data back to what
         they were after the last data refresh from the task data services.
@@ -285,7 +292,7 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
 
         ### Act ###
         expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(TestDataTaskList, 'A'))
+            TestDataEntitySupport.short_title_to_id('a'))
         expected_tasklist_a.title = "updated"
 
         self.tasktree_srvc.revert_task_data()
@@ -342,12 +349,11 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         """
         ### Arrange ###
         expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(TestDataTaskList, 'A'))
+            TestDataEntitySupport.short_title_to_id('a'))
         expected_task_foo = UpdatedDateIgnoredTestDataTask("Foo",
             tasklist_id=expected_tasklist_a.entity_id)
         actual_task_foo = copy.deepcopy(expected_task_foo)
-        expected_task_foo.previous_task_id = TestDataEntitySupport.short_title_to_id(
-            TestDataTask, *list('ac'))
+        expected_task_foo.previous_task_id = TestDataEntitySupport.short_title_to_id(*list('ac'))
 
         ### Act ###
         self.tasktree_srvc.add_entity(actual_task_foo)
@@ -376,7 +382,7 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         """
         ### Arrange ###
         expected_task_acc = self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(TestDataTask, *list('acc')))        
+            TestDataEntitySupport.short_title_to_id(*list('acc')))        
         actual_task_acc = copy.deepcopy(expected_task_acc)
 
         ### Act ###
@@ -406,7 +412,7 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         """
         ### Arrange ###
         expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(TestDataTaskList, 'a'))        
+            TestDataEntitySupport.short_title_to_id('a'))        
         actual_tasklist_a = copy.deepcopy(expected_tasklist_a)
 
         ### Act ###
@@ -420,7 +426,7 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
             self.tasktree_srvc.get_entity_for_id(expected_tasklist_a.entity_id)
         with self.assertRaises(UnregisteredEntityError):
             self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(TestDataTask, *list('acc')))
+            TestDataEntitySupport.short_title_to_id(*list('acc')))
 
     def test_save_task_data_tasklist_task_titles_updated(self):
         """Test that saving the task data will persist updated TaskList and
@@ -442,11 +448,11 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         updated_title = "Updated!"
 
         expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(TestDataTaskList, 'A'))
+            TestDataEntitySupport.short_title_to_id('A'))
         expected_tasklist_a.title = updated_title
 
         expected_task_a = self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(TestDataTask, 'A', 'A'))
+            TestDataEntitySupport.short_title_to_id('A', 'A'))
         expected_tasklist_a.title = updated_title
 
         ### Act ###
@@ -484,11 +490,13 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         ### Arrange ###
         updated_title = "Updated!"
 
-        expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(TestDataEntitySupport.short_title_to_id(TestDataTaskList, 'A'))
+        expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id('a'))
         cloned_tasklist_a = copy.deepcopy(expected_tasklist_a)
         cloned_tasklist_a.title = updated_title
 
-        expected_task_a = self.tasktree_srvc.get_entity_for_id(TestDataEntitySupport.short_title_to_id(TestDataTask, 'A', 'A'))
+        expected_task_a = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(*list("aa")))
         cloned_task_a = copy.deepcopy(expected_task_a)
         cloned_task_a.title = updated_title
 
@@ -506,50 +514,12 @@ class TaskTreeServiceTaskDataManagementTest(ManagedFixturesTestSupport, TaskTree
         self.assertEqual(expected_task_a, actual_task_a)
 #------------------------------------------------------------------------------ 
 
-class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTestCommon, unittest.TestCase):
-    """This collection of tests intends to ensure that the TaskTreeService
-    properly updates the TaskTree task data.
+class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest.TestCase):
+    """This collection of tests intends to ensure that the basic operations of
+    TaskTreeService properly updates the TaskTree task data.
 
     It does not cover syncing the task data with the remote Google services.
     """
-    def setUp(self):
-        """Establish test fixtures common to all tests within this test case.
-
-        - Create the expected task data.
-        - Create mock in-memory task data services.
-        - Wire the test fixture TaskTreeService to use both of these services
-        for data storage.
-
-        TODO: This is identical with and redundant to the setUp in
-        TaskTreeServiceTaskDataManagementTest.
-        """
-
-        # Create the expected task data and their containers.
-        self.expected_tasklists = TaskDataTestSupport.create_tasklists(
-            UpdatedDateFilteredTaskList)
-        self.expected_all_tasks = TaskDataTestSupport.create_all_tasks(
-            self.expected_tasklists, UpdatedDateFilteredTask)
-
-        # Create cloned copies of the expected task data that can be given to 
-        # the mock task data services.
-        # This is done so that modifying the expected TaskLists and expected 
-        # Tasks fixtures doesn't also changes the data held by the 
-        # TaskTreeService under test.
-        cloned_tasklists = copy.deepcopy(self.expected_tasklists)
-        cloned_all_tasks = copy.deepcopy(self.expected_all_tasks)
-
-        # Create a basic, blank TaskTreeService with TaskService and 
-        # TaskListService mocks.
-        TaskTreeServiceTestCommon.setUp(self, tasklists=cloned_tasklists,
-            all_tasks=cloned_all_tasks)
-
-        # Register test fixtures.
-        self._register_fixtures(self.expected_tasklists,
-            self.expected_all_tasks)
-
-        # Update the TaskTreeService task data.
-        self.tasktree_srvc.refresh_task_data()
-
     def test_get_tasklist(self):
         """Test that retrieving ("getting") a TaskList from the TaskTreeService
         returns the expected instance.
@@ -562,7 +532,7 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
             That the actual and expected TaskLists are identical.
         """
         ### Arrange ###
-        expected_tasklist_id = "tl-A"
+        expected_tasklist_id = TestDataEntitySupport.short_title_to_id('a')
         expected_tasklist = self.expected_tasklists[expected_tasklist_id]
 
         ### Act ###   
@@ -583,10 +553,10 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
             That the actual and expected Tasks are identical.
         """
         ### Arrange ###
-        expected_tasklist_id = "tl-B"
-        expected_task_id = expected_tasklist_id + "-t-B"
+        expected_tasklist_id = TestDataEntitySupport.short_title_to_id('b')
+        expected_task_id = TestDataEntitySupport.short_title_to_id(*list('bc'))
         expected_task = self.expected_all_tasks[expected_tasklist_id][expected_task_id]
-        expected_task.previous_task_id = expected_tasklist_id + "-t-A"
+        expected_task.previous_task_id = TestDataEntitySupport.short_title_to_id(*list('bb')) 
 
         ### Act ###   
         actual_task = self.tasktree_srvc.get_entity_for_id(expected_task_id)
@@ -613,7 +583,7 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         """
         ### Arrange ###
         expected_updated_title = "updated"
-        expected_tasklist_a = self.expected_tasklists["tl-A"]
+        expected_tasklist_a = self.expected_tasklists[TestDataEntitySupport.short_title_to_id('a')]
         expected_tasklist_a.title = expected_updated_title
 
         ### Act ###   
@@ -645,9 +615,9 @@ class PopulatedTaskTreeServiceTest(ManagedFixturesTestSupport, TaskTreeServiceTe
         """
         ### Arrange ###
         expected_updated_title = "updated"
-        expected_task_b = self.expected_all_tasks["tl-A"]["tl-A-t-B"]
+        expected_task_b = self.expected_all_tasks[TestDataEntitySupport.short_title_to_id('a')][TestDataEntitySupport.short_title_to_id(*list('ab'))]
         expected_task_b.title = expected_updated_title
-        expected_task_b.previous_task_id = "tl-A-t-A"
+        expected_task_b.previous_task_id = TestDataEntitySupport.short_title_to_id(*list('aa'))
 
         ### Act ###   
         actual_task_b = self.tasktree_srvc.get_entity_for_id(expected_task_b.entity_id)
