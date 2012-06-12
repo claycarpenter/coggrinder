@@ -419,28 +419,24 @@ class TaskTreeStoreNode(object):
     ENTITY_ID = 0
     LABEL = 1
     ICON = 2
+    
+    # Create icons needed to present the task tree.
+    LIST_IMAGE = Gtk.Image.new_from_file(task_tree.FILES["folder.png"]).get_pixbuf()
+    TASK_COMPLETE_IMAGE = Gtk.Image.new_from_file(task_tree.FILES["checkmark.png"]).get_pixbuf()
+    TASK_INCOMPLETE_IMAGE = Gtk.Image.new_from_file(task_tree.FILES["checkbox_unchecked.png"]).get_pixbuf()
 
     def __init__(self, entity):
         self.row_data = list()
         self.row_data.insert(TaskTreeStoreNode.ENTITY_ID, entity.entity_id)
         self.row_data.insert(TaskTreeStoreNode.LABEL, entity.title)
 
-        # Create icons needed to present the task tree.
-        self.list_image = Gtk.Image.new_from_file(task_tree.FILES["folder.png"])
-        self.task_complete_image = Gtk.Image.new_from_file(task_tree.FILES["checkmark.png"])
-        self.task_incomplete_image = Gtk.Image.new_from_file(task_tree.FILES["checkbox_unchecked.png"])
-
-        list_icon = self.list_image.get_pixbuf()
-        checked_icon = self.task_complete_image.get_pixbuf()
-        unchecked_icon = self.task_incomplete_image.get_pixbuf()
-
         if isinstance(entity, TaskList):
-            icon = list_icon
+            icon = self.LIST_IMAGE
         elif isinstance(entity, Task):
             if entity.task_status == TaskStatus.COMPLETED:
-                icon = checked_icon
+                icon = self.TASK_COMPLETE_IMAGE
             else:
-                icon = unchecked_icon
+                icon = self.TASK_INCOMPLETE_IMAGE
         else:
             raise ValueError("Cannot determine type of provided entity {0}".format(entity))
 
