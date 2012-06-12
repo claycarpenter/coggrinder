@@ -56,12 +56,6 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
         
         self.e_tag = None
 
-        # If children is None, initialize to an empty list.
-        if children is None:
-            self.children = []
-        else:
-            self.children = children
-
     @classmethod
     def from_str_dict(cls, str_dict):
         # Create a new blank entity.
@@ -341,9 +335,9 @@ class Task(BaseTaskEntity):
     _props_initialized = False
 
     def __init__(self, tasklist_id=None, entity_id=None, title="", updated_date=None,
-            children=None, parent_id=None, task_status=TaskStatus.NEEDS_ACTION,
+            parent_id=None, task_status=TaskStatus.NEEDS_ACTION,
             position=None, previous_task_id=None):
-        super(Task, self).__init__(entity_id, title, updated_date, children)
+        super(Task, self).__init__(entity_id, title, updated_date)
 
         self.parent_id = parent_id
         self.task_status = task_status
@@ -815,6 +809,9 @@ class TestDataEntitySupportTest(unittest.TestCase):
         self.assertEqual(expected_id, actual_id)
 #------------------------------------------------------------------------------ 
 
+"""
+TODO: This class doesn't appear to be used--candidate for cruft removal.
+"""
 class TaskDataSorter(object):
     @classmethod
     def sort_task_data(cls, task_data):
