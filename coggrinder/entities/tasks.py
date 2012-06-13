@@ -20,41 +20,27 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
             EntityProperty("entity_id", GoogleKeywords.ID),
             EntityProperty("title", GoogleKeywords.TITLE),
             EntityProperty("updated_date", GoogleKeywords.UPDATED,
-                RFC3339Converter()),
-            EntityProperty("e_tag", GoogleKeywords.ETAG), # Tracking this property may not be necessary as the updated (date) can be used instead.
+                RFC3339Converter())
         )
     _props_initialized = False
 
     def __init__(self, entity_id=None, title="", updated_date=None, children=None):
-        """
-        TODO: Remove these type checking assertions.
-        """
-        if entity_id is not None:
-            assert isinstance(entity_id, str), \
-                BaseTaskEntity._ARGUMENT_FAIL_MESSAGE.format("entity_id", "str")
-        else:
+        # Create a default UUID entity ID if none is provided.
+        if entity_id is None:
             entity_id = str(uuid.uuid4())
             
         self.entity_id = entity_id
 
-        if title is not None:
-            assert isinstance(title, str), \
-                BaseTaskEntity._ARGUMENT_FAIL_MESSAGE.format("title", "str")
         self.title = title
 
-        if updated_date is not None:
-            assert isinstance(updated_date, datetime), \
-            BaseTaskEntity._ARGUMENT_FAIL_MESSAGE.format("updated_date", "datetime")
-
-            # Strip the timestamp down to just date (year, month, day) and 
-            # a time that includes hours, minutes, and seconds. Microseconds and
-            # any timezone info are not preserved.            
-            updated_date = datetime(updated_date.year, updated_date.month, updated_date.day,
-                updated_date.hour, updated_date.minute, updated_date.second)
-
-        self.updated_date = updated_date
-        
-        self.e_tag = None
+        if updated_date is None:
+            updated_date = datetime.now()
+            
+        # Strip the timestamp down to just date (year, month, day) and 
+        # a time that includes hours, minutes, and seconds. Microseconds and
+        # any timezone info are not preserved.            
+        self.updated_date = datetime(updated_date.year, updated_date.month, updated_date.day,
+            updated_date.hour, updated_date.minute, updated_date.second)
 
     @classmethod
     def from_str_dict(cls, str_dict):
@@ -187,7 +173,7 @@ class BaseTaskEntityTest(unittest.TestCase):
         BaseTaskEntity("aljkdfkj", "Title")
 
         # Using a string as an updated_date timestamp should fail.
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(AttributeError):
             BaseTaskEntity("aljkdfkj", "Title", 29)
 
         # Using a real datetime object for the updated_date timestamp should work.
