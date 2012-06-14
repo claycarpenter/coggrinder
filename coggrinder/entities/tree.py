@@ -102,15 +102,6 @@ class Tree(DeclaredPropertiesComparable):
 
         return node.has_children()
 
-    def has_siblings(self, node_indices):
-        node = self.get_node(node_indices)
-        assert node.parent is not None
-
-        if len(node.parent.children) > 1:
-            return True
-        else:
-            return False
-
     def has_path(self, node_indices):
         node = self.get_node(node_indices, must_find=False)
 
@@ -1104,47 +1095,6 @@ class PopulatedTreeTest(unittest.TestCase):
 
         ### Assert ############################################################
         self.assertTrue(tree.has_children(Tree.ROOT_PATH))
-
-    def test_has_siblings_only_child_node(self):
-        """Test if the tree recognizes a node lacking siblings.
-
-        Arrange:
-            Create blank tree.
-            Create root node.
-            Create a leaf node child of the root.
-        Assert:
-            Tree reports the leaf node _does not_ have siblings.
-        """
-        ### Arrange ###########################################################
-        tree = Tree()
-        tree.insert(Tree.ROOT_PATH)
-        leaf_node_address = Tree.ROOT_PATH + (0,)
-        tree.insert(leaf_node_address)
-
-        ### Assert ############################################################
-        self.assertFalse(tree.has_siblings(leaf_node_address))
-
-    def test_has_siblings_node_with_siblings(self):
-        """Test if the tree recognizes a node with siblings.
-
-        Arrange:
-            Create blank tree.
-            Create root node.
-            Create a two leaf node children of the root.
-        Assert:
-            Tree reports that both leaf nodes do have siblings.
-        """
-        ### Arrange ###########################################################
-        tree = Tree()
-        tree.insert(Tree.ROOT_PATH)
-        n0_0_path = Tree.ROOT_PATH + (0,)
-        n0_1_path = Tree.ROOT_PATH + (1,)
-        tree.insert(n0_0_path)
-        tree.insert(n0_1_path)
-
-        ### Assert ############################################################
-        self.assertTrue(tree.has_siblings(n0_0_path))
-        self.assertTrue(tree.has_siblings(n0_1_path))
 
     def test_insert_occupied_position(self):
         """Ensure inserting into an occupied position bumps up the current
