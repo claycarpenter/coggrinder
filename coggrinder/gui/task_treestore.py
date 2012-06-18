@@ -5,7 +5,7 @@ Created on Apr 9, 2012
 """
 from gi.repository import Gtk, GdkPixbuf
 import unittest
-from coggrinder.entities.tasks import TaskList, Task, TaskStatus, TaskDataSorter
+from coggrinder.entities.tasks import TaskList, Task, TaskStatus
 from coggrinder.resources.icons import task_tree
 from coggrinder.entities.tasktree import TaskTreeComparator
 from coggrinder.services.task_services import UnregisteredEntityError
