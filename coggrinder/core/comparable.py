@@ -68,8 +68,12 @@ class DeclaredPropertiesComparable(object):
                 are_equal = False
             else:
                 for property_name in comparable_prop_names:
-                    self_value = getattr(self, property_name)
-                    other_value = getattr(other, property_name)
+                    try:
+                        self_value = getattr(self, property_name)
+                        other_value = getattr(other, property_name)
+                    except AttributeError:
+                        are_equal = False
+                        break
 
                     # Protect against infinite recursion occurring because of circular
                     # references between two objects.
