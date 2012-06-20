@@ -58,7 +58,7 @@ class TaskTree(Tree):
         
         # Find the root node and collect all of its direct children. Each 
         # child should represent a TaskList.
-        root_node = self.get_root_node()
+        root_node = self.root_node
         for tasklist_node in root_node.children:
             tasklist = tasklist_node.value
             tasklists[tasklist.entity_id] = tasklist
@@ -505,7 +505,7 @@ class TaskTree(Tree):
         if current_node is None:
             # Use the root node as the default starting point for a 
             # (recursive) sort.
-            current_node = self.get_root_node()
+            current_node = self.root_node
          
         child_nodes = current_node.children
         sorted_child_nodes = sorted(child_nodes, key=attrgetter('value'))
@@ -733,7 +733,7 @@ class PopulatedTaskTreeTestSupport(TaskDataTestSupport, ManagedFixturesTestSuppo
         populated TaskTrees.
         """
         self.baseline_tasktree = TaskDataTestSupport.create_dynamic_tasktree()
-        self.working_tasktree = copy.deepcopy(self.baseline_tasktree)
+        self.working_tasktree = TaskDataTestSupport.create_dynamic_tasktree()
 
         self._register_fixtures(self.baseline_tasktree, self.working_tasktree)        
 #------------------------------------------------------------------------------
@@ -1048,7 +1048,7 @@ class TaskTreeSortTest(unittest.TestCase):
         """
         ### Arrange ###
         expected_tasktree = TaskTree()
-        expected_root = expected_tasktree.get_root_node()
+        expected_root = expected_tasktree.root_node
         expected_tasklist_bar = TestDataTaskList("Bar")
         expected_tasktree.append(expected_root, expected_tasklist_bar)
         expected_tasklist_baz = TestDataTaskList("baz")
@@ -1094,7 +1094,7 @@ class TaskTreeSortTest(unittest.TestCase):
         """
         ### Arrange ###
         expected_tasktree = TaskTree()
-        expected_root = expected_tasktree.get_root_node()
+        expected_root = expected_tasktree.root_node
         expected_tasklist_bar = TestDataTaskList("Bar")
         expected_tasktree.append(expected_root, expected_tasklist_bar)
         expected_tasklist_baz = TestDataTaskList("Baz")
@@ -1134,7 +1134,7 @@ class TaskTreeSortTest(unittest.TestCase):
         """
         ### Arrange ###
         expected_tasktree = TaskTree()
-        expected_root = expected_tasktree.get_root_node()
+        expected_root = expected_tasktree.root_node
         expected_tasklist_bar = TestDataTaskList("Bar")
         expected_tasktree.append(expected_root, expected_tasklist_bar)
         expected_tasklist_baz = TestDataTaskList("Baz")
@@ -1223,7 +1223,7 @@ class TaskTreeSortTest(unittest.TestCase):
         ### Arrange ###
         expected_tasktree = TaskTree()
         
-        expected_root = expected_tasktree.get_root_node()
+        expected_root = expected_tasktree.root_node
         
         expected_tasklist_a = TestDataTaskList("A")
         tasklist_foo_node = expected_tasktree.append(expected_root, expected_tasklist_a)
@@ -1256,7 +1256,6 @@ class TaskTreeSortTest(unittest.TestCase):
         self.assertEqual(expected_tasktree, actual_tasktree)
 #------------------------------------------------------------------------------ 
 
-#@unittest.skip("Ordering broken with Task refactor.")
 class PopulatedTaskTreeTest(PopulatedTaskTreeTestSupport, unittest.TestCase):
     @skip("Test covers use case that is now possibly deprecated.")
     def test_add_task(self):
@@ -1630,11 +1629,11 @@ class PopulatedTaskTreeTest(PopulatedTaskTreeTestSupport, unittest.TestCase):
             - That child Tasks AA, AB cannot be found via get_entity_for_id.
         """
         ### Arrange ###        
-        expected_tasklist_a = self.baseline_tasktree.get_entity_for_id(
+        expected_tasklist_a = self.working_tasktree.get_entity_for_id(
             TestDataEntitySupport.short_title_to_id("A"))
-        expected_task_aa = self.baseline_tasktree.get_entity_for_id(
+        expected_task_aa = self.working_tasktree.get_entity_for_id(
             TestDataEntitySupport.short_title_to_id(*list("aa")))
-        expected_task_ab = self.baseline_tasktree.get_entity_for_id(
+        expected_task_ab = self.working_tasktree.get_entity_for_id(
             TestDataEntitySupport.short_title_to_id(*list("ab")))
         
         ### Act ###
