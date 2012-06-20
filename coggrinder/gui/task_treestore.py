@@ -5,13 +5,11 @@ Created on Apr 9, 2012
 """
 from gi.repository import Gtk, GdkPixbuf
 import unittest
-from coggrinder.entities.tasks import TaskList, Task, TaskStatus
+from coggrinder.entities.tasks import TaskList, Task, TaskStatus, TestDataEntitySupport
 from coggrinder.resources.icons import task_tree
-from coggrinder.entities.tasktree import TaskTreeComparator
 from coggrinder.services.task_services import UnregisteredEntityError
-import copy
 from logging import debug
-from coggrinder.entities.tree import NodeRelationshipError
+from coggrinder.entities.tasktree import TaskTree, TaskDataTestSupport, TreeTaskList, TreeTask
 
 class TaskTreeStore(Gtk.TreeStore):
     PATH_SEPARATOR = ":"
@@ -35,9 +33,6 @@ class TaskTreeStore(Gtk.TreeStore):
 
         Args:
             tasktree: The TaskTree that contains the task data.
-        Returns:
-            A dict that maps entity (both TaskList and Task) ID keys to
-            their path (as a str) in the TreeModel.
         """        
         # Prevent events that are fired due to updates made to the TreeStore
         # from being responded to.
@@ -51,9 +46,9 @@ class TaskTreeStore(Gtk.TreeStore):
                        
         # Get the depth-1 child nodes of the TaskTree. Each of these will hold
         # a TaskList reference.
-        tasktree_root_node = tasktree.get_root_node()
-        for tasklist_node in tasktree_root_node.children:            
-            self._build_tasktree_branch(tasktree, tasklist_node, None)        
+        tasktree_root_node = tasktree.root_node
+        for tasklist in tasktree_root_node.children:            
+            self._build_tasktree_branch(tasklist, None)        
 
         # Rebuild the entity-path index (cleared before the TreeStore was built).
         self._rebuild_entity_path_index(tasktree)        
@@ -61,20 +56,15 @@ class TaskTreeStore(Gtk.TreeStore):
         
         self.is_updating_tree = False
         
-    def _build_tasktree_branch(self, tasktree, current_node, parent_node_iter, insert_position=None):        
+    def _build_tasktree_branch(self, tree_entity, parent_node_iter):        
         # Collect the entity data into a TreeView-compatible list, and then
         # add the row to the tree under the parent node.
-        entity = current_node.value
-        row_model_data = TaskTreeStoreNode(entity).row_data
-        
-        if insert_position is not None:
-            entity_iter = self.insert(parent_node_iter, insert_position, row_model_data)
-        else:
-            entity_iter = self.append(parent_node_iter, row_model_data)
+        treestore_node = TaskTreeStoreNode(tree_entity)
+        entity_iter = self.append(parent_node_iter, treestore_node.row_data)
         
         # Recursively add all descendants of this current node.
-        for child_node in current_node.children:
-            self._build_tasktree_branch(tasktree, child_node, entity_iter)   
+        for child in tree_entity.children:
+            self._build_tasktree_branch(child, entity_iter)   
             
     def _find_parent_iter(self, new_entity_node):        
         parent_treepath = self._get_treestore_path(new_entity_node.parent)
@@ -84,11 +74,11 @@ class TaskTreeStore(Gtk.TreeStore):
         else:
             return None
             
-    def _get_treestore_path(self, entity_node):
-        no_root_path = entity_node.path[1:]
+    def _get_treestore_path(self, tree_entity):
+        no_root_path = tree_entity.path[1:]
         
         if no_root_path:
-            return ":".join([str(x) for x in entity_node.path[1:]])
+            return ":".join([str(x) for x in tree_entity.path[1:]])
         else:
             return None
 
@@ -139,7 +129,7 @@ class TaskTreeStore(Gtk.TreeStore):
         insert_position = new_entity_node.child_index
         
         # Insert a new GtkTreeStore row/node.
-        new_node_iter = self.insert(parent_iter, insert_position, 
+        new_node_iter = self.insert(parent_iter, insert_position,
             TaskTreeStoreNode(entity).row_data)
             
     def get_entity_id_for_path(self, tree_path):
@@ -190,28 +180,28 @@ class TaskTreeStore(Gtk.TreeStore):
     def _rebuild_entity_path_index(self, tasktree):        
         self._clear_entity_path_index()
         
-        for entity_id in tasktree.all_entity_ids:
-            tasktree_node = tasktree.find_node_for_entity_id(entity_id)
-            entity_treepath = self._get_treestore_path(tasktree_node)
+        for entity_id in tasktree.entity_ids:
+            tree_entity = tasktree.get_entity_for_id(entity_id)
+            entity_treepath = self._get_treestore_path(tree_entity)
             
             self.entity_path_index[entity_id] = entity_treepath
             
     def _validate_entity_path_index(self, tasktree):
         # Check for matching sets of registered entity IDs.
-        if tasktree.all_entity_ids != set(self.entity_path_index.keys()):
+        if tasktree.entity_ids != set(self.entity_path_index.keys()):
             raise EntityPathIndexError(
                 "TaskTree and entity-path index have different sets of registered entity IDs.")
             
         # Check that each entity registered has a TreeStore path that is 
         # equivalent to the TaskTree node path.
-        for entity_id in tasktree.all_entity_ids:
-            tasktree_node = tasktree.find_node_for_entity_id(entity_id)
-            expected_treepath = self._get_treestore_path(tasktree_node)
+        for entity_id in tasktree.entity_ids:
+            tree_entity = tasktree.get_entity_for_id(entity_id)
+            expected_treepath = self._get_treestore_path(tree_entity)
             
             if expected_treepath != self.get_path_for_entity_id(entity_id):
                 raise EntityPathIndexError(
                     "Entity with ID '{id}' has path in TaskTree of {tasktree_path}, while entity-path registry has path recorded as {treestore_path}".format(
-                        id=entity_id,tasktree_path=expected_treepath, treestore_path = self.get_path_for_entity_id()))
+                        id=entity_id, tasktree_path=expected_treepath, treestore_path=self.get_path_for_entity_id(entity_id)))
 
     def __str__(self):
         return self._create_branch_str()
@@ -254,8 +244,62 @@ class TaskTreeStore(Gtk.TreeStore):
         return "".join(branches_str)
 #------------------------------------------------------------------------------ 
 
-class TaskTreeStoreTest(unittest.TestCase):
-    @unittest.expectedFailure
+class TaskTreeStoreCreationTest(unittest.TestCase):
+    def test_create_from_empty_tasktree(self):
+        """Test creation of a TaskTreeStore from an empty TaskTree.
+
+        Arrange:
+            - Create a TaskTree with no task data.
+        Act: 
+            - Create a new TaskTreeStore.
+            - Build the tree store rows using the empty TaskTree.
+        Assert:
+            - That TaskTreeStore has no child tree rows (get_iter_first is 
+            None). 
+        """
+        ### Arrange ###
+        empty_tasktree = TaskTree()
+        
+        ### Act ###
+        treestore = TaskTreeStore()
+        
+        treestore.build_tree(empty_tasktree)
+        
+        ### Assert ###
+        self.assertIsNone(treestore.get_iter_first())
+        
+    def test_create_from_populated_tasktree(self):
+        """Test creation of a TaskTreeStore from a TaskTree that is populated
+        with a test task data set.
+
+        Arrange:
+            - Create a populated TaskTree.
+        Act: 
+            - Create a new TaskTreeStore.
+            - Build the tree store rows using the populated TaskTree.
+        Assert:
+            TaskTreeStore has no...?
+        """
+        ### Arrange ###
+        tasklist_a = TaskList(None, title="a")
+        expected_tasks = [Task(tasklist_a, title="a-a"),
+            Task(tasklist_a, title="a-b"),
+            Task(tasklist_a, title="a-c")]
+
+        populated_tasktree = TaskTree(task_data=[tasklist_a])
+        
+        ### Act ###
+        treestore = TaskTreeStore()
+        
+        treestore.build_tree(populated_tasktree)
+        
+        ### Assert ###
+        self.assertIsNotNone(treestore.get_iter_first())
+        
+        for entity_id in populated_tasktree.entity_ids:
+            self.assertIsNotNone(treestore.get_path_for_entity_id(entity_id))
+
+    @unittest.skip("Out of date test")
     def test_add_entity(self):
         """Test adding a single TaskList to a blank TaskTreeStore.
 
@@ -278,24 +322,8 @@ class TaskTreeStoreTest(unittest.TestCase):
 
         ### Assert ############################################################
         self.assertIsNotNone(tasktree.get_entity_for_id("0"))
-
-    @unittest.expectedFailure
-    def test_create_blank_tree(self):
-        """Test creation of an empty tree.
-
-        Act:
-            Create a tree without providing any tasklists or tasks.
-
-        Assert:
-            Tree path "0" should return None.
-        """
-        ### Act ###############################################################
-        tasktree = TaskTreeStore()
-
-        ### Assert ############################################################
-        self.assertIsNone(tasktree.get_entity_for_id("0"))
-
-    @unittest.expectedFailure
+        
+    @unittest.skip("Out of date test")
     def test_create_new_tree_from_tasklist(self):
         """Test creation of a tree populated with child tasks, ensuring those
         children are accessible via (Gtk-style) tree path strings.
@@ -430,15 +458,15 @@ class TaskTreeStoreNode(object):
         self.row_data.insert(TaskTreeStoreNode.ENTITY_ID, entity.entity_id)
         self.row_data.insert(TaskTreeStoreNode.LABEL, entity.title)
 
-        if isinstance(entity, TaskList):
-            icon = self.LIST_IMAGE
-        elif isinstance(entity, Task):
+        if isinstance(entity, Task):
             if entity.task_status == TaskStatus.COMPLETED:
                 icon = self.TASK_COMPLETE_IMAGE
             else:
                 icon = self.TASK_INCOMPLETE_IMAGE
+        elif isinstance(entity, TaskList):
+            icon = self.LIST_IMAGE
         else:
             raise ValueError("Cannot determine type of provided entity {0}".format(entity))
-
-        self.row_data.insert(TaskTreeStoreNode.ICON, icon)
+        
+        self.row_data.insert(TaskTreeStoreNode.ICON, icon)        
 #------------------------------------------------------------------------------ 

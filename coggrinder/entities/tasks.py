@@ -8,11 +8,11 @@ from datetime import datetime
 import unittest
 import uuid
 import coggrinder.utilities
-from coggrinder.core.comparable import DeclaredPropertiesComparable
 from coggrinder.entities.properties import EntityProperty, RFC3339Converter, IntConverter, BooleanConverter, TaskStatus, TaskStatusConverter
 from coggrinder.utilities import GoogleKeywords
+from coggrinder.entities.tree import TreeNode
 
-class BaseTaskEntity(DeclaredPropertiesComparable):
+class TaskList(TreeNode):
     _ARGUMENT_FAIL_MESSAGE = "Provided {0} argument must be of type {1}"
     _KEY_VALUE_MESSAGE = "{key}: {value}"
     
@@ -22,9 +22,10 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
             EntityProperty("updated_date", GoogleKeywords.UPDATED,
                 RFC3339Converter())
         )
-    _props_initialized = False
 
-    def __init__(self, entity_id=None, title="", updated_date=None, children=None):
+    def __init__(self, parent, entity_id=None, title="", updated_date=None, children=None):
+        TreeNode.__init__(self, parent, value=self)
+        
         # Create a default UUID entity ID if none is provided.
         if entity_id is None:
             entity_id = str(uuid.uuid4())
@@ -41,6 +42,22 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
         # any timezone info are not preserved.            
         self.updated_date = datetime(updated_date.year, updated_date.month, updated_date.day,
             updated_date.hour, updated_date.minute, updated_date.second)
+
+    @property
+    def tasklist(self):
+        return self
+    
+    def attach_to_parent(self, parent, child_index=None):
+        try:
+            # Locate the root node of the TaskTree this TaskList is 
+            # being attached to. If the provided parent reference is not a 
+            # Tree-type object, an AttributeError will be raised.
+            parent = parent.root_node
+        except AttributeError:
+            # The provided parent has no root_node property, raise an error.
+            raise ValueError("Parent of a TaskList must be a TaskTree.")
+        
+        TreeNode.attach_to_parent(self, parent, child_index=child_index)
 
     @classmethod
     def from_str_dict(cls, str_dict):
@@ -72,16 +89,17 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
         A hook method that creates an avenue for subclasses to provide their 
         own "blank" entities.
         """
-        entity = BaseTaskEntity()
+        entity = TaskList(None)
 
         return entity
 
+    """
+    TODO: This method seems pointless.
+    Leaving it here because there are bigger priorities to tackel first.
+    """
     @classmethod
-    def _get_properties(cls):
-        if not cls._props_initialized:
-            cls._props_initialized = True
-            
-        return BaseTaskEntity._properties
+    def _get_properties(cls):            
+        return cls._properties
 
     def to_str_dict(self, include_none_values=False):
         # Create a blank string dict.
@@ -123,7 +141,7 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
         for prop in self._get_properties():
             try:
                 prop_value = str_dict[prop.str_dict_key]
-                prop_values.append(BaseTaskEntity._KEY_VALUE_MESSAGE.format(
+                prop_values.append(TaskList._KEY_VALUE_MESSAGE.format(
                     key=prop.entity_key, value=prop_value))
             except KeyError:
                 # Property isn't defined in this str dict, which is (usually?)
@@ -139,10 +157,20 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
 
         return filter_keys
 
+    """
+    TODO: Should this be a class method, or an instance method?
+    """
     def _get_comparable_properties(self):
         comparable_properties = list()
         for prop in self._get_properties():
             comparable_properties.append(prop.entity_key)
+            
+        """
+        TODO: This implementation might be a bit redundant considering what
+        TreeNode (parent class) already produces.
+        """
+        comparable_properties.append("children")
+        comparable_properties.append("parent")
         
         return comparable_properties
     
@@ -167,25 +195,25 @@ class BaseTaskEntity(DeclaredPropertiesComparable):
         return not self.__lt__(other)
 #------------------------------------------------------------------------------ 
 
-class BaseTaskEntityTest(unittest.TestCase):
+class TaskListTest(unittest.TestCase):
     def test_creation(self):
         # This should work.
-        BaseTaskEntity("aljkdfkj", "Title")
+        TaskList(None, entity_id="aljkdfkj", title="Title")
 
         # Using a string as an updated_date timestamp should fail.
         with self.assertRaises(AttributeError):
-            BaseTaskEntity("aljkdfkj", "Title", 29)
+            TaskList(None, entity_id="aljkdfkj", title="Title", updated_date=29)
 
         # Using a real datetime object for the updated_date timestamp should work.
         last_updated = datetime.now()
-        BaseTaskEntity("aljkdfkj", "Title", last_updated)
+        TaskList(None, entity_id="aljkdfkj", title="Title", updated_date=last_updated)
 
     def test_equality(self):
         entity_id = "1"
         title = "Title"
         updated_date = datetime.now()
-        entity_1 = BaseTaskEntity(entity_id, title, updated_date=updated_date)
-        entity_2 = BaseTaskEntity(entity_id, title, updated_date=updated_date)
+        entity_1 = TaskList(None, entity_id=entity_id, title=title, updated_date=updated_date)
+        entity_2 = TaskList(None, entity_id=entity_id, title=title, updated_date=updated_date)
 
         self.assertEqual(entity_1, entity_2)
 
@@ -208,11 +236,11 @@ class BaseTaskEntityTest(unittest.TestCase):
                 - "" < "_special_char"
         """    
         ### Arrange ###
-        entity_foo = BaseTaskEntity(title="Foo")
-        entity_bar = BaseTaskEntity(title="Bar")
-        entity_barber = BaseTaskEntity(title="Barber")
-        entity_empty = BaseTaskEntity(title="")
-        entity_special_char = BaseTaskEntity(title="_special_char")
+        entity_foo = TaskList(None, title="Foo")
+        entity_bar = TaskList(None, title="Bar")
+        entity_barber = TaskList(None, title="Barber")
+        entity_empty = TaskList(None, title="")
+        entity_special_char = TaskList(None, title="_special_char")
 
         ### Assert ###
         self.assertGreater(entity_foo, entity_bar)
@@ -232,13 +260,13 @@ class BaseTaskEntityTest(unittest.TestCase):
         Act:
             - Create the actual sorted collection of BaseTaskEntities.
         Assert:
-            - That the expected sorted and actual sorted BaseTaskEntity 
+            - That the expected sorted and actual sorted TaskList 
             collections are equal.
         """    
         ### Arrange ###
-        foo = BaseTaskEntity(title="foo")
-        bar = BaseTaskEntity(title="bar")
-        baz = BaseTaskEntity(title="Baz")
+        foo = TaskList(None, title="foo")
+        bar = TaskList(None, title="bar")
+        baz = TaskList(None, title="Baz")
         
         expected_sorted_entities = [bar, baz, foo]
         input_entities = [foo, bar, baz]
@@ -250,7 +278,7 @@ class BaseTaskEntityTest(unittest.TestCase):
         self.assertEqual(expected_sorted_entities, actual_sorted_entities)
 
     def test_from_str_dict(self):
-        expected_entity = BaseTaskEntity(entity_id="1",
+        expected_entity = TaskList(None, entity_id="1",
             title="Test List Title",
             updated_date=datetime(2012, 3, 10, 3, 30, 06))
         rfc_timestamp = "2012-03-10T03:30:06.000Z"
@@ -260,12 +288,12 @@ class BaseTaskEntityTest(unittest.TestCase):
             keywords.TITLE:expected_entity.title,
             keywords.UPDATED:rfc_timestamp}
 
-        result_entity = BaseTaskEntity.from_str_dict(entity_dict)
+        result_entity = TaskList.from_str_dict(entity_dict)
 
         self.assertEqual(expected_entity, result_entity)
 
     def test_to_dict(self):
-        entity = BaseTaskEntity(entity_id="1",
+        entity = TaskList(None, entity_id="1",
             title="Test List Title",
             updated_date=datetime(2012, 3, 10, 3, 30, 06))
         rfc_timestamp = "2012-03-10T03:30:06.000Z"
@@ -280,7 +308,7 @@ class BaseTaskEntityTest(unittest.TestCase):
         self.assertEqual(expected_dict, result_dict)
 
     def test_to_insert_dict(self):
-        entity = BaseTaskEntity(entity_id="1", title="Test List Title")
+        entity = TaskList(None, entity_id="1", title="Test List Title")
 
         keywords = coggrinder.utilities.GoogleKeywords
         expected_dict = {keywords.TITLE:entity.title}
@@ -290,27 +318,8 @@ class BaseTaskEntityTest(unittest.TestCase):
         self.assertEqual(expected_dict, result_dict)
 #------------------------------------------------------------------------------ 
 
-class TaskList(BaseTaskEntity):
-    """
-    This class is little more than a marker class intended to make it more 
-    clear whether a TaskList or Task entity is being used. A TaskList is 
-    otherwise (functionally) identical to the BaseTaskEntity class. 
-    """
-    @classmethod
-    def _create_blank_entity(cls):
-        # A tasklist is basically a BaseTaskEntity, but the 
-        # _create_blank_entity method is overridden here in order to create
-        # an object that is an instance of type TaskList.
-        entity = TaskList()
-
-        return entity
-
-#------------------------------------------------------------------------------ 
-
-class Task(BaseTaskEntity):
-    _properties = (
-            EntityProperty("parent_id", GoogleKeywords.PARENT),
-            EntityProperty("position", GoogleKeywords.POSITION, IntConverter()),
+class Task(TaskList):
+    _properties = TaskList._get_properties() + (
             EntityProperty("notes", GoogleKeywords.NOTES),
             EntityProperty("task_status", GoogleKeywords.STATUS, TaskStatusConverter()),
             EntityProperty("due_date", GoogleKeywords.DUE, RFC3339Converter()),
@@ -318,17 +327,12 @@ class Task(BaseTaskEntity):
             EntityProperty("is_deleted", GoogleKeywords.DELETED, BooleanConverter()),
             EntityProperty("is_hidden", GoogleKeywords.HIDDEN, BooleanConverter()),
         )
-    _props_initialized = False
 
-    def __init__(self, tasklist_id=None, entity_id=None, title="", updated_date=None,
-            parent_id=None, task_status=TaskStatus.NEEDS_ACTION,
-            position=None, previous_task_id=None):
-        super(Task, self).__init__(entity_id, title, updated_date)
-
-        self.parent_id = parent_id
+    def __init__(self, parent, entity_id=None, title="", updated_date=None,
+            task_status=TaskStatus.NEEDS_ACTION):
+        super(Task, self).__init__(parent, entity_id, title, updated_date)
+        
         self.task_status = task_status
-        self.tasklist_id = tasklist_id
-        self.previous_task_id = previous_task_id
 
         # Establish default properties.
         self.notes = None
@@ -336,7 +340,19 @@ class Task(BaseTaskEntity):
         self.completed_date = None
         self.is_deleted = None
         self.is_hidden = None
-        self.position = position
+                
+    @property
+    def tasklist(self):
+        try:
+            return self.parent.tasklist
+        except AttributeError:
+            # This should happen in the case of an unattached Task (self.parent
+            # will be None).
+            return None
+        
+    @property
+    def tasklist_id(self):
+        return self.tasklist.entity_id
 
     def _get_filter_keys(self):
         base_keys = super(Task, self)._get_filter_keys()
@@ -349,62 +365,46 @@ class Task(BaseTaskEntity):
 
         return taskitem_keys
 
-    @classmethod
-    def _get_properties(cls):        
-        # Check the class initialization variable to see whether the properties
-        # have been aggregated already or not.   
-        if not cls._props_initialized:
-            # Properties have not been initialized, so work recursively up the
-            # inheritance chain to grab all ancestor properties.
-            super_properties = super(Task, cls)._get_properties()
-
-            # Aggregate those properties along with this class' particular
-            # property definitions.
-            cls._properties = super_properties + cls._properties            
-
-        # Return combined properties. 
-        return cls._properties
-
+    """
+    TODO: This needs to be better defined, so that it actually tests equality
+    on all relevant attributes.
+    """
     def _get_comparable_properties(self):
-        base_properties = BaseTaskEntity._get_comparable_properties(self)
-        base_properties.append("previous_task_id")
+        base_properties = TaskList._get_comparable_properties(self)
         
         return base_properties
 
-    def _ordered_entity_info(self, str_dict):
-        ordered_entity_info = BaseTaskEntity._ordered_entity_info(self, str_dict)
-                
-        ordered_entity_info.append(BaseTaskEntity._KEY_VALUE_MESSAGE.format(
-            key="previous_task_id", value=self.previous_task_id))
-        
-        return ordered_entity_info
-
     @classmethod
     def _create_blank_entity(cls):
-        entity = Task()
+        entity = Task(None)
 
         return entity
     
     def __lt__(self, other):
-        if self.position == other.position:
+        if self.child_index == other.child_index:
             return super(Task, self).__lt__(other)
         
         # Check for an "undefined" position. This is indicated by a zero value,
         # and such positions should be considered _greater_ than any other
         # defined position value.
-        if self.position == None:
+        if self.child_index == None:
             return False
         
-        if other.position == None:
+        if other.child_index == None:
             return True
         
-        if self.position < other.position:
+        if self.child_index < other.child_index:
             return True
         
         return False
     
     def __gt__(self, other):
         return not self.__lt__(other)
+    
+    def attach_to_parent(self, parent, child_index=None):
+        # Directly call TreeNode's attach_to_parent implementation, avoiding
+        # the implementation used by TaskList.        
+        TreeNode.attach_to_parent(self, parent, child_index=child_index)
 #------------------------------------------------------------------------------ 
 
 class TaskTest(unittest.TestCase):
@@ -416,22 +416,19 @@ class TaskTest(unittest.TestCase):
         task_id = "abcid"
         task_title = "task title"
         task_update_timestamp = "2012-03-10T03:30:06.000Z"
-        task_position = "1073741823"
         task_status = TaskStatus.NEEDS_ACTION
 
         expected_str_dict = {
             GoogleKeywords.ID: task_id,
             GoogleKeywords.TITLE: task_title,
             GoogleKeywords.UPDATED: task_update_timestamp,
-            GoogleKeywords.POSITION: task_position,
             GoogleKeywords.STATUS: task_status
         }
 
-        taskitem = Task()
+        taskitem = Task(None)
         taskitem.entity_id = task_id
         taskitem.title = task_title
         taskitem.updated_date = datetime(2012, 3, 10, 3, 30, 6)
-        taskitem.position = 1073741823
         taskitem.status = task_status
 
         actual_str_dict = taskitem.to_str_dict()
@@ -453,7 +450,7 @@ class TaskTest(unittest.TestCase):
             GoogleKeywords.STATUS: task_status
         }
 
-        expected_taskitem = Task()
+        expected_taskitem = Task(None)
         expected_taskitem.entity_id = task_id
         expected_taskitem.title = task_title
         expected_taskitem.updated_date = datetime(2012, 3, 10, 3, 30, 6)
@@ -464,10 +461,135 @@ class TaskTest(unittest.TestCase):
 
         self.assertEqual(expected_taskitem, actual_taskitem)
 
+    def test_from_str_dict_deleted(self):
+        task_id = "abcid"
+        task_title = "task title"
+        task_update_timestamp = "2012-03-10T03:30:06.000Z"
+        task_position = "00000000001073741823"
+        task_status = TaskStatus.NEEDS_ACTION
+        task_deleted = True
+
+        str_dict = {
+            GoogleKeywords.ID: task_id,
+            GoogleKeywords.TITLE: task_title,
+            GoogleKeywords.UPDATED: task_update_timestamp,
+            GoogleKeywords.POSITION: task_position,
+            GoogleKeywords.STATUS: task_status,
+            GoogleKeywords.DELETED: task_deleted
+        }
+
+        expected_taskitem = Task(None)
+        expected_taskitem.entity_id = task_id
+        expected_taskitem.title = task_title
+        expected_taskitem.updated_date = datetime(2012, 3, 10, 3, 30, 6)
+        expected_taskitem.position = 1073741823
+        expected_taskitem.status = task_status
+        expected_taskitem.is_deleted = task_deleted
+
+        actual_taskitem = Task.from_str_dict(str_dict)
+
+        self.assertEqual(expected_taskitem, actual_taskitem)
+#------------------------------------------------------------------------------ 
+
+class GoogleServicesTask(Task):
+    _properties = Task._get_properties() + (
+            EntityProperty("parent_id", GoogleKeywords.PARENT),
+            EntityProperty("position", GoogleKeywords.POSITION, IntConverter())
+        )
+
+    def __init__(self, parent, parent_id=None, position=None, **kwargs):
+        super(GoogleServicesTask, self).__init__(parent, **kwargs)
+        
+        self.parent_id = parent_id
+        self.position = position
+    
+    @classmethod
+    def _create_blank_entity(cls):
+        entity = GoogleServicesTask(None)
+
+        return entity
+
+    def _get_comparable_properties(self):
+        base_properties = Task._get_comparable_properties(self)
+        base_properties.append("parent_id")
+        base_properties.append("position")
+        
+        return base_properties
+    
+    def __lt__(self, other):
+        if self.position == other.position:
+            return super(Task, self).__lt__(other)
+        
+        # Check for an "undefined" position. This is indicated by a zero value,
+        # and such positions should be considered _greater_ than any other
+        # defined position value.
+        if self.position == None:
+            return False
+        
+        if other.position == None:
+            return True
+        
+        if self.position < other.position:
+            return True
+        
+        return False
+#------------------------------------------------------------------------------
+
+class GoogleServicesTaskTest(unittest.TestCase):        
+    def assertRichComparison(self, lesser, greater):
+        self.assertNotEqual(greater, lesser)
+        self.assertGreater(greater, lesser)
+        self.assertLess(lesser, greater)
+        
+    def test_from_str_dict_minimal(self):
+        """Test converting a dict of str values into a GoogleServiceTask 
+        instance.
+        
+        This dict of str values imitates the results of a query to Google's
+        Task Service.
+        
+        Arrange:
+        
+        Act:
+        
+        Assert:
+                
+        """
+        ### Arrange ###
+        task_id = "abcid"
+        task_title = "task title"
+        task_update_timestamp = "2012-03-10T03:30:06.000Z"
+        task_position = "00000000001073741823"
+        task_status = TaskStatus.NEEDS_ACTION
+        task_parent_id = "parent-id"
+
+        str_dict = {
+            GoogleKeywords.ID: task_id,
+            GoogleKeywords.TITLE: task_title,
+            GoogleKeywords.UPDATED: task_update_timestamp,
+            GoogleKeywords.POSITION: task_position,
+            GoogleKeywords.STATUS: task_status,
+            GoogleKeywords.PARENT: task_parent_id
+        }
+
+        expected_taskitem = GoogleServicesTask(None)
+        expected_taskitem.entity_id = task_id
+        expected_taskitem.title = task_title
+        expected_taskitem.updated_date = datetime(2012, 3, 10, 3, 30, 6)
+        expected_taskitem.position = 1073741823
+        expected_taskitem.status = task_status
+        expected_taskitem.parent_id = task_parent_id
+        
+        ### Act ###
+        actual_taskitem = GoogleServicesTask.from_str_dict(str_dict)
+        
+        ### Assert ###
+        self.assertEqual(expected_taskitem, actual_taskitem)
+        
     def test_ordering_comparison(self):        
         """Test the greater than and lesser than comparison operators.
         
-        This tests Task's implementation of the Python 
+        This tests GoogleServicesTask's implementation of the Python 
         customization/"magic" methods __gt__ and __lt__. Ordering should be 
         based upon a case-insensitive, lexicographical comparison of the
         Task's position, if they have a defined position. 
@@ -482,7 +604,7 @@ class TaskTest(unittest.TestCase):
         should be between the lexicographical ordering of the title.
         
         Arrange:
-            - Create Tasks "1", "02", "3403", "0" (undefined), "0" but with a
+            - Create GoogleServicesTasks "1", "02", "3403", "0" (undefined), "0" but with a
             title defined of Foo and Bar. 
         Assert:
             - That the following comparisons are true:
@@ -493,12 +615,12 @@ class TaskTest(unittest.TestCase):
                 - 0 Foo > 0 Bar 
         """    
         ### Arrange ###
-        entity_1 = Task(position=1)
-        entity_02 = Task(position=02)
-        entity_3403 = Task(position=3403)
-        entity_undefined = Task()
-        entity_undefined_foo = Task(title="Foo")
-        entity_undefined_bar = Task(title="Bar")
+        entity_1 = GoogleServicesTask(None, position=1)
+        entity_02 = GoogleServicesTask(None, position=02)
+        entity_3403 = GoogleServicesTask(None, position=3403)
+        entity_undefined = GoogleServicesTask(None)
+        entity_undefined_foo = GoogleServicesTask(None, title="Foo")
+        entity_undefined_bar = GoogleServicesTask(None, title="Bar")
 
         ### Assert ###
         self.assertRichComparison(entity_1, entity_02)
@@ -511,19 +633,19 @@ class TaskTest(unittest.TestCase):
         """Verify that a collection of Tasks sorts in the correct order.
         
         Arrange:
-            - Create Tasks.
+            - Create GoogleServicesTasks.
             - Create a collection of expected, sorted Tasks.
             - Create a collection of unordered Tasks.            
         Act:
             - Calculate the actual sorted collection of Tasks.
         Assert:
-            - That the expected sorted and actual sorted Task collections 
+            - That the expected sorted and actual sorted GoogleServicesTask collections 
             are equal.
         """    
         ### Arrange ###
-        task_one = Task(title="one", position=1)
-        task_two = Task(title="two", position=2)
-        task_three = Task(title="three", position=3)
+        task_one = GoogleServicesTask(None, title="one", position=1)
+        task_two = GoogleServicesTask(None, title="two", position=2)
+        task_three = GoogleServicesTask(None, title="three", position=3)
         
         expected_sorted_tasks = [task_one, task_two, task_three]
         input_tasks = [task_two, task_one, task_three]
@@ -533,13 +655,8 @@ class TaskTest(unittest.TestCase):
         
         ### Assert ###
         self.assertEqual(expected_sorted_tasks, actual_sorted_tasks)
-        
-    def assertRichComparison(self, lesser, greater):
-        self.assertNotEqual(greater, lesser)
-        self.assertGreater(greater, lesser)
-        self.assertLess(lesser, greater)
-#------------------------------------------------------------------------------ 
 
+#------------------------------------------------------------------------------
 class UpdatedDateFilteredTask(Task):
     def _get_comparable_properties(self):
         comparable_props = Task._get_comparable_properties(self)
@@ -555,14 +672,14 @@ class UpdatedDateFilteredTaskList(TaskList):
 #------------------------------------------------------------------------------ 
 
 class TestDataTaskList(TaskList):
-    def __init__(self, *short_title_sections, **kwargs):
+    def __init__(self, parent, *short_title_sections, **kwargs):
         # Create a full title from the provided short title.
         title = TestDataEntitySupport.create_full_title(self.__class__, *short_title_sections)
 
         # Create an entity id from the short title sections.
         entity_id = TestDataEntitySupport.short_title_to_id(*short_title_sections)
 
-        TaskList.__init__(self, entity_id=entity_id, title=title,
+        TaskList.__init__(self, parent, entity_id=entity_id, title=title,
             updated_date=datetime.now(), **kwargs)
 #------------------------------------------------------------------------------ 
 
@@ -587,7 +704,7 @@ class TestDataTaskListTest(unittest.TestCase):
         expected_id = "a"
 
         ### Act ###
-        actual_tasklist_a = TestDataTaskList("A")
+        actual_tasklist_a = TestDataTaskList(None, "A")
 
         ### Assert ###
         self.assertEqual(expected_long_title, actual_tasklist_a.title)
@@ -595,14 +712,14 @@ class TestDataTaskListTest(unittest.TestCase):
 #------------------------------------------------------------------------------ 
 
 class TestDataTask(Task):
-    def __init__(self, *short_title_sections, **kwargs):
+    def __init__(self, parent, *short_title_sections, **kwargs):
         # Create a full title from the provided short title.
         title = TestDataEntitySupport.create_full_title(self.__class__, *short_title_sections)
 
         # Create an entity id from the short title sections.
         entity_id = TestDataEntitySupport.short_title_to_id(*short_title_sections)
 
-        Task.__init__(self, entity_id=entity_id, title=title,
+        Task.__init__(self, parent, entity_id=entity_id, title=title,
             updated_date=datetime.now(), **kwargs)
 #------------------------------------------------------------------------------ 
 
@@ -627,7 +744,7 @@ class TestDataTaskTest(unittest.TestCase):
         expected_id = "a"
 
         ### Act ###
-        actual_task_a = TestDataTask("A")
+        actual_task_a = TestDataTask(None, "A")
 
         ### Assert ###
         self.assertEqual(expected_long_title, actual_task_a.title)
@@ -794,3 +911,35 @@ class TestDataEntitySupportTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_id, actual_id)
 #------------------------------------------------------------------------------ 
+
+class EntityList(list):
+    def get_entity_for_id(self, entity_id):
+        matching_entities = [x for x in self if x.entity_id == entity_id]
+        
+        return matching_entities[0]
+#------------------------------------------------------------------------------
+
+class EntityListTest(unittest.TestCase):
+    def test_get_entity_for_id_found(self):
+        """Test that the get_entity_for_id method can find the correct entity
+        given an entity ID to search for.
+        
+        Arrange:
+            - Create a new EntityList.
+            - Create an expected TaskList.
+        Act:
+            - Locate the actual TaskList.
+        Assert:
+            - Actual and expected TaskLists are identical.
+        """
+        ### Arrange ###
+        entity_id = "tasklist-id"
+        expected_tasklist = TaskList(None, entity_id=entity_id, title="TaskList")
+        entity_list = EntityList([expected_tasklist])
+        
+        ### Act ###
+        actual_tasklist = entity_list.get_entity_for_id(entity_id)
+        
+        ### Assert ###
+        self.assertEqual(expected_tasklist, actual_tasklist)
+#------------------------------------------------------------------------------
