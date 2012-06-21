@@ -517,20 +517,26 @@ class GoogleServicesTask(Task):
         return base_properties
     
     def __lt__(self, other):
-        if self.position == other.position:
-            return super(Task, self).__lt__(other)
-        
-        # Check for an "undefined" position. This is indicated by a zero value,
-        # and such positions should be considered _greater_ than any other
-        # defined position value.
-        if self.position == None:
-            return False
-        
-        if other.position == None:
-            return True
-        
-        if self.position < other.position:
-            return True
+        try:
+            if self.position == other.position:
+                return super(Task, self).__lt__(other)
+            
+            # Check for an "undefined" position. This is indicated by a zero value,
+            # and such positions should be considered _greater_ than any other
+            # defined position value.
+            if self.position == None:
+                return False
+            
+            if other.position == None:
+                return True
+            
+            if self.position < other.position:
+                return True
+        except AttributeError:
+            # In the case of comparisons against another Task-type entity 
+            # that lacks a position property, defer to sorting the Tasks
+            # by the basic Task implementation (currently by child index).
+            return Task.__lt__(self, other) 
         
         return False
 #------------------------------------------------------------------------------
@@ -604,8 +610,8 @@ class GoogleServicesTaskTest(unittest.TestCase):
         should be between the lexicographical ordering of the title.
         
         Arrange:
-            - Create GoogleServicesTasks "1", "02", "3403", "0" (undefined), "0" but with a
-            title defined of Foo and Bar. 
+            - Create GoogleServicesTasks "1", "02", "3403", "0" (undefined), 
+            "0" but with a title defined of Foo and Bar. 
         Assert:
             - That the following comparisons are true:
                 - 02 > 1
@@ -630,7 +636,8 @@ class GoogleServicesTaskTest(unittest.TestCase):
         self.assertRichComparison(entity_undefined_bar, entity_undefined_foo)
         
     def test_sort_collection(self):
-        """Verify that a collection of Tasks sorts in the correct order.
+        """Verify that a collection of GoogleServiceTasks sort in the 
+        correct order.
         
         Arrange:
             - Create GoogleServicesTasks.
@@ -649,6 +656,34 @@ class GoogleServicesTaskTest(unittest.TestCase):
         
         expected_sorted_tasks = [task_one, task_two, task_three]
         input_tasks = [task_two, task_one, task_three]
+        
+        ### Act ###
+        actual_sorted_tasks = sorted(input_tasks)
+        
+        ### Assert ###
+        self.assertEqual(expected_sorted_tasks, actual_sorted_tasks)
+        
+    def test_sort_heterogenous_collection(self):
+        """Verify that a collection of Tasks sorts in the correct order.
+        
+        Arrange:
+            - Create GoogleServicesTasks.
+            - Create a collection of expected, sorted Tasks.
+            - Create a collection of unordered Tasks.            
+        Act:
+            - Calculate the actual sorted collection of Tasks.
+        Assert:
+            - That the expected sorted and actual sorted GoogleServicesTask collections 
+            are equal.
+        """    
+        ### Arrange ###
+        tasklist = TaskList(None, title="Parent TaskList")
+        gtask_1 = GoogleServicesTask(tasklist, title="gtask 1", position=1)
+        task_1 = Task(tasklist, title="task 1")
+        gtask_2 = GoogleServicesTask(tasklist, title="gtask 2", position=2)
+        
+        expected_sorted_tasks = [gtask_1, task_1, gtask_2]
+        input_tasks = [gtask_2, gtask_1, task_1]
         
         ### Act ###
         actual_sorted_tasks = sorted(input_tasks)
