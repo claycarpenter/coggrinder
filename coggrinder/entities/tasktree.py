@@ -115,8 +115,7 @@ class TaskTree(Tree):
         self.clear()
 
         for tasklist in task_data:            
-            self.append_node(self.root_node, tasklist)
-#            self._register_entity(tasklist)
+            tasklist.attach_to_parent(self)
     
     def _add_task(self, task_data, task):        
         parent_id = task.parent_id
@@ -508,7 +507,7 @@ class TaskTree(Tree):
             current_node = self.root_node
          
         child_nodes = current_node.children
-        sorted_child_nodes = sorted(child_nodes, key=attrgetter('value'))
+        sorted_child_nodes = sorted(child_nodes)
         
         for i in range(0, len(sorted_child_nodes)):
             sorted_child_node = sorted_child_nodes[i]
