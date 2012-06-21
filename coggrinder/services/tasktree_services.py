@@ -8,14 +8,15 @@ import unittest
 import apiclient.discovery
 from datetime import datetime
 from coggrinder.services.task_services import GoogleServicesTaskService, GoogleServicesTaskListService, InMemoryTaskListService, InMemoryTaskService, UnregisteredEntityError
-from coggrinder.entities.tasks import UpdatedDateFilteredTask, UpdatedDateFilteredTaskList, TestDataTaskList, TestDataTask, UpdatedDateIgnoredTestDataTaskList, UpdatedDateIgnoredTestDataTask, TestDataEntitySupport,\
+from coggrinder.entities.tasks import UpdatedDateFilteredTask, UpdatedDateFilteredTaskList, TestDataTaskList, TestDataTask, UpdatedDateIgnoredTestDataTaskList, UpdatedDateIgnoredTestDataTask, TestDataEntitySupport, \
     TaskList, Task
-from coggrinder.entities.tasktree import TaskTree, TaskDataTestSupport, TaskTreeComparator,\
+from coggrinder.entities.tasktree import TaskTree, TaskDataTestSupport, TaskTreeComparator, \
     TreeTaskList, TreeTask
     
 from coggrinder.core.test import ManagedFixturesTestSupport
 from mockito import mock, when, any
 import copy
+from coggrinder.entities.properties import TaskStatus
 
 class TaskTreeService(object):
     def __init__(self, auth_service=None, tasklist_service=None,
@@ -36,6 +37,17 @@ class TaskTreeService(object):
     @property
     def tree(self):
         return self._current_tree
+    
+    def add_task(self, parent, title=""):
+        # Create a new Task and attach it to the parent provided.
+        task = Task(parent, title=title)
+        
+        """
+        TODO: Is this sort call necessary?
+        """
+        self.sort()
+        
+        return task        
 
     def add_tasklist(self):
         # Create a new TaskList, attaching it to the current (working) tree.
@@ -54,6 +66,11 @@ class TaskTreeService(object):
         
         return tasklist
     
+    """
+    TODO: Not entirely sure that this is the appropriate place for the connect
+    logic. Perhaps a separate authentication service that returns the service
+    proxy handle?
+    """
     def connect(self):
         # Create an authenticatable connection for use in communicating with 
         # the Google Task services. 
@@ -155,6 +172,9 @@ class TaskTreeService(object):
         
         self._push_deleted()
         
+    def update_task_status(self):
+        pass
+        
     def _push_added(self):
         # Find the IDs of all new entities.
         added_entity_ids = TaskTreeComparator.find_added_ids(self._original_tasktree,
@@ -252,10 +272,14 @@ class PopulatedTaskTreeServiceTestSupport(TaskTreeServiceTestSupport):
         # TaskListService mocks.
         TaskTreeServiceTestSupport.setUp(self, tasklists=cloned_tasklists,
             all_tasks=cloned_all_tasks)
+        
+        self.expected_tasktree = copy.deepcopy(self.tasktree_srvc.tree)
+        for tasklist in self.expected_tasklists:
+            tasklist.attach_to_parent(self.expected_tasktree)
 
         # Register test fixtures.
         self._register_fixtures(self.expected_tasklists,
-            self.expected_all_tasks)
+            self.expected_all_tasks, self.expected_tasktree)
 #------------------------------------------------------------------------------ 
 
 class TaskTreeServiceCreationTest(TaskTreeServiceTestSupport, unittest.TestCase):
@@ -303,7 +327,7 @@ class TaskTreeServiceCreationTest(TaskTreeServiceTestSupport, unittest.TestCase)
         task_aa = Task(tasklist_a, title="a-a")
         task_ab = Task(tasklist_a, title="a-b")
         task_ac = Task(tasklist_a, title="a-c")
-        expected_tasks = [task_aa,task_ab,task_ac]
+        expected_tasks = [task_aa, task_ab, task_ac]
         
         when(self.mock_tasklist_srvc).list().thenReturn([tasklist_a])
         when(self.mock_task_srvc).get_tasks_in_tasklist(tasklist_a).thenReturn(expected_tasks)
@@ -602,7 +626,7 @@ class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest
         """
         ### Arrange ###
         expected_tasklist_id = TestDataEntitySupport.short_title_to_id('a')
-        expected_tasklist = self.expected_tasklists.get_entity_for_id(expected_tasklist_id)
+        expected_tasklist = self.tasktree_srvc.tree.get_node((0,0))
 
         ### Act ###   
         actual_tasklist = self.tasktree_srvc.get_entity_for_id(expected_tasklist_id)
@@ -621,11 +645,11 @@ class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest
         Assert:
             That the actual and expected Tasks are identical.
         """
-        ### Arrange ###
-        expected_tasklist_id = TestDataEntitySupport.short_title_to_id('b')
+        ### Arrange ### expected_task.parent.parent == actual_task.parent.parent
         expected_task_id = TestDataEntitySupport.short_title_to_id(*list('bc'))
-        expected_task = self.expected_all_tasks.get_entity_for_id(expected_task_id)
-        expected_task.previous_task_id = TestDataEntitySupport.short_title_to_id(*list('bb')) 
+        expected_task = self.tasktree_srvc.get_entity_for_id(expected_task_id)
+        
+        # Comparison fails because expected_task grandparent is not TaskTree.
 
         ### Act ###   
         actual_task = self.tasktree_srvc.get_entity_for_id(expected_task_id)
@@ -651,9 +675,10 @@ class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest
             TaskList.
         """
         ### Arrange ###
-        expected_updated_title = "updated"
-        expected_tasklist_a = self.expected_tasklists.get_entity_for_id(TestDataEntitySupport.short_title_to_id('a'))
+        expected_updated_title = "updated"        
+        expected_tasklist_a = copy.deepcopy(self.tasktree_srvc.tree.get_node((0,0)))
         expected_tasklist_a.title = expected_updated_title
+        expected_tasklist_a.updated_date = datetime(2012, 6, 20, 12, 0, 0)
 
         ### Act ###   
         actual_tasklist_a = self.tasktree_srvc.get_entity_for_id(expected_tasklist_a.entity_id)
@@ -684,9 +709,9 @@ class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest
         """
         ### Arrange ###
         expected_updated_title = "updated"
-        expected_task_b = self.expected_all_tasks.get_entity_for_id(TestDataEntitySupport.short_title_to_id(*'ab'))
+        expected_task_b = copy.deepcopy(self.tasktree_srvc.tree.get_node((0,0,1)))
         expected_task_b.title = expected_updated_title
-        expected_task_b.previous_task_id = TestDataEntitySupport.short_title_to_id(*'aa')
+        expected_task_b.updated_date = datetime(2012, 6, 20, 12, 0, 0)
 
         ### Act ###   
         actual_task_b = self.tasktree_srvc.get_entity_for_id(expected_task_b.entity_id)
@@ -714,7 +739,7 @@ class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest
             TaskList.
         """
         ### Arrange ###
-        expected_deleted_tasklist_id =  TestDataEntitySupport.short_title_to_id('a')
+        expected_deleted_tasklist_id = TestDataEntitySupport.short_title_to_id('a')
         expected_tasklist = self.tasktree_srvc.get_entity_for_id(expected_deleted_tasklist_id)
         child_task_ids = [x.entity_id for x in expected_tasklist.children]
 
@@ -730,3 +755,47 @@ class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest
             with self.assertRaises(UnregisteredEntityError):
                 self.tasktree_srvc.tree.get_entity_for_id(task_id)
 #------------------------------------------------------------------------------ 
+
+class UpdateTaskStatus(ManagedFixturesTestSupport, unittest.TestCase):
+    def setUp(self):
+        self.working_tasktree = TaskDataTestSupport.create_dynamic_tasktree(siblings_count=2, tree_depth=2)
+        
+        self._register_fixtures(self.working_tasktree)
+        
+    def test_update_task_status_childless_task(self):
+        """Test changing the status of a childless Task from Needs Action to 
+        Complete and vice-versa.
+        
+        Arrange:
+            - Create TaskTreeService backed by mock Task/List services
+            populated with TaskList A, Tasks AA, AAA, AAB.
+        Act:
+            - Update the task status of Tasks AAA, AAB to be Completed 
+            and Needs Action, respectively.
+        Assert:
+            - Tasks AAA, AAB as retrieved from the TaskTree, have task 
+            statuses of Completed and Needs Action, respectively.
+        """
+        ### Arrange ###
+        tasklist_a = TestDataTaskList(None, 'a')
+        task_aa = TestDataTask(tasklist_a, *'aa')
+        task_aaa = TestDataTask(task_aa, *'aaa')
+        task_aab = TestDataTask(task_aa, *'aab', task_status=TaskStatus.COMPLETED)
+        
+        mock_tasklist_service = InMemoryTaskListService(data_store=[tasklist_a])
+        mock_task_service = InMemoryTaskService(data_store=[task_aa,
+            task_aaa, task_aab])
+        
+        tasktreeservice = TaskTreeService(task_service=mock_task_service,
+            tasklist_service=mock_tasklist_service)
+        
+        ### Act ###
+        tasktreeservice.update_task_status(task_aaa, TaskStatus.COMPLETED)
+        tasktreeservice.update_task_status(task_aab, TaskStatus.NEEDS_ACTION)
+        
+        ### Assert ###
+        self.assertEqual(tasktreeservice.get_entity_for_id(task_aaa.entity_id).task_status,
+            TaskStatus.COMPLETED)
+        self.assertEqual(tasktreeservice.get_entity_for_id(task_aab.entity_id).task_status,
+            TaskStatus.NEEDS_ACTION)
+#------------------------------------------------------------------------------

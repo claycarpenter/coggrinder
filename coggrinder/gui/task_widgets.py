@@ -126,51 +126,42 @@ class TaskTreeWindowController(object):
         self.update_view()
 
     @eventListener(event_name=TaskTreeEvents.ADD_TASK)
-    @entryExit()
     def _handle_add_task_event(self, button):
         # Find the ID of the selected parent entity. This will determine the 
         # new tasks's parent TaskList and, optionally, it's parent Task as well.
         selected_entities = self.treeview_state_manager.selected_entities
         assert len(selected_entities) == 1, "Should only allow a single TaskList or Task to be selected as a parent for the new Task."
-        parent_entity = selected_entities.pop()
-              
-        # Determine the new Task's TaskList and parent Task, if appropriate.      
-        try:
-            # Get the TaskList ID from the parent Task.
-            tasklist = parent_entity.tasklist
-            parent_task = parent_entity
-        except AttributeError:
-            # Get the TaskList ID from the parent TaskList. As a direct child 
-            # of the TaskList, the Task will have no parent ID.
-            tasklist = parent_entity
-            parent_task = None
+        parent = selected_entities.pop()
 
         # Create an empty new Task with only the parent ID and TaskList ID 
         # specified. By default, this Task will be the lowest ordered Task 
         # in its sibling group.
-        new_task = self.tasktree_service.add_task(tasklist, parent_task=parent_task, title="")
+        task = self.tasktree_service.add_task(parent, title="")
         
         # Sort the TaskTree to ensure proper positioning of the new task.
         self.tasktree_service.sort()
         
-        temp_debug("Created new task: {0}".format(new_task))
+        temp_debug("Created new task: {0}".format(task))
         
         # Clear any existing selections. Select the new Task and set the 
         # tree node (title) to be "editable". 
-        self.treeview_state_manager.set_entity_editable(new_task)
+        self.treeview_state_manager.set_entity_editable(task)
         
         # Ensure that any parent nodes of the new Task are also expanded.
-        task = new_task
         temp_debug("Expanding parent nodes to expose: {0}".format(task))
-        while task.parent_task is not None:
-            task = task.parent_task
-            temp_debug("\tExpanding (parent) T node: {0}".format(task))
-            self.treeview_state_manager.expand_entity(task)
-
-        # Ensure the TaskList is expanded.
-        temp_debug("\tExpanding TL node: {0}".format(tasklist))
-        self.treeview_state_manager.expand_entity(tasklist)
-
+        while parent is not None:
+            try:            
+                temp_debug("\tExpanding (parent) T node: {0}".format(parent))
+                self.treeview_state_manager.expand_entity(parent)
+                
+                # Climb up to the next parent.
+                parent = parent.parent
+            except AttributeError:
+                # Should indicate a missing entity_id attribute, which means
+                # the expansion has already made it to the root of the 
+                # TaskTree and the process is complete.
+                break
+            
         # Update the UI.
         self.update_view()
         
@@ -214,9 +205,7 @@ class TaskTreeWindowController(object):
         self.update_view()
 
     @eventListener(event_name=TaskTreeEvents.COMPLETE_TASK)
-    def _handle_complete_task_event(self, button):
-        raise NotImplementedError
-    
+    def _handle_complete_task_event(self, button):    
         # Locate the selected task or tasks.
         selected_tasks = self.treeview_state_manager.selected_tasks
         assert len(selected_tasks) > 0
@@ -224,27 +213,34 @@ class TaskTreeWindowController(object):
         # Determine what the final task status will be for the selected Tasks.
         # If all Tasks have the same status, toggle it. If they have a mix
         # (complete and incomplete), then set them all to complete.
-        final_task_status = selected_tasks[0]
+        prev_task_status = selected_tasks[0].task_status
         for selected_task in selected_tasks:
-            if final_task_status == selected_task.task_status:
-                continue
-            else:
+            if prev_task_status != selected_task.task_status:
+                # Selected Tasks have mixed status; switch all to Completed.
                 final_task_status = TaskStatus.COMPLETED
+                break
+            
+            prev_task_status = selected_task.task_status
+        else:
+            # All Tasks have the same status, so flip them all to the opposite
+            # of their current state.
+            if prev_task_status == TaskStatus.COMPLETED:
+                final_task_status = TaskStatus.NEEDS_ACTION
+            elif prev_task_status == TaskStatus.NEEDS_ACTION:
+                final_task_status = TaskStatus.COMPLETED
+            
+        debug("New status for all selected tasks: {0}".format(final_task_status))
         
         # For each Task, update the Task with the new status and push the 
         # updated Task into the TaskTree.
         for selected_task in selected_tasks:
-            selected_task.task_status = final_task_status
-            
-            self.tasktree_service.update_entity(selected_task)
+            self.tasktree_service.update_task_status(selected_task, final_task_status)
             
         # Update the UI.
         self.update_view()
 
     @eventListener(event_name=TaskTreeEvents.DELETE_TASK)
-    def _handle_delete_task_event(self, button):
-        raise NotImplementedError
-    
+    def _handle_delete_task_event(self, button):    
         # Locate the selected task or tasks.
         selected_tasks = self.treeview_state_manager.selected_tasks
         assert len(selected_tasks) > 0
@@ -435,7 +431,7 @@ class TaskTreeWindow(Gtk.Window):
         
     def update_button_states(self):
         """
-        TODO: This may be digging to deep into the TreeViewController's
+        TODO: This may be digging too deep into the TreeViewController's
         sphere.
         """ 
         self.toolbar_controller.selection_state_changed(
@@ -456,7 +452,7 @@ class TaskTreeWindow(Gtk.Window):
         Can this be accomplished by only looking at the info held by TVStMngr?
         """
         # Register/start any needed callbacks.
-        if self.treeview_state_manager.has_editable_entity():
+        if self.treeview_state_manager.has_editable_entity:
             self._request_editing_callback()            
 #------------------------------------------------------------------------------ 
 
@@ -610,6 +606,8 @@ class TaskToolbarView(Gtk.HBox):
     checking the selection state of the TaskTreeView.
     """
     def update_button_states(self, tasklist_selection_state, task_selection_state):        
+        debug("TL Sel State: {tls} -- T Sel State: {ts}".format(tls=tasklist_selection_state, ts=task_selection_state))
+        
         # Only enable when single TaskList is selected.
         self.delete_list_button.set_state(
             tasklist_selection_state == TaskTreeSelectionState.SINGLE)
@@ -742,6 +740,7 @@ class TaskTreeViewController(object):
         # code.
         original_treeview_change_ignored = self.is_treeview_change_ignored
         self.is_treeview_change_ignored = True
+        debug("Ignoring treeview changes.")
         self.view.start_editing_str(treepath)        
         self.is_treeview_change_ignored = original_treeview_change_ignored        
         debug("Finished setting editable row.")
@@ -802,6 +801,9 @@ class TaskTreeViewController(object):
                 
         # Update the tree view to reflect the new tree states.
         self.update_treeview_state()
+        
+        # Restore event listening flag.
+        
                 
         # Request an editing callback (edit the title of the new list).
         self._request_editing_callback() 
@@ -967,24 +969,26 @@ class TaskTreeViewController(object):
         # updated title text.
         self.entity_title_edited.fire(target_entity_id, updated_title)
 
-    @entryExit()
     def _handle_row_expanded(self, treeview, treeiter, treepath):
+        if self.is_treeview_change_ignored:
+            return
+        
         entity_id = self.task_treestore[treeiter][TaskTreeStoreNode.ENTITY_ID]
         entity = self._tasktree.get_entity_for_id(entity_id)
         
         self.treeview_state_manager.expand_entity(entity)
 
-    @entryExit()
     def _handle_row_collapsed(self, treeview, treeiter, treepath):
+        if self.is_treeview_change_ignored:
+            return
+        
         entity_id = self.task_treestore[treeiter][TaskTreeStoreNode.ENTITY_ID]
         entity = self._tasktree.get_entity_for_id(entity_id)
         
         self.treeview_state_manager.collapse_entity(entity)
         
     @entryExit()
-    def _handle_selection_changed(self, selection_data):
-        debug("Handling selection change.")
-        
+    def _handle_selection_changed(self, selection_data):        
         has_selected_rows = True
         if selection_data.count_selected_rows() == 0:
             has_selected_rows = False
@@ -998,8 +1002,11 @@ class TaskTreeViewController(object):
         # return immediately to prevent handling spurious selection 
         # change events (fired by Gtk in response to tree model changes?).               
         if (self.task_treestore.is_updating_tree or not has_selected_rows
-            or self.is_treeview_change_ignored):       
+            or self.is_treeview_change_ignored):            
+            debug("Ignoring selection change.")       
             return
+                
+        debug("Handling selection change.")
             
         self.treeview_state_manager.clear_all_selections()
         self.collect_treeview_state()
@@ -1118,7 +1125,7 @@ class TaskTreeViewStateManager(object):
         self._tree_states = dict()
         
     def _is_entity_task(self, entity):
-        return hasattr(entity, "parent_id") and hasattr(entity, "tasklist_id")
+        return hasattr(entity, "task_status")
 
     def _is_tree_state_valid(self, tree_state):
         try:
@@ -1180,6 +1187,7 @@ class TaskTreeViewStateManager(object):
             # (entity is no longer selected).
             pass
         
+    @property
     def has_editable_entity(self):
         for tree_state in self.tree_states:
             if tree_state.is_editable:
