@@ -145,9 +145,6 @@ class TaskTreeService(object):
         # Update the entity value reference in the TaskTree.
         entity = self.tree.update_entity(entity)
 
-        # Update the updated date timestamp.
-        entity.updated_date = datetime.now()
-
         return entity
 
     def delete_entity(self, entity):
@@ -172,8 +169,8 @@ class TaskTreeService(object):
         
         self._push_deleted()
         
-    def update_task_status(self):
-        pass
+    def update_task_status(self, task, new_status):
+        self.tree.update_task_status(task, new_status)
         
     def _push_added(self):
         # Find the IDs of all new entities.
@@ -755,47 +752,3 @@ class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest
             with self.assertRaises(UnregisteredEntityError):
                 self.tasktree_srvc.tree.get_entity_for_id(task_id)
 #------------------------------------------------------------------------------ 
-
-class UpdateTaskStatus(ManagedFixturesTestSupport, unittest.TestCase):
-    def setUp(self):
-        self.working_tasktree = TaskDataTestSupport.create_dynamic_tasktree(siblings_count=2, tree_depth=2)
-        
-        self._register_fixtures(self.working_tasktree)
-        
-    def test_update_task_status_childless_task(self):
-        """Test changing the status of a childless Task from Needs Action to 
-        Complete and vice-versa.
-        
-        Arrange:
-            - Create TaskTreeService backed by mock Task/List services
-            populated with TaskList A, Tasks AA, AAA, AAB.
-        Act:
-            - Update the task status of Tasks AAA, AAB to be Completed 
-            and Needs Action, respectively.
-        Assert:
-            - Tasks AAA, AAB as retrieved from the TaskTree, have task 
-            statuses of Completed and Needs Action, respectively.
-        """
-        ### Arrange ###
-        tasklist_a = TestDataTaskList(None, 'a')
-        task_aa = TestDataTask(tasklist_a, *'aa')
-        task_aaa = TestDataTask(task_aa, *'aaa')
-        task_aab = TestDataTask(task_aa, *'aab', task_status=TaskStatus.COMPLETED)
-        
-        mock_tasklist_service = InMemoryTaskListService(data_store=[tasklist_a])
-        mock_task_service = InMemoryTaskService(data_store=[task_aa,
-            task_aaa, task_aab])
-        
-        tasktreeservice = TaskTreeService(task_service=mock_task_service,
-            tasklist_service=mock_tasklist_service)
-        
-        ### Act ###
-        tasktreeservice.update_task_status(task_aaa, TaskStatus.COMPLETED)
-        tasktreeservice.update_task_status(task_aab, TaskStatus.NEEDS_ACTION)
-        
-        ### Assert ###
-        self.assertEqual(tasktreeservice.get_entity_for_id(task_aaa.entity_id).task_status,
-            TaskStatus.COMPLETED)
-        self.assertEqual(tasktreeservice.get_entity_for_id(task_aab.entity_id).task_status,
-            TaskStatus.NEEDS_ACTION)
-#------------------------------------------------------------------------------

@@ -516,9 +516,41 @@ class TaskTree(Tree):
             self.sort(sorted_child_node)
 
     def update_entity(self, entity):
+        """As entities are "attached" to the TaskTree and therefore can be
+        directly modified and have those changes reflected in the tree, this
+        method simply updates the updated date timestamp on the entity.
+        """
         entity.updated_date = datetime.now()
 
         return entity
+        
+    def update_task_status(self, task, new_status):
+        # If the task is being switched from Completed to Needs Action, then
+        # also update any parent Tasks to also have a status of Needs Action.
+        if task.task_status == TaskStatus.COMPLETED and new_status == TaskStatus.NEEDS_ACTION:
+            updating_task = task
+            try:
+                while True:
+                    updating_task.task_status = new_status
+                    
+                    updating_task = updating_task.parent
+            except AttributeError:
+                # Reached a TaskList-type parent entity, stop updating. 
+                pass
+        
+        # Update the status of any child Tasks.
+        self._update_branch_task_status(task, new_status)
+        
+    def _update_branch_task_status(self, task, new_status):
+        # Set the new status.
+        task.task_status = new_status
+        
+        # Update the task.
+        self.update_entity(task)
+        
+        # Push the updated status down to all child tasks.
+        for child_task in task.children:
+            self._update_branch_task_status(child_task, new_status)
 #------------------------------------------------------------------------------ 
 
 """
@@ -2694,3 +2726,105 @@ class TaskDataError(Exception):
     def __init__(self, message):
         Exception.__init__(self, "Corrupt task data: " + message) 
 #------------------------------------------------------------------------------ 
+
+class UpdateTaskStatusTest(ManagedFixturesTestSupport, unittest.TestCase):
+    def setUp(self):
+        self.working_tasktree = TaskDataTestSupport.create_dynamic_tasktree(siblings_count=2, tree_depth=2)
+        
+        self._register_fixtures(self.working_tasktree)
+        
+    def test_update_task_status_childless_task(self):
+        """Test changing the status of a childless Task from Needs Action to 
+        Complete and vice-versa.
+        
+        Arrange:
+            - Create TaskTreeService backed by mock Task/List services
+            populated with TaskList A, Tasks AA, AAA, AAB.
+        Act:
+            - Update the task status of Tasks AAA, AAB to be Completed 
+            and Needs Action, respectively.
+        Assert:
+            - Tasks AAA, AAB as retrieved from the TaskTree, have task 
+            statuses of Completed and Needs Action, respectively.
+        """
+        ### Arrange ###
+        tasktree = TaskTree()
+        tasklist_a = TestDataTaskList(tasktree, 'a')
+        task_aa = TestDataTask(tasklist_a, *'aa')
+        task_aaa = TestDataTask(task_aa, *'aaa')
+        task_aab = TestDataTask(task_aa, *'aab', task_status=TaskStatus.COMPLETED)
+        
+        ### Act ###
+        tasktree.update_task_status(task_aaa, TaskStatus.COMPLETED)
+        tasktree.update_task_status(task_aab, TaskStatus.NEEDS_ACTION)
+        
+        ### Assert ###
+        self.assertEqual(tasktree.get_entity_for_id(task_aaa.entity_id).task_status,
+            TaskStatus.COMPLETED)
+        self.assertEqual(tasktree.get_entity_for_id(task_aab.entity_id).task_status,
+            TaskStatus.NEEDS_ACTION)
+        
+    def test_update_task_status_parent_task(self):
+        """Test changing the status of a parent Task from Needs Action to 
+        Complete, checking to ensure that child Tasks are similarly updated.
+        
+        Arrange:
+            - Create TaskTreeService backed by mock Task/List services
+            populated with TaskList A, Tasks AA, AAA, AAB.
+        Act:
+            - Update the task status of Task AA to be Completed.
+        Assert:
+            - Tasks AA, AAA, AAB as retrieved from the TaskTree, all have 
+            identical task statuses of Completed.
+        """
+        ### Arrange ###
+        tasktree = TaskTree()
+        tasklist_a = TestDataTaskList(tasktree, 'a')
+        task_aa = TestDataTask(tasklist_a, *'aa')
+        task_aaa = TestDataTask(task_aa, *'aaa')
+        task_aab = TestDataTask(task_aa, *'aab', task_status=TaskStatus.COMPLETED)
+        
+        ### Act ###
+        tasktree.update_task_status(task_aa, TaskStatus.COMPLETED)
+        
+        ### Assert ###
+        self.assertEqual(tasktree.get_entity_for_id(task_aa.entity_id).task_status,
+            TaskStatus.COMPLETED)
+        self.assertEqual(tasktree.get_entity_for_id(task_aaa.entity_id).task_status,
+            TaskStatus.COMPLETED)
+        self.assertEqual(tasktree.get_entity_for_id(task_aab.entity_id).task_status,
+            TaskStatus.COMPLETED)
+        
+    def test_update_task_status_child_task_updates_parent(self):
+        """Test changing the status of a child Task from Completed to Needs 
+        Action will also similarly update the status of any parent Tasks.
+        
+        Arrange:
+            - Create TaskTreeService backed by mock Task/List services
+            populated with TaskList A, Tasks AA, AAA, AAB.
+        Act:
+            - Update the task status of Task AAA to be Completed.
+        Assert:
+            - Tasks AA, AAA, AAB as retrieved from the TaskTree, have task 
+            statuses of Needs Action, Needs Action, and Completed, 
+            respectively.
+        """
+        ### Arrange ###
+        tasktree = TaskTree()
+        tasklist_a = TestDataTaskList(tasktree, 'a')
+        task_aa = TestDataTask(tasklist_a, *'aa', task_status=TaskStatus.COMPLETED)
+        task_aaa = TestDataTask(task_aa, *'aaa', task_status=TaskStatus.COMPLETED)
+        task_aab = TestDataTask(task_aa, *'aab', task_status=TaskStatus.COMPLETED)
+        
+        ### Act ###
+        tasktree.update_task_status(task_aaa, TaskStatus.NEEDS_ACTION)
+        
+        ### Assert ###
+        self.assertEqual(tasktree.get_entity_for_id(task_aa.entity_id).task_status,
+            TaskStatus.NEEDS_ACTION)
+        self.assertEqual(tasktree.get_entity_for_id(task_aaa.entity_id).task_status,
+            TaskStatus.NEEDS_ACTION)
+        self.assertEqual(tasktree.get_entity_for_id(task_aab.entity_id).task_status,
+            TaskStatus.COMPLETED)
+#------------------------------------------------------------------------------
+
