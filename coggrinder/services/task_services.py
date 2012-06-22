@@ -562,15 +562,15 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
 #------------------------------------------------------------------------------
 
 class InMemoryService(object):
-    def __init__(self, data_store=None):
-        if data_store is None:
-            data_store = list()
+    def __init__(self, entity_store=None):
+        if entity_store is None:
+            entity_store = list()
             
-        self.data_store = data_store
+        self.entity_store = entity_store
         
     @property
     def entity_ids(self):
-        return [x.entity_id for x in self.data_store]
+        return [x.entity_id for x in self.entity_store]
 #------------------------------------------------------------------------------ 
 
 class InMemoryTaskService(AbstractTaskService, InMemoryService):    
@@ -583,7 +583,7 @@ class InMemoryTaskService(AbstractTaskService, InMemoryService):
             raise EntityOverwriteError(task.entity_id)
 
         # Store the Task.        
-        self.data_store.append(task)
+        self.entity_store.append(task)
 
         return task
 
@@ -596,14 +596,14 @@ class InMemoryTaskService(AbstractTaskService, InMemoryService):
         task.updated_date = datetime.now()
 
         # Find the deleted Task in the data store, and remove it.
-        data_store_task = [x for x in self.data_store if x.entity_id == task.entity_id] 
-        self.data_store.remove(data_store_task)
+        entity_store_task = [x for x in self.entity_store if x.entity_id == task.entity_id] 
+        self.entity_store.remove(entity_store_task)
 
         return task
 
     def _get(self, tasklist_id, task_id):
         try:
-            tasklist_tasks = self.data_store[tasklist_id]
+            tasklist_tasks = self.entity_store[tasklist_id]
         except KeyError:
             raise UnregisteredTaskListError(tasklist_id)
 
@@ -618,23 +618,23 @@ class InMemoryTaskService(AbstractTaskService, InMemoryService):
         return task
 
     def _get_tasks_in_tasklist(self, tasklist):
-        tasklist_tasks = [x for x in self.data_store if x.tasklist.entity_id == tasklist.entity_id]
+        tasklist_tasks = [x for x in self.entity_store if x.tasklist.entity_id == tasklist.entity_id]
 
         return tasklist_tasks
 
     def _update(self, task):
         # Check to make sure the Task is already present in the data store.
-        if task.tasklist_id not in self.data_store:
+        if task.tasklist_id not in self.entity_store:
             raise UnregisteredTaskListError(task.tasklist_id)
 
-        if task.entity_id not in self.data_store[task.tasklist_id]:
+        if task.entity_id not in self.entity_store[task.tasklist_id]:
             raise UnregisteredTaskError(task.entity_id)
 
         # Update the updated date on the Task.
         task.updated_date = datetime.now()
 
         # Update the task in the data store.        
-        self.data_store[task.tasklist_id][task.entity_id] = task
+        self.entity_store[task.tasklist_id][task.entity_id] = task
 
         return task
 #------------------------------------------------------------------------------ 
@@ -661,7 +661,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         # data store. Use a clone so that any changes made by the service don't
         # also affect the expected task data fixtures.
         self.tasklist_service = InMemoryTaskService()
-        self.tasklist_service.data_store = copy.deepcopy(self.expected_task_data)
+        self.tasklist_service.entity_store = copy.deepcopy(self.expected_task_data)
 
         self._register_fixtures(self.tasklist_service, self.expected_tasklist,
             self.expected_task_data)
@@ -1188,39 +1188,39 @@ class GoogleServicesTaskListServiceTest(unittest.TestCase):
 class InMemoryTaskListService(AbstractTaskListService, InMemoryService):
     def _insert(self, tasklist):
         # Cannot overwrite an already registered TaskList.        
-        if tasklist.entity_id in self.data_store:
+        if tasklist.entity_id in self.entity_store:
             raise EntityOverwriteError(tasklist.entity_id)
 
         # Add the new TaskList to the data store and update its updated date.
-        self.data_store[tasklist.entity_id] = tasklist
+        self.entity_store[tasklist.entity_id] = tasklist
         tasklist.updated_date = datetime.now()
 
         return tasklist
 
     def _delete(self, tasklist):
         try:
-            del self.data_store[tasklist.entity_id]
+            del self.entity_store[tasklist.entity_id]
         except KeyError:
             raise UnregisteredTaskListError(tasklist.entity_id)
 
         return tasklist
 
     def _list(self):
-        return self.data_store
+        return self.entity_store
 
     def _get(self, entity_id):
         try:
-            tasklist = self.data_store[entity_id]
+            tasklist = self.entity_store[entity_id]
         except KeyError:
             raise UnregisteredTaskListError(entity_id)
 
         return tasklist
 
     def _update(self, tasklist):
-        if tasklist.entity_id not in self.data_store:
+        if tasklist.entity_id not in self.entity_store:
             raise UnregisteredTaskListError(tasklist.entity_id)
         
-        self.data_store[tasklist.entity_id] = tasklist
+        self.entity_store[tasklist.entity_id] = tasklist
         tasklist.updated_date = datetime.now()            
 
         return tasklist
@@ -1242,7 +1242,7 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
         # as its data store. Use a clone so that any changes made by the 
         # service don't also affect the expected task data fixtures.
         self.tasklist_service = InMemoryTaskListService()
-        self.tasklist_service.data_store = copy.deepcopy(self.expected_tasklists)
+        self.tasklist_service.entity_store = copy.deepcopy(self.expected_tasklists)
 
         self._register_fixtures(self.tasklist_service, self.expected_tasklists)
 
