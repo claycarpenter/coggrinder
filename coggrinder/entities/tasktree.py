@@ -8,8 +8,7 @@ import unittest
 from unittest import skip
 from datetime import datetime
 from coggrinder.entities.tasks import Task, TaskList, TestDataEntitySupport, \
-    TestDataTaskList, TestDataTask, UpdatedDateIgnoredTestDataTask, UpdatedDateIgnoredTestDataTaskList, \
-    EntityList
+    TestDataTaskList, TestDataTask, UpdatedDateIgnoredTestDataTask, UpdatedDateIgnoredTestDataTaskList
 from coggrinder.entities.tree import Tree, NodeNotFoundError, TreeNode
 from coggrinder.core.test import ManagedFixturesTestSupport
 import copy
@@ -35,7 +34,7 @@ class TaskTree(Tree):
         
         # Compile a tree from the provided task data.
         if task_data is None:                
-            task_data = list()
+            task_data = dict()
                             
         self._build_tree(task_data)
 
@@ -114,7 +113,7 @@ class TaskTree(Tree):
         # Clear the existing tree architecture.
         self.clear()
 
-        for tasklist in task_data:            
+        for tasklist in task_data.values():            
             tasklist.attach_to_parent(self)
     
     def _add_task(self, task_data, task):        
@@ -569,14 +568,14 @@ class TaskDataTestSupport(object):
     def create_tasklists(cls, tasktree, tasklist_type=UpdatedDateIgnoredTestDataTaskList,
         siblings_count=3):
         
-        tasklists = EntityList()
+        tasklists = dict()
         
         for tl_i in range(0, siblings_count):
             tasklist_short_title = string.ascii_uppercase[tl_i]
             
             # Create all TaskLists without attachments to any TaskTree.
             tasklist = tasklist_type(tasktree, tasklist_short_title)
-            tasklists.append(tasklist)
+            tasklists[tasklist.entity_id] = tasklist
             
         return tasklists
 
@@ -584,14 +583,14 @@ class TaskDataTestSupport(object):
     def create_all_tasks(cls, tasklists, task_type=UpdatedDateIgnoredTestDataTask,
         siblings_count=3, tree_depth=3):
 
-        all_tasks = EntityList()
+        all_tasks = dict()
         
-        for tasklist in tasklists:
+        for tasklist in tasklists.values():
             tasklist_tasks = cls._create_task_branch(task_type,
                 tasklist,
                 siblings_count, tree_depth - 1, 1)
             
-            all_tasks.extend(tasklist_tasks)
+            all_tasks.update(tasklist_tasks)
             
         return all_tasks
     
@@ -599,7 +598,7 @@ class TaskDataTestSupport(object):
     def _create_task_branch(cls, task_type, parent,
         siblings_count, tree_depth, current_depth):
         
-        tasks = list()
+        tasks = dict()
         
         for t_i in range(0, siblings_count):            
             task_short_title = TestDataEntitySupport.combine_short_title_sections(
@@ -608,14 +607,14 @@ class TaskDataTestSupport(object):
             # Create Tasks and attach them to the parent TaskList.
             task = task_type(parent, task_short_title)
             
-            tasks.append(task)
+            tasks[task.entity_id] = task
             
             if current_depth < tree_depth:
                 child_tasks = cls._create_task_branch(task_type,
                     task,
                     siblings_count, tree_depth, current_depth + 1)
                 
-                tasks.extend(child_tasks)
+                tasks.update(child_tasks)
         
         return tasks
 
@@ -823,7 +822,7 @@ class TaskTreeTest(unittest.TestCase):
         expected_entity_ids = [tasklist_a.entity_id, task_aa.entity_id, task_ab.entity_id, task_ac.entity_id]
         
         ### Act ###
-        populated_tasktree = TaskTree(task_data=[tasklist_a])
+        populated_tasktree = TaskTree(task_data={tasklist_a.entity_id:tasklist_a})
 
         ### Assert ###
         self.assertEqual(set(expected_entity_ids), populated_tasktree.entity_ids)
@@ -893,7 +892,7 @@ class TaskTreeTest(unittest.TestCase):
         task_ab = TreeTask(tasklist_a, title="a-b")
         task_ac = TreeTask(tasklist_a, title="a-c")
 
-        populated_tasktree = TaskTree(task_data=[tasklist_a])
+        populated_tasktree = TaskTree(task_data={tasklist_a.entity_id:tasklist_a})
         
         self.assertEqual([tasklist_a], populated_tasktree.root_node.children)
         

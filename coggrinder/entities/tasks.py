@@ -946,35 +946,3 @@ class TestDataEntitySupportTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_id, actual_id)
 #------------------------------------------------------------------------------ 
-
-class EntityList(list):
-    def get_entity_for_id(self, entity_id):
-        matching_entities = [x for x in self if x.entity_id == entity_id]
-        
-        return matching_entities[0]
-#------------------------------------------------------------------------------
-
-class EntityListTest(unittest.TestCase):
-    def test_get_entity_for_id_found(self):
-        """Test that the get_entity_for_id method can find the correct entity
-        given an entity ID to search for.
-        
-        Arrange:
-            - Create a new EntityList.
-            - Create an expected TaskList.
-        Act:
-            - Locate the actual TaskList.
-        Assert:
-            - Actual and expected TaskLists are identical.
-        """
-        ### Arrange ###
-        entity_id = "tasklist-id"
-        expected_tasklist = TaskList(None, entity_id=entity_id, title="TaskList")
-        entity_list = EntityList([expected_tasklist])
-        
-        ### Act ###
-        actual_tasklist = entity_list.get_entity_for_id(entity_id)
-        
-        ### Assert ###
-        self.assertEqual(expected_tasklist, actual_tasklist)
-#------------------------------------------------------------------------------

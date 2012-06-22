@@ -104,7 +104,7 @@ class TaskTreeService(object):
     def _create_tasktree(self):
         # Get refreshed task data from the TaskList and Task services.
         tasklists = self.tasklist_service.list()        
-        for tasklist in tasklists:
+        for tasklist in tasklists.values():
             
             self.task_service.get_tasks_in_tasklist(tasklist)
 
@@ -283,7 +283,7 @@ class PopulatedTaskTreeServiceTestSupport(TaskTreeServiceTestSupport):
             all_tasks=cloned_all_tasks)
         
         self.expected_tasktree = copy.deepcopy(self.tasktree_srvc.tree)
-        for tasklist in self.expected_tasklists:
+        for tasklist in self.expected_tasklists.values():
             tasklist.attach_to_parent(self.expected_tasktree)
 
         # Register test fixtures.
@@ -336,9 +336,9 @@ class TaskTreeServiceCreationTest(TaskTreeServiceTestSupport, unittest.TestCase)
         task_aa = Task(tasklist_a, title="a-a")
         task_ab = Task(tasklist_a, title="a-b")
         task_ac = Task(tasklist_a, title="a-c")
-        expected_tasks = [task_aa, task_ab, task_ac]
+        expected_tasks = {task_aa.entity_id:task_aa, task_ab.entity_id:task_ab, task_ac.entity_id:task_ac}
         
-        when(self.mock_tasklist_srvc).list().thenReturn([tasklist_a])
+        when(self.mock_tasklist_srvc).list().thenReturn({tasklist_a.entity_id: tasklist_a})
         when(self.mock_task_srvc).get_tasks_in_tasklist(tasklist_a).thenReturn(expected_tasks)
 
         ### Act ###
@@ -635,7 +635,7 @@ class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest
         """
         ### Arrange ###
         expected_tasklist_id = TestDataEntitySupport.short_title_to_id('a')
-        expected_tasklist = self.tasktree_srvc.tree.get_node((0,0))
+        expected_tasklist = self.tasktree_srvc.tree.get_node((0, 0))
 
         ### Act ###   
         actual_tasklist = self.tasktree_srvc.get_entity_for_id(expected_tasklist_id)
@@ -685,7 +685,7 @@ class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest
         """
         ### Arrange ###
         expected_updated_title = "updated"        
-        expected_tasklist_a = copy.deepcopy(self.tasktree_srvc.tree.get_node((0,0)))
+        expected_tasklist_a = copy.deepcopy(self.tasktree_srvc.tree.get_node((0, 0)))
         expected_tasklist_a.title = expected_updated_title
         expected_tasklist_a.updated_date = datetime(2012, 6, 20, 12, 0, 0)
 
@@ -718,7 +718,7 @@ class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest
         """
         ### Arrange ###
         expected_updated_title = "updated"
-        expected_task_b = copy.deepcopy(self.tasktree_srvc.tree.get_node((0,0,1)))
+        expected_task_b = copy.deepcopy(self.tasktree_srvc.tree.get_node((0, 0, 1)))
         expected_task_b.title = expected_updated_title
         expected_task_b.updated_date = datetime(2012, 6, 20, 12, 0, 0)
 

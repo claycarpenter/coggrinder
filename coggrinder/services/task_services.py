@@ -4,7 +4,7 @@ Created on Mar 18, 2012
 @author: Clay Carpenter
 """
 
-from coggrinder.entities.tasks import TaskList, Task, EntityList, GoogleServicesTask
+from coggrinder.entities.tasks import TaskList, Task, GoogleServicesTask
 import coggrinder.utilities
 import copy
 import string
@@ -195,7 +195,7 @@ class GoogleServicesTaskService(AbstractTaskService):
         # contains an array/list of results stored under an "items" key.
         list_results_str_dict = self.service_proxy.list(tasklist=tasklist.entity_id).execute()
 
-        tasks = EntityList()
+        tasks = dict()
 
         # Check to see if the TaskList has any assigned tasks.
         if list_results_str_dict.has_key(GoogleKeywords.ITEMS):
@@ -204,18 +204,18 @@ class GoogleServicesTaskService(AbstractTaskService):
                 # str dict.
                 task = GoogleServicesTask.from_str_dict(task_str_dict)
 
-                # Add the resulting Task to the results list.
-                tasks.append(task)
+                # Add the resulting Task to the results collection.
+                tasks[task.entity_id] = task
                 
         # With the full list of Tasks now compiled, build the relationships 
         # between them and the parent TaskList.
-        for task in tasks:
+        for task in tasks.values():
             if task.parent_id is None:                      
                 # Make the Task a child of the TaskList.
                 parent = tasklist
             else:
                 # Link the Task to its parent Task.
-                parent = tasks.get_entity_for_id(task.parent_id)
+                parent = tasks[task.parent_id]
                 
             # Ensure the Task is registered as a child of its parent.
             task.attach_to_parent(parent)
@@ -564,13 +564,13 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
 class InMemoryService(object):
     def __init__(self, entity_store=None):
         if entity_store is None:
-            entity_store = list()
+            entity_store = dict()
             
         self.entity_store = entity_store
         
     @property
     def entity_ids(self):
-        return [x.entity_id for x in self.entity_store]
+        return self.entity_store.keys()
 #------------------------------------------------------------------------------ 
 
 class InMemoryTaskService(AbstractTaskService, InMemoryService):    
@@ -618,7 +618,7 @@ class InMemoryTaskService(AbstractTaskService, InMemoryService):
         return task
 
     def _get_tasks_in_tasklist(self, tasklist):
-        tasklist_tasks = [x for x in self.entity_store if x.tasklist.entity_id == tasklist.entity_id]
+        tasklist_tasks = [x for x in self.entity_store.values() if x.tasklist.entity_id == tasklist.entity_id]
 
         return tasklist_tasks
 
@@ -1020,11 +1020,11 @@ class GoogleServicesTaskListService(AbstractTaskListService):
 
         tasklist_items_list = tasklist_items_dict.get(coggrinder.utilities.GoogleKeywords.ITEMS)
 
-        tasklists = EntityList()
+        tasklists = dict()
         for tasklist_dict in tasklist_items_list:
             tasklist = TaskList.from_str_dict(tasklist_dict)
 
-            tasklists.append(tasklist)
+            tasklists[tasklist.entity_id] = tasklist
 
         return tasklists
 
@@ -1104,13 +1104,13 @@ class GoogleServicesTaskListServiceTest(unittest.TestCase):
         mock_list_request = mock()
 
         tasklist_items_dict = {coggrinder.utilities.GoogleKeywords.ITEMS:[]}
-        expected_tasklists = list()
+        expected_tasklists = dict()
 
         for count in range(1, 4):
             tasklist = TaskList(None, entity_id=str(count),
                 title="Test List " + str(count), updated_date=datetime(2012, 3, 10, 3, 30, 6))
 
-            expected_tasklists.append(tasklist)
+            expected_tasklists[tasklist.entity_id] = tasklist
             
             tasklist_items_dict.get(coggrinder.utilities.GoogleKeywords.ITEMS).append(tasklist.to_str_dict())
 
