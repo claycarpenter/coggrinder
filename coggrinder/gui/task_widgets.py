@@ -257,37 +257,37 @@ class TaskTreeWindowController(object):
         self.update_view()
 
     @eventListener(event_name=TaskTreeEvents.PROMOTE_TASK)
-    def _handle_promote_task_event(self, button):
-        raise NotImplementedError
-    
+    def _handle_promote_task_event(self, button):    
         # Locate the selected task or tasks.
         selected_tasks = self.treeview_state_manager.selected_tasks
         assert len(selected_tasks) > 0
         
         # Promote all of the selected Tasks.
-        self.tasktree_service.promote(*selected_tasks)
+        self.tasktree_service.promote_task(*selected_tasks)
         
         # Update the UI.
         self.update_view()
 
     @eventListener(event_name=TaskTreeEvents.DEMOTE_TASK)
-    def _handle_demote_task_event(self, button):
-        raise NotImplementedError
-    
+    def _handle_demote_task_event(self, button):    
         # Locate the selected task or tasks.
         selected_tasks = self.treeview_state_manager.selected_tasks
         assert len(selected_tasks) > 0
         
         # Demote all of the selected Tasks.
-        self.tasktree_service.demote(*selected_tasks)
+        self.tasktree_service.demote_task(*selected_tasks)
+        
+        # Make sure the parents of all demoted Tasks are expanded (to show the 
+        # updated locations of the demoted Tasks).
+        for demoted_task in selected_tasks:
+            new_parent = demoted_task.parent
+            self.treeview_state_manager.expand_entity(new_parent)
         
         # Update the UI.
         self.update_view()
 
     @eventListener(event_name=TaskTreeEvents.REORDER_TASK_UP)
     def _handle_reorder_task_up_event(self, button):
-        raise NotImplementedError
-    
         # Locate the selected task or tasks.
         selected_tasks = self.treeview_state_manager.selected_tasks
         assert len(selected_tasks) > 0
@@ -299,9 +299,7 @@ class TaskTreeWindowController(object):
         self.update_view()
 
     @eventListener(event_name=TaskTreeEvents.REORDER_TASK_DOWN)
-    def _handle_reorder_task_down_event(self, button):
-        raise NotImplementedError
-    
+    def _handle_reorder_task_down_event(self, button):    
         # Locate the selected task or tasks.
         selected_tasks = self.treeview_state_manager.selected_tasks
         assert len(selected_tasks) > 0

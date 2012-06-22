@@ -320,24 +320,17 @@ class TaskTree(Tree):
         # Reset the entity id-to-node mapping.
         self._entity_map.clear()
         
-    def demote(self, *entities):
-        assert entities is not None
+    def demote_task(self, *tasks):
+        assert tasks is not None
         
-        task_nodes = list()
-        for entity in entities:
-            # Find the Task's node.
-            task_node = self._find_task_node(entity)
-            
-            task_nodes.append(task_node)
-        
-        # Demote the targeted Task nodes. 
-        Tree.demote(self, *task_nodes)
+        # Demote the targeted Tasks. 
+        Tree.demote(self, *tasks)
         
         # Refresh the sibling links of both the old and new/current 
         # sibling groups.
-        for task_node in task_nodes:
-            self._update_child_task_relationships(task_node.parent.parent)
-            self._update_child_task_relationships(task_node.parent)
+        for task in tasks:
+            self._update_child_task_relationships(task.parent.parent)
+            self._update_child_task_relationships(task.parent)
 
     def get(self, node_indices):
         """Overrides the default get() implementation by prefixing the provided
@@ -413,30 +406,27 @@ class TaskTree(Tree):
         except KeyError:
             raise UnregisteredEntityError(entity_id)
         
-    def promote(self, *entities):
-        assert entities is not None
+    def promote_task(self, *tasks):
+        assert tasks
         
-        task_nodes = list()
+#        task_nodes = list()
         old_parent_nodes = list()
-        for entity in entities:
-            # Find the Task's node.
-            task_node = self._find_task_node(entity)
-            
-            task_nodes.append(task_node)
+        for task in tasks:
+#            task_nodes.append(task)
             
             # Get the current parent node now, as this reference will change 
             # after the Tree.promote operation. This reference provides an 
             # easy pointer to the correct node for refreshing child Task
             # relationships.
-            old_parent_nodes.append(task_node.parent)
+            old_parent_nodes.append(task.parent)
         
-        # Promote the targeted Task nodes.
-        Tree.promote(self, *task_nodes)
+        # Promote the targeted Tasks.
+        Tree.promote(self, *tasks)
         
         # Refresh the sibling links of both the new/current 
         # sibling groups.
-        for task_node in task_nodes:            
-            self._update_child_task_relationships(task_node.parent)
+        for task in tasks:            
+            self._update_child_task_relationships(task.parent)
         
         # Refresh the sibling links of both the new/current 
         # sibling groups.
@@ -471,24 +461,19 @@ class TaskTree(Tree):
         # Remove the node from the tree. 
         self.remove_node(entity)
             
-    def reorder_task_down(self, entity):
-        # Find the Task's node.
-        task_node = self._find_task_node(entity)
+    def reorder_task_down(self, *tasks):
+        assert tasks
         
-        # Reorder the node down.
-        Tree.reorder_down(self, task_node)
+        # Reorder down all provided Tasks. If the Task is not eligible to be
+        # moved down, this will result in a no-op.
+        self.reorder_down(*tasks)      
             
     def reorder_task_up(self, *tasks):
-        # Collect all of the TreeNodes containing the targeted Tasks.
-        task_nodes = list()
-        for task in tasks:
-            # Find the Task's node.
-            task_node = self._find_task_node(task)        
-            
-            task_nodes.append(task_node)
-            
-        # Reorder the Task nodes up.
-        Tree.reorder_up(self, *task_nodes)
+        assert tasks
+        
+        # Reorder up all provided Tasks. If the Task is not eligible to be
+        # moved up, this will result in a no-op.
+        self.reorder_up(*tasks) 
 
     def _find_task_node(self, task):
         # Find the Task's node.
