@@ -74,22 +74,27 @@ class TreeNode(DeclaredPropertiesComparable):
             descendants.extend(child.descendants)
         
         return descendants
+
+    
+    def add_child(self, child, child_index=None):
+        # Ensure that the value of that the child node contains is not 
+        # already in another of this node's children.
+        sibling_values = [x.value for x in self.children]
+        if not child.value in sibling_values:
+            # Insert child into the children list.
+            if child_index is None:
+                self.children.append(child)
+            else:
+                # This pushes down the node at the indicated child index, if
+                # it exists.
+                self.children.insert(child_index, child)
+        
+        # Link the child node to this node.
+        child.parent = self
     
     def attach_to_parent(self, parent, child_index=None):
-        # Ensure that the value this node contains is not already in another
-        # child of the parent.
-        sibling_values = [x.value for x in parent.children]
-        if not self.value in sibling_values:
-            # Insert self into the parent's children list.
-            if child_index is None:
-                parent.children.append(self)
-            else:
-                # This replaces the node at the indicated child index.
-                parent.children.insert(child_index, self)
+        parent.add_child(self, child_index=child_index)
         
-        # Link this TreeNode to its parent.
-        self.parent = parent
-
     def has_children(self):
         if len(self.children) > 0:
             return True
@@ -148,7 +153,7 @@ class TreeNodeTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_descendants, root.descendants)
             
-    def test_attach_to_node_no_duplicates(self):
+    def test_attach_to_parent_no_duplicates(self):
         """Test that attaching a TreeNode to its parent only results in a 
         single entry in the parents children collection, no matter how many 
         times the method is called.
@@ -176,6 +181,42 @@ class TreeNodeTest(unittest.TestCase):
         
         ### Assert ###
         self.assertEqual(expected_children, root.children)
+            
+    def test_add_child(self):
+        """Test that adding a child to an existing TreeNode creates the proper
+        references between the parent and child, and that multiple add_child
+        operations with the same child and parent nodes involved results in 
+        a single reference between the nodes.
+        
+        Proper references mean that the parent is aware of the child, the 
+        child is in the children collection of the parent, and that the child
+        is aware of the parent.
+        
+        Arrange:
+            - Create TreeNode root.
+            - Create child node leaf A.            
+        Act:
+            - Add child node leaf A to parent node root twice.
+        Assert:
+            - Node root only has a single child registered, and that it is the 
+            leaf A.
+            - That node root's children include leaf A, and that leaf A points
+            to node root as its parent.
+        """
+        ### Arrange ###
+        root = TreeNode(value="root")
+        leaf_a = TreeNode(None, value="leaf a")        
+        
+        expected_children = [leaf_a]
+        
+        ### Act ###
+        root.add_child(leaf_a)
+        root.add_child(leaf_a)
+        
+        ### Assert ###
+        self.assertEqual(expected_children, root.children)
+        self.assertIs(root.children[0], leaf_a)
+        self.assertIs(leaf_a.parent, root)
 #------------------------------------------------------------------------------
 
 class Tree(TreeNode):
@@ -636,7 +677,7 @@ class NodeRelationshipError(Exception):
             else:
                 message = "Node could not identify self in the collection of children held by the node's parent." 
                  
-        self.message= message
+        self.message = message
         self.parent_node = parent_node
         self.child_node = child_node
         
@@ -728,8 +769,8 @@ class PopulatedTreeTest(unittest.TestCase):
 
         ### Assert ############################################################
         self.assertIs(tree.get_node(leaf_node.path), leaf_node)
-        self.assertIs(root_node,leaf_node.parent)
-        self.assertIs(tree,leaf_node.parent.parent)
+        self.assertIs(root_node, leaf_node.parent)
+        self.assertIs(tree, leaf_node.parent.parent)
         self.assertIs(leaf_node, root_node.children[0])
 
     @skip("Test covers use case that is now possibly deprecated.")
