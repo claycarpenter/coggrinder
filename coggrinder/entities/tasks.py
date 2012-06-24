@@ -824,6 +824,13 @@ class TestDataEntitySupport(object):
         return full_title
     
     @staticmethod
+    def create_task_data_dict(*task_data_entities):
+        """
+        TODO: This method currently lacks a (unit) test.
+        """
+        return {x.entity_id:x for x in task_data_entities}
+    
+    @staticmethod
     def combine_short_title_sections(*short_title_sections):
         """This method combines all of the short title sections provided into
         a single string, separated by the separator defined under
