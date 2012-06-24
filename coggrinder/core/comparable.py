@@ -58,7 +58,13 @@ class DeclaredPropertiesComparable(object):
         except AttributeError:
             # Objects lack comparing flag, add it.
             self._comparing = True
-            other._comparing = True
+            
+            try:
+                other._comparing = True
+            except AttributeError:
+                # Other object is a built-in class, and self is not. They 
+                # are not equal.
+                return False
 
         # Simple shortcut in case of identity comparison.
         if self is not other:
