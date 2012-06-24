@@ -32,7 +32,7 @@ class TreeNode(DeclaredPropertiesComparable):
         
         self.parent = None
         if parent is not None:
-            self.attach_to_parent(parent, child_index=child_index)
+            parent.add_child(self, child_index=child_index)
             
     @property
     def path(self):
