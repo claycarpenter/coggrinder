@@ -112,9 +112,14 @@ class TaskTree(Tree):
 
         # Clear the existing tree architecture.
         self.clear()
+        
+        # Get the TaskList entities from the task data collection.
+        tasklists = [x for x in task_data.values() if not hasattr(x, 'task_status')]
 
-        for tasklist in task_data.values():            
-            tasklist.attach_to_parent(self)
+        # Add each TaskList as a child to this TaskTree (it becomes a child of 
+        # the default root node).
+        for tasklist in tasklists:
+            self.add_child(tasklist)            
     
     def _add_task(self, task_data, task):        
         parent_id = task.parent_id
@@ -200,6 +205,10 @@ class TaskTree(Tree):
             for child_task in entity.children:
                 self._deregister_entity(child_task,
                     recursively_deregister=recursively_deregister)
+                
+    def add_child(self, child, child_index=None):
+        """Adds a child to the default root node of this TaskTree."""
+        self.root_node.add_child(child, child_index=child_index)
 
     def add_entity(self, entity):
         assert entity is not None
@@ -843,47 +852,6 @@ class TaskTreeTest(unittest.TestCase):
 
         ### Assert ###
         self.assertEqual(tasktree_one, tasktree_two)
-    
-    @unittest.skip("Ordering broken with Task refactor.")    
-    def test_init_arg_tree_creation_tasklists_all_tasks(self):
-        """Test the creation of a TaskTree task data provided through the 
-        initialization arguments.
-        
-        This test focuses on the init arguments tasklists and all_tasks.
-        
-        The completed TaskTree should have the following architecture:
-        - tl-a
-            - t-a-b
-        
-        Arrange:
-            - Create task data: TaskList a and Task a-b.
-            - Manually build the expected TaskTree.
-            - Create the tasklists and all_tasks collections.
-        Act:
-            - Build actual TaskTree by providing task data during 
-            initialization.
-        Assert:
-            - That the expected and actual TaskTrees are identical.
-        """
-        ### Arrange ###
-        expected_tasklist_a = TestDataTaskList('a')
-        actual_tasklist_a = copy.deepcopy(expected_tasklist_a)
-        
-        expected_task_ab = TestDataTask('a-b', tasklist_id=expected_tasklist_a.entity_id)
-        actual_task_ab = copy.deepcopy(expected_task_ab)
-        
-        expected_tasktree = TaskTree()
-        expected_tasktree.add_entity(expected_tasklist_a)
-        expected_tasktree.add_entity(expected_task_ab)
-        
-        tasklists = {actual_tasklist_a.entity_id:actual_tasklist_a}
-        all_tasks = {actual_tasklist_a.entity_id:{actual_task_ab.entity_id:actual_task_ab}}
-        
-        ### Act ###
-        actual_tasktree = TaskTree(tasklists=tasklists, all_tasks=all_tasks)
-        
-        ### Assert ###
-        self.assertEqual(expected_tasktree, actual_tasktree)
         
     def test_tasktree_tree_entity_creation(self):
         
@@ -896,7 +864,6 @@ class TaskTreeTest(unittest.TestCase):
         
         self.assertEqual([tasklist_a], populated_tasktree.root_node.children)
         
-    @unittest.skip("Ordering broken with Task refactor.")
     def test_init_arg_tree_creation_task_data(self):
         """Test the creation of a TaskTree task data provided through the 
         initialization arguments.
@@ -908,8 +875,8 @@ class TaskTreeTest(unittest.TestCase):
             - t-a-b
         
         Arrange:
-            - Create task data: TaskList a and Task a-b.
-            - Manually build the expected TaskTree.
+            - Manually build the expected TaskTree, populated with 
+            TaskList A and Task A-A.
             - Create the tasklists and all_tasks collections.
         Act:
             - Build actual TaskTree by providing task data during 
@@ -917,19 +884,21 @@ class TaskTreeTest(unittest.TestCase):
         Assert:
             - That the expected and actual TaskTrees are identical.
         """
-        ### Arrange ###
-        expected_tasklist_a = TestDataTaskList('a')
+        ### Arrange ###        
+        expected_tasklist_a = TestDataTaskList(None, 'a')
         actual_tasklist_a = copy.deepcopy(expected_tasklist_a)
         
-        expected_task_ab = TestDataTask('a-b', tasklist_id=expected_tasklist_a.entity_id)
-        actual_task_ab = copy.deepcopy(expected_task_ab)
+        expected_task_aa = TestDataTask(None, *'aa')
+        actual_task_aa = copy.deepcopy(expected_task_aa)
+        
+        expected_tasklist_a.add_child(expected_task_aa)
+        actual_tasklist_a.add_child(actual_task_aa)
         
         expected_tasktree = TaskTree()
-        expected_tasktree.add_entity(expected_tasklist_a)
-        expected_tasktree.add_entity(expected_task_ab)
+        expected_tasktree.add_child(expected_tasklist_a)
         
         task_data = {actual_tasklist_a.entity_id:actual_tasklist_a,
-            actual_task_ab.entity_id:actual_task_ab}
+            actual_task_aa.entity_id:actual_task_aa}
         
         ### Act ###
         actual_tasktree = TaskTree(task_data=task_data)
