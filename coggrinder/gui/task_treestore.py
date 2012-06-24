@@ -9,7 +9,7 @@ from coggrinder.entities.tasks import TaskList, Task, TaskStatus, TestDataEntity
 from coggrinder.resources.icons import task_tree
 from coggrinder.services.task_services import UnregisteredEntityError
 from logging import debug
-from coggrinder.entities.tasktree import TaskTree, TaskDataTestSupport, TreeTaskList, TreeTask
+from coggrinder.entities.tasktree import TaskTree
 
 class TaskTreeStore(Gtk.TreeStore):
     PATH_SEPARATOR = ":"

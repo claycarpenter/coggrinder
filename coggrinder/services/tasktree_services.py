@@ -10,9 +10,7 @@ from datetime import datetime
 from coggrinder.services.task_services import GoogleServicesTaskService, GoogleServicesTaskListService, InMemoryTaskListService, InMemoryTaskService, UnregisteredEntityError
 from coggrinder.entities.tasks import UpdatedDateFilteredTask, UpdatedDateFilteredTaskList, TestDataTaskList, TestDataTask, UpdatedDateIgnoredTestDataTaskList, UpdatedDateIgnoredTestDataTask, TestDataEntitySupport, \
     TaskList, Task
-from coggrinder.entities.tasktree import TaskTree, TaskDataTestSupport, TaskTreeComparator, \
-    TreeTaskList, TreeTask
-    
+from coggrinder.entities.tasktree import TaskTree, TaskDataTestSupport, TaskTreeComparator    
 from coggrinder.core.test import ManagedFixturesTestSupport
 from mockito import mock, when, any
 import copy

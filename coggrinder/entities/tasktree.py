@@ -557,18 +557,6 @@ class InvalidReorderOperationTargetError(Exception):
             "{entity_id} is not a valid target for a reorder operation.".format(entity_id=entity.entity_id))
 #------------------------------------------------------------------------------
 
-class TreeTask(Task, TreeNode):
-    def __init__(self, parent, child_index=None, **kwargs):            
-        TreeNode.__init__(self, parent=parent, value=self)        
-        Task.__init__(self, parent, **kwargs)
-#------------------------------------------------------------------------------
-
-class TreeTaskList(TaskList, TreeNode):
-    def __init__(self, parent, child_index=None, **kwargs):
-        TreeNode.__init__(self, parent=parent, value=self)
-        TaskList.__init__(self, parent, **kwargs)
-#------------------------------------------------------------------------------
-
 class TaskDataTestSupport(object):
     """Simple support class to make it more convenient to product mock TaskList
     and Task data for use in testing."""
@@ -811,30 +799,6 @@ class TaskTreeTest(unittest.TestCase):
 
         ### Assert ###
         self.assertEqual(set(), empty_tasktree.entity_ids)
-        
-    def test_entity_ids_populated(self):
-        """Test the entity_ids property of TaskTree, ensuring that it
-        accurately reflects the IDs of the entities held by an empty
-        TaskTree.
-
-        Act:
-            - Create a new TaskTree without providing any default data.
-        Assert:
-            - That TaskTree.entity_ids reports no entities (length of 0).
-        """
-        ### Arrange ###
-        tasklist_a = TreeTaskList(None, title="a")
-        task_aa = TreeTask(tasklist_a, title="a-a")
-        task_ab = TreeTask(tasklist_a, title="a-b")
-        task_ac = TreeTask(tasklist_a, title="a-c")
-        
-        expected_entity_ids = [tasklist_a.entity_id, task_aa.entity_id, task_ab.entity_id, task_ac.entity_id]
-        
-        ### Act ###
-        populated_tasktree = TaskTree(task_data={tasklist_a.entity_id:tasklist_a})
-
-        ### Assert ###
-        self.assertEqual(set(expected_entity_ids), populated_tasktree.entity_ids)
 
     def test_equality_empty(self):
         """Test the equality of two newly created, empty TaskTrees.
@@ -852,17 +816,6 @@ class TaskTreeTest(unittest.TestCase):
 
         ### Assert ###
         self.assertEqual(tasktree_one, tasktree_two)
-        
-    def test_tasktree_tree_entity_creation(self):
-        
-        tasklist_a = TreeTaskList(None, title="a")
-        task_aa = TreeTask(tasklist_a, title="a-a")
-        task_ab = TreeTask(tasklist_a, title="a-b")
-        task_ac = TreeTask(tasklist_a, title="a-c")
-
-        populated_tasktree = TaskTree(task_data={tasklist_a.entity_id:tasklist_a})
-        
-        self.assertEqual([tasklist_a], populated_tasktree.root_node.children)
         
     def test_init_arg_tree_creation_task_data(self):
         """Test the creation of a TaskTree task data provided through the 

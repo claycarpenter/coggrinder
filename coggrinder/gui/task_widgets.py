@@ -5,7 +5,6 @@ Created on Mar 29, 2012
 """
 from gi.repository import Gtk
 from gi.repository import GObject
-from coggrinder.entities.tasktree import TreeTask, TreeTaskList
 from coggrinder.resources.icons import buttons
 from coggrinder.gui.events import Event, EventRegistry, eventListener, eventAware
 from coggrinder.gui.task_treestore import TaskTreeStore, TaskTreeStoreNode
