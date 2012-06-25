@@ -6,6 +6,8 @@ Created on Apr 29, 2012
 
 import mockito
 
+USE_CASE_DEPRECATED = "Test covers use case that is now possibly deprecated."
+
 class ManagedFixturesTestSupport(object):
     '''Simple test case utility that managed the fixtures by establishing and
     cleaning up the declared fixtures for each unit test.
