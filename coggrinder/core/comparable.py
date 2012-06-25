@@ -70,7 +70,14 @@ class DeclaredPropertiesComparable(object):
         if self is not other:
             comparable_prop_names = self._get_comparable_properties()
 
-            if comparable_prop_names != other._get_comparable_properties():
+            try:
+                other_comparable_prop_names = other._get_comparable_properties()
+            except AttributeError:
+                # Other object does not implement the comparable interface, 
+                # therefore they will not be considered equal.
+                return False 
+
+            if comparable_prop_names != other_comparable_prop_names:
                 are_equal = False
             else:
                 for property_name in comparable_prop_names:
