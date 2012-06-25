@@ -21,11 +21,7 @@ from logging import debug as temp_debug
 
 class TaskTree(Tree):
     def __init__(self, tasklists=None, all_tasks=None, task_data=None):
-        Tree.__init__(self)
-        
-        # Create a new, default root node (all TaskTrees have a default root 
-        # node that is the direct parent of any TaskLists in that tree).
-        self.append(None, "Default TaskTree Root")
+        Tree.__init__(self, value="<TaskTree>")
             
         # Allows for a quick lookup of the TreeNode associated with a 
         # particular entity. This is keyed by ID and the values are the 

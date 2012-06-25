@@ -225,8 +225,8 @@ class TreeNodeTest(unittest.TestCase):
 class Tree(TreeNode):
     PATH_SEPARATOR = ":"
     
-    def __init__(self):
-        TreeNode.__init__(self, parent=None, value="<Tree>")
+    def __init__(self, value="<Tree>"):
+        TreeNode.__init__(self, parent=None, value=value)
     
     def append(self, parent_node, value):
         """Adds a new TreeNode to the tree, below the indicated parent node.
