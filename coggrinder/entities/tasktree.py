@@ -39,15 +39,9 @@ class TaskTree(Tree):
         self._build_tree(task_data)
 
     @property
-    def descendants(self):
-        # Return the descendants of the default root node (all task data), 
-        # rather than all nodes in the tree.
-        return self._collect_descendants(self.root_node)
-
-    @property
     def entity_ids(self):
         """A set of IDs representing all known entities held by the TaskTree."""
-        entity_ids = [x.entity_id for x in self.root_node.descendants]
+        entity_ids = [x.entity_id for x in self.descendants]
 
         return set(entity_ids)
     
@@ -205,10 +199,6 @@ class TaskTree(Tree):
             for child_task in entity.children:
                 self._deregister_entity(child_task,
                     recursively_deregister=recursively_deregister)
-                
-    def add_child(self, child, child_index=None):
-        """Adds a child to the default root node of this TaskTree."""
-        self.root_node.add_child(child, child_index=child_index)
 
     def add_entity(self, entity):
         assert entity is not None
@@ -316,14 +306,14 @@ class TaskTree(Tree):
         return self._is_task_node_path(entity_node.path)
 
     def _is_task_node_path(self, entity_node_path):
-        if len(entity_node_path) > 2:
+        if len(entity_node_path) > 1:
             return True
         
         return False
 
     def clear(self):
         # Clear all of the TaskList children from the root object.
-        self.root_node.children = list()
+        self.children = list()
         
         # Reset the entity id-to-node mapping.
         self._entity_map.clear()
@@ -447,7 +437,7 @@ class TaskTree(Tree):
         
         # If the entity isn't a direct descendent of the TaskTree (default)
         # root, then it is a Task.
-        if entity.parent != self.root_node:
+        if entity.parent != self:
             # This entity is not a TaskList, so move all of the children up to
             # the position of the deleted entity. 
             
@@ -858,20 +848,6 @@ class TaskTreeTest(unittest.TestCase):
         
         ### Assert ###
         self.assertEqual(expected_tasktree, actual_tasktree)
-        
-    def test_root_node_empty_tasktree(self):
-        """That that an empty TaskTree still contains a root node.
-        
-        Act:
-            - Create an empty TaskTree.
-        Assert:
-            - That the root_node property is not None.  
-        """
-        ### Act ###
-        empty_tasktree = TaskTree()
-        
-        ### Assert ###
-        self.assertIsNotNone(empty_tasktree.root_node)
 
     @unittest.skip("Disabling due to refactoring.")
     def test_task_data_property(self):
