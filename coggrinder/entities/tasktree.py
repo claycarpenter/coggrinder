@@ -329,23 +329,6 @@ class TaskTree(Tree):
         for task in tasks:
             self._update_child_task_relationships(task.parent.parent)
             self._update_child_task_relationships(task.parent)
-
-    def get(self, node_indices):
-        """Overrides the default get() implementation by prefixing the provided
-        node indices with the Tree root path index.
-
-        This is a convenience method that attempts to make accessing tree
-        nodes easier, especially when converting from a TreeStore path.
-
-        Args:
-            node_indices: A tuple containing a collection of node indices with
-            point to the targeted node. Node indices should begin with a level
-            1 depth node (always a TaskList), and continue in order down the
-            tree to the target node.
-        Raises:
-            KeyError if provided TaskList is not held within this tree.
-        """
-        return Tree.get(self, Tree.ROOT_PATH + node_indices)
     
     def get_all_descendant_nodes(self, node):
         descendant_nodes = list()
