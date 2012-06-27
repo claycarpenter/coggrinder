@@ -11,8 +11,31 @@ import coggrinder.utilities
 from coggrinder.entities.properties import EntityProperty, RFC3339Converter, IntConverter, BooleanConverter, TaskStatus, TaskStatusConverter
 from coggrinder.utilities import GoogleKeywords
 from coggrinder.entities.tree import TreeNode
+import string
 
-class TaskList(TreeNode):
+class SortedTaskDataChildrenSupport(object):
+    def add_child(self, child, child_index=None):
+        if child_index is None:
+            # No child index was specified. Determine the sorted order for this
+            # new child by iterating over the sibling values, and inserting 
+            # before the first value found to compare greater than the 
+            # new child's value.
+            for child_index, sibling_value in enumerate(self.child_values):
+                if child.value < sibling_value:
+                    super(SortedTaskDataChildrenSupport, self).add_child(child, child_index=child_index)
+            else:
+                # This child has a value greater than those held by another 
+                # other sibling. Simply add this new child to the end of the
+                # current list (lowest order).
+                super(SortedTaskDataChildrenSupport, self).add_child(child)
+        else:
+            # Child index is defined. Defer to the super (TreeNode?) 
+            # implementation that will insert this node directly into the 
+            # specified position.
+            super(SortedTaskDataChildrenSupport, self).add_child(child, child_index=child_index)
+#------------------------------------------------------------------------------
+
+class TaskList(SortedTaskDataChildrenSupport, TreeNode):
     _ARGUMENT_FAIL_MESSAGE = "Provided {0} argument must be of type {1}"
     _KEY_VALUE_MESSAGE = "{key}: {value}"
     
@@ -24,8 +47,9 @@ class TaskList(TreeNode):
         )
 
     def __init__(self, parent, entity_id=None, title="", updated_date=None, children=None):
-        TreeNode.__init__(self, parent, value=self)
-        
+        # Initialize TaskList properties first so that they're available during
+        # the comparison operations used in the add_child method.
+                
         # Create a default UUID entity ID if none is provided.
         if entity_id is None:
             entity_id = str(uuid.uuid4())
@@ -42,22 +66,12 @@ class TaskList(TreeNode):
         # any timezone info are not preserved.            
         self.updated_date = datetime(updated_date.year, updated_date.month, updated_date.day,
             updated_date.hour, updated_date.minute, updated_date.second)
+                
+        TreeNode.__init__(self, parent, value=self)
 
     @property
     def tasklist(self):
         return self
-    
-    def attach_to_parent(self, parent, child_index=None):
-        try:
-            # Locate the root node of the TaskTree this TaskList is 
-            # being attached to. If the provided parent reference is not a 
-            # Tree-type object, an AttributeError will be raised.
-            parent = parent.root_node
-        except AttributeError:
-            # The provided parent has no root_node property, raise an error.
-            raise ValueError("Parent of a TaskList must be a TaskTree.")
-        
-        TreeNode.attach_to_parent(self, parent, child_index=child_index)
 
     @classmethod
     def from_str_dict(cls, str_dict):
@@ -329,9 +343,7 @@ class Task(TaskList):
         )
 
     def __init__(self, parent, entity_id=None, title="", updated_date=None,
-            task_status=TaskStatus.NEEDS_ACTION):
-        super(Task, self).__init__(parent, entity_id, title, updated_date)
-        
+            task_status=TaskStatus.NEEDS_ACTION):        
         self.task_status = task_status
 
         # Establish default properties.
@@ -340,6 +352,8 @@ class Task(TaskList):
         self.completed_date = None
         self.is_deleted = None
         self.is_hidden = None
+        
+        super(Task, self).__init__(parent, entity_id, title, updated_date)
                 
     @property
     def tasklist(self):
@@ -497,11 +511,11 @@ class GoogleServicesTask(Task):
             EntityProperty("position", GoogleKeywords.POSITION, IntConverter())
         )
 
-    def __init__(self, parent, parent_id=None, position=None, **kwargs):
-        super(GoogleServicesTask, self).__init__(parent, **kwargs)
-        
+    def __init__(self, parent, parent_id=None, position=None, **kwargs):        
         self.parent_id = parent_id
         self.position = position
+        
+        super(GoogleServicesTask, self).__init__(parent, **kwargs)
     
     @classmethod
     def _create_blank_entity(cls):
@@ -714,7 +728,7 @@ class TestDataTaskList(TaskList):
         # Create an entity id from the short title sections.
         entity_id = TestDataEntitySupport.short_title_to_id(*short_title_sections)
 
-        TaskList.__init__(self, parent, entity_id=entity_id, title=title,
+        super(TestDataTaskList, self).__init__(parent, entity_id=entity_id, title=title,
             updated_date=datetime.now(), **kwargs)
 #------------------------------------------------------------------------------ 
 
@@ -754,7 +768,7 @@ class TestDataTask(Task):
         # Create an entity id from the short title sections.
         entity_id = TestDataEntitySupport.short_title_to_id(*short_title_sections)
 
-        Task.__init__(self, parent, entity_id=entity_id, title=title,
+        super(TestDataTask, self).__init__(parent, entity_id=entity_id, title=title,
             updated_date=datetime.now(), **kwargs)
 #------------------------------------------------------------------------------ 
 
@@ -767,7 +781,7 @@ class TestDataTaskTest(unittest.TestCase):
 
         Arrange:
             - Create expected long title "TestDataTask A".
-            - Create expected entity ID "testdatatask-A".
+            - Create expected entity ID "testdatatask-a".
         Act:
             - Create new TestDataTask A with short title of "A".
         Assert:
@@ -784,6 +798,76 @@ class TestDataTaskTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_long_title, actual_task_a.title)
         self.assertEqual(expected_id, actual_task_a.entity_id)
+#------------------------------------------------------------------------------ 
+
+class TestDataGoogleServicesTask(GoogleServicesTask):
+    def __init__(self, parent, *short_title_sections, **kwargs):
+        # Create a full title from the provided short title.
+        title = TestDataEntitySupport.create_full_title(self.__class__, *short_title_sections)
+
+        # Create an entity id from the short title sections.
+        entity_id = TestDataEntitySupport.short_title_to_id(*short_title_sections)
+        
+        # Default to position value in kwargs.
+        if "position" in kwargs.keys():
+            position = kwargs["position"]
+        else:
+            # Use the short title sections, expected to be single character 
+            # ASCII letters, to compute a position. If this assumption about the
+            # ASCII letters is incorrect, default to a position of 0.
+            try:
+                position = self.short_title_to_position(*short_title_sections)
+            except ValueError:
+                position = 0
+
+        super(TestDataGoogleServicesTask, self).__init__(parent,
+            entity_id=entity_id, title=title,
+            updated_date=datetime.now(), position=position, **kwargs)
+    
+    @staticmethod
+    def short_title_to_position(*short_title_sections):
+        position = ""
+        for section in short_title_sections:
+            position_index = string.ascii_lowercase.index(section.lower()) + 1
+            position = position + str(position_index)
+        
+        return int(position)
+#------------------------------------------------------------------------------ 
+
+class TestDataGoogleServicesTaskTest(unittest.TestCase):
+    def test_create_test_task(self):
+        """Test the creation of a simple TestDataGoogleServicesTask.
+
+        Ensure that:
+        - the provided short title is properly converted into a
+        long title
+        - the ID is automatically generated from the full title
+        - the position is generated from the short title ASCII chars.
+
+        Arrange:
+            - Create expected long title "TestDataGoogleServicesTask A-C".
+            - Create expected entity ID "testdatagoogleservicestask-a-c".
+            - Create expected position value 13.
+        Act:
+            - Create new TestDataGoogleServicesTask A-C with short title of "A-C".
+        Assert:
+            - That TestDataTask A has the expected properties:
+                - long title
+                - entity ID
+                - position
+        """
+        ### Arrange ###
+        expected_long_title = "TestDataGoogleServicesTask A-C"
+        expected_id = "a-c"
+        expected_position = 13
+
+        ### Act ###
+        actual_task_a = TestDataGoogleServicesTask(None, *"AC")
+
+        ### Assert ###
+        self.assertEqual(expected_long_title, actual_task_a.title)
+        self.assertEqual(expected_id, actual_task_a.entity_id)
+        self.assertEqual(expected_position, actual_task_a.position)
 #------------------------------------------------------------------------------ 
 
 class UpdatedDateIgnoredTestDataTaskList(TestDataTaskList, UpdatedDateFilteredTaskList):
