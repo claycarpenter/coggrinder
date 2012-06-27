@@ -9,6 +9,7 @@ from coggrinder.entities.tasks import TaskList, Task, TaskStatus, TestDataEntity
 from coggrinder.resources.icons import task_tree
 from coggrinder.services.task_services import UnregisteredEntityError
 from logging import debug
+from pprint import pformat
 from coggrinder.entities.tasktree import TaskTree
 
 class TaskTreeStore(Gtk.TreeStore):
@@ -46,8 +47,7 @@ class TaskTreeStore(Gtk.TreeStore):
                        
         # Get the depth-1 child nodes of the TaskTree. Each of these will hold
         # a TaskList reference.
-        tasktree_root_node = tasktree.root_node
-        for tasklist in tasktree_root_node.children:            
+        for tasklist in tasktree.children:            
             self._build_tasktree_branch(tasklist, None)        
 
         # Rebuild the entity-path index (cleared before the TreeStore was built).
@@ -75,12 +75,13 @@ class TaskTreeStore(Gtk.TreeStore):
             return None
             
     def _get_treestore_path(self, tree_entity):
-        no_root_path = tree_entity.path[1:]
-        
-        if no_root_path:
-            return ":".join([str(x) for x in tree_entity.path[1:]])
-        else:
-            return None
+#        no_root_path = tree_entity.path[1:]
+#        
+#        if no_root_path:
+            treestore_entity_path = (0,) + tree_entity.path[1:]
+            return ":".join([str(x) for x in treestore_entity_path])
+#        else:
+#            return None
 
     def get_entity(self, tree_path):
         """Retrieves the entity targeted by the specified tree path.
@@ -179,12 +180,36 @@ class TaskTreeStore(Gtk.TreeStore):
 
     def _rebuild_entity_path_index(self, tasktree):        
         self._clear_entity_path_index()
+ 
+        node_iter = self.get_iter_first()
+
+        # TODO: This is not building the entity path index correctly, somehow.
+        self._map_treestore_paths(node_iter)
+
+        debug("Updated entity path index: {0}".format(pformat(self.entity_path_index, indent=4, width=1)))
+        print
         
-        for entity_id in tasktree.entity_ids:
-            tree_entity = tasktree.get_entity_for_id(entity_id)
-            entity_treepath = self._get_treestore_path(tree_entity)
-            
-            self.entity_path_index[entity_id] = entity_treepath
+    def _map_treestore_paths(self, node_iter):        
+        # Walk the tree.
+        while node_iter != None:
+            # Make an entity ID-treestore path mapping entry for this node.
+            entity_id = self.get_value(node_iter, TaskTreeStoreNode.ENTITY_ID)
+            treestore_path = self.get_string_from_iter(node_iter)
+            debug("Mapping path {path}".format(path=treestore_path))
+            self.entity_path_index[entity_id] = treestore_path
+        
+            if self.iter_has_child(node_iter):
+                    child_iter = self.iter_children(node_iter)
+                    
+                    self._map_treestore_paths(child_iter)
+                
+            node_iter = self.iter_next(node_iter)
+        
+#        for entity_id in tasktree.entity_ids:
+#            tree_entity = tasktree.get_entity_for_id(entity_id)
+#            entity_treepath = self._get_treestore_path(tree_entity)
+#            
+#            self.entity_path_index[entity_id] = entity_treepath
             
     def _validate_entity_path_index(self, tasktree):
         # Check for matching sets of registered entity IDs.
