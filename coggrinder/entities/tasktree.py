@@ -8,8 +8,9 @@ import unittest
 from unittest import skip
 from datetime import datetime
 from coggrinder.entities.tasks import Task, TaskList, TestDataEntitySupport, \
-    TestDataTaskList, TestDataTask, UpdatedDateIgnoredTestDataTask, UpdatedDateIgnoredTestDataTaskList
-from coggrinder.entities.tree import Tree, NodeNotFoundError, TreeNode
+    TestDataTaskList, TestDataTask, UpdatedDateIgnoredTestDataTask, UpdatedDateIgnoredTestDataTaskList, \
+    SortedTaskDataChildrenSupport, GoogleServicesTask
+from coggrinder.entities.tree import Tree, node_clean_clone
 from coggrinder.core.test import ManagedFixturesTestSupport
 import copy
 import string
@@ -19,14 +20,9 @@ from operator import attrgetter
 from coggrinder.entities.properties import TaskStatus
 from logging import debug as temp_debug
 
-class TaskTree(Tree):
+class TaskTree(SortedTaskDataChildrenSupport, Tree):
     def __init__(self, tasklists=None, all_tasks=None, task_data=None):
         Tree.__init__(self, value="<TaskTree>")
-            
-        # Allows for a quick lookup of the TreeNode associated with a 
-        # particular entity. This is keyed by ID and the values are the 
-        # TreeNodes holding the entity for that ID.
-        self._entity_map = dict()
         
         # Compile a tree from the provided task data.
         if task_data is None:                
@@ -42,15 +38,10 @@ class TaskTree(Tree):
         return set(entity_ids)
     
     @property
-    def tasklists(self):
-        tasklists = dict()
-        
-        # Find the root node and collect all of its direct children. Each 
-        # child should represent a TaskList.
-        root_node = self.root_node
-        for tasklist_node in root_node.children:
-            tasklist = tasklist_node.value
-            tasklists[tasklist.entity_id] = tasklist
+    def tasklists(self):        
+        # Collect all of the direct children of this tree. Each 
+        # child should represent a TaskList.        
+        tasklists = {x.entity_id:x for x in self.children}
             
         return tasklists
     
@@ -84,16 +75,8 @@ class TaskTree(Tree):
         Note: this collection is dynamically built upon each call. If calling
         code knows that the data underlying a TaskTree won't be modified, it 
         might make sense to cache the result of this property call.        
-        """
-        task_data = dict()
-        
-        """
-        This collection is built dynamically to simplify the maintenance of
-        accurate entity id-entity mappings. By using the entity id-node map, 
-        it allows the class to only maintain a single mapping registry.
-        """        
-        for entity_id in self.entity_ids:
-            task_data[entity_id] = self._entity_map[entity_id].value
+        """            
+        task_data = {x.entity_id:x for x in self.descendants}
         
         return task_data
 
@@ -311,9 +294,6 @@ class TaskTree(Tree):
         # Clear all of the TaskList children from the root object.
         self.children = list()
         
-        # Reset the entity id-to-node mapping.
-        self._entity_map.clear()
-        
     def demote_task(self, *tasks):
         assert tasks is not None
         
@@ -414,7 +394,7 @@ class TaskTree(Tree):
         # Find the entity's node.        
 #        entity_node = self.find_node_for_entity(entity)        
         
-        # If the entity isn't a direct descendent of the TaskTree (default)
+        # If the entity isn't a direct descendant of the TaskTree (default)
         # root, then it is a Task.
         if entity.parent != self:
             # This entity is not a TaskList, so move all of the children up to
@@ -426,7 +406,7 @@ class TaskTree(Tree):
             # Insert any children of the current entity into the entity's old 
             # position in reverse order. Using reverse order allows the ordering of
             # the children to be preserved as they're re-inserted into the tree.
-            child_index = entity.parent.children.index(entity)
+            child_index = entity.child_index
             for child_node in reversed(entity.children):
                 child_node = self.move_node(entity.parent, child_node, child_index)
 #        else:
@@ -466,7 +446,7 @@ class TaskTree(Tree):
         if current_node is None:
             # Use the root node as the default starting point for a 
             # (recursive) sort.
-            current_node = self.root_node
+            current_node = self
          
         child_nodes = current_node.children
         sorted_child_nodes = sorted(child_nodes)
@@ -639,8 +619,6 @@ class TaskDataTestSupport(object):
         tasklists = cls.create_tasklists(tasktree, tasklist_type, siblings_count)
         all_tasks = cls.create_all_tasks(tasklists, task_type, siblings_count,
             tree_depth)
-            
-#        tasktree = TaskTree(tasklists=tasklists, all_tasks=all_tasks)
         
         return tasktree
         
@@ -828,7 +806,6 @@ class TaskTreeTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_tasktree, actual_tasktree)
 
-    @unittest.skip("Disabling due to refactoring.")
     def test_task_data_property(self):
         """Test the accuracy of the TaskTree .task_data property.
         
@@ -836,26 +813,23 @@ class TaskTreeTest(unittest.TestCase):
         currently held within the TaskTree.
         
         Arrange:
-            - Create expected entities TaskList A, Task B.
-            - Create expected task data dict.
+            - Create the working TaskTree.
+            - Create expected entities TaskList A, Task B; adding them to the 
+            TaskTree during initialization.
+            - Create expected task data collection (dict).
         Act:
-            - Create TaskTree.
-            - Add clones of expected entities to TaskTree.
             - Get TaskTree.task_data
         Assert:
             - Expected and actual task data collections are identical.
         """
         ### Arrange ###
-        expected_tl_a = TestDataTaskList('A')
-        expected_t_b = TestDataTask('B', tasklist_id=expected_tl_a.entity_id)
+        tasktree = TaskTree()
+        expected_tl_a = TestDataTaskList(tasktree, 'A')
+        expected_t_b = TestDataTask(expected_tl_a, 'B')
         expected_task_data = {expected_tl_a.entity_id:expected_tl_a,
             expected_t_b.entity_id:expected_t_b}
         
-        ### Act ###
-        tasktree = TaskTree()
-        tasktree.add_entity(copy.deepcopy(expected_tl_a))
-        tasktree.add_entity(copy.deepcopy(expected_t_b))
-        
+        ### Act ###        
         actual_task_data = tasktree.task_data
         
         ### Assert ###
@@ -897,115 +871,23 @@ class TaskTreeTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_all_tasks, actual_all_tasks)
         
-    @unittest.skip("Incomplete.")
     def test_children_empty(self):
         """Test that an empty TaskTree has no children.
         
-        Arrange:
-        
         Act:
-        
+            - Create empty TaskTree.
         Assert:
-                
+            - That the TaskTree task_data reflects no children (has no
+            task data).
         """        
         ### Act ###
         empty_tasktree = TaskTree()
         
         ### Assert ###
-        self.assertEquals(0, len(empty_tasktree))
+        self.assertEquals(0, len(empty_tasktree.task_data))
 #------------------------------------------------------------------------------ 
 
-@unittest.skip("Ordering broken with Task refactor.")
-class TaskTreeSortTest(unittest.TestCase):
-    def test_tasklist_ordering_via_add_entity(self):
-        """Test that TaskLists are stored in order based on lexicographical 
-        ordering.
-        
-        This test ensures that TaskLists supplied to the TaskTree via the 
-        add_entity() method are properly sorted. Proper sorting is by 
-        the lexicographical ordering of the TaskList title, which should be
-        considered case-insensitive.
-        
-        Arrange:
-            - Create TaskLists Foo, Bar, baz.
-            - Create expected TaskTree by appending nodes in the expected
-            order.
-        Act:
-            - Create a new TaskTree using the input_tasklists data set.
-        Assert:
-            - That the TaskLists are in this order, from highest to lowest:
-                - Bar
-                - baz
-                - Foo
-        """
-        ### Arrange ###
-        expected_tasktree = TaskTree()
-        expected_root = expected_tasktree.root_node
-        expected_tasklist_bar = TestDataTaskList("Bar")
-        expected_tasktree.append(expected_root, expected_tasklist_bar)
-        expected_tasklist_baz = TestDataTaskList("baz")
-        expected_tasktree.append(expected_root, expected_tasklist_baz)
-        expected_tasklist_foo = TestDataTaskList("Foo")
-        expected_tasktree.append(expected_root, expected_tasklist_foo)
-        
-        
-        ### Act ###
-        actual_tasktree = TaskTree()
-        actual_tasktree.add_entity(copy.deepcopy(expected_tasklist_foo))
-        actual_tasktree.add_entity(copy.deepcopy(expected_tasklist_bar))
-        actual_tasktree.add_entity(copy.deepcopy(expected_tasklist_baz))
-        
-        ### Assert ###
-        self.assertEqual(expected_tasktree, actual_tasktree)
-        
-    def test_tasklist_ordering_with_empty_title(self):
-        """Test that TaskLists are stored in order based on lexicographical 
-        ordering.
-        
-        This test ensures that a TaskList that has no title and is supplied 
-        to the TaskTree via the add_entity() method is correctly positioned
-        at the top of the TaskList group.
-        
-        Arrange:
-            - Create TaskLists Foo, Bar, Baz.
-            - Create expected TaskTree by appending Foo, Bar, Baz nodes in 
-            the expected order.
-            - Create actual TaskTree by cloning the expected TaskTree.
-            - Create expected empty TaskList (TaskList with no defined title).
-            - Insert the expected empty TaskList into the first position of 
-            the expected TaskTree.
-        Act:
-            - Insert a clone of the expected empty TaskList into the actual
-            TaskTree via add_entity().
-        Assert:
-            - That the TaskLists are in this order, from highest to lowest:
-                - [None]
-                - Bar
-                - Baz
-                - Foo
-        """
-        ### Arrange ###
-        expected_tasktree = TaskTree()
-        expected_root = expected_tasktree.root_node
-        expected_tasklist_bar = TestDataTaskList("Bar")
-        expected_tasktree.append(expected_root, expected_tasklist_bar)
-        expected_tasklist_baz = TestDataTaskList("Baz")
-        expected_tasktree.append(expected_root, expected_tasklist_baz)
-        expected_tasklist_foo = TestDataTaskList("Foo")
-        expected_tasktree.append(expected_root, expected_tasklist_foo)
-        
-        actual_tasktree = copy.deepcopy(expected_tasktree)
-        
-        expected_tasklist_empty = TaskList()
-        expected_tasktree.insert(expected_tasktree.ROOT_PATH + (0,),
-            expected_tasklist_empty)
-        
-        ### Act ###
-        actual_tasktree.add_entity(copy.deepcopy(expected_tasklist_empty))
-        
-        ### Assert ###
-        self.assertEqual(expected_tasktree, actual_tasktree)
-        
+class TaskTreeSortTest(unittest.TestCase):                
     def test_tasklist_ordering_via_init_task_data(self):
         """Test that TaskLists are stored in order based on lexicographical 
         ordering.
@@ -1026,24 +908,24 @@ class TaskTreeSortTest(unittest.TestCase):
         """
         ### Arrange ###
         expected_tasktree = TaskTree()
-        expected_root = expected_tasktree.root_node
-        expected_tasklist_bar = TestDataTaskList("Bar")
-        expected_tasktree.append(expected_root, expected_tasklist_bar)
-        expected_tasklist_baz = TestDataTaskList("Baz")
-        expected_tasktree.append(expected_root, expected_tasklist_baz)
-        expected_tasklist_foo = TestDataTaskList("Foo")
-        expected_tasktree.append(expected_root, expected_tasklist_foo)
+        expected_tasklist_empty = TestDataTaskList(expected_tasktree, "")
+        expected_tasklist_bar = TestDataTaskList(expected_tasktree, "Bar")
+        expected_tasklist_baz = TestDataTaskList(expected_tasktree, "Baz")
+        expected_tasklist_foo = TestDataTaskList(expected_tasktree, "Foo")
         
-        actual_tasklists = {expected_tasklist_foo.entity_id:copy.deepcopy(expected_tasklist_foo),
-            expected_tasklist_bar.entity_id:copy.deepcopy(expected_tasklist_bar),
-            expected_tasklist_baz.entity_id:copy.deepcopy(expected_tasklist_baz)}
+        actual_task_data = TestDataEntitySupport.create_task_data_dict(
+            node_clean_clone(expected_tasklist_foo),
+            node_clean_clone(expected_tasklist_bar),
+            node_clean_clone(expected_tasklist_empty),
+            node_clean_clone(expected_tasklist_baz))
         
         ### Act ###
-        actual_tasktree = TaskTree(tasklists=actual_tasklists)
+        actual_tasktree = TaskTree(task_data=actual_task_data)
         
         ### Assert ###
         self.assertEqual(expected_tasktree, actual_tasktree)
-        
+
+    @unittest.skip("Ordering broken with Task refactor.")
     def test_sort_tasklist_title_updated(self):
         """Test that the TaskTree is properly sorted by TaskList title and
         Task position.       
@@ -1092,7 +974,7 @@ class TaskTreeSortTest(unittest.TestCase):
         
         ### Assert ###
         self.assertEqual(expected_tasktree, actual_tasktree)
-        
+
     def test_task_ordering_via_init_task_data(self):
         """Test that Tasks are stored in order based on position property 
         values.
@@ -1113,36 +995,18 @@ class TaskTreeSortTest(unittest.TestCase):
                 - ac
         """
         ### Arrange ###
-        expected_tasktree = TaskTree()
+        expected_tasktree = TaskTree()        
+        expected_tasklist_a = TestDataTaskList(expected_tasktree, "A")
+        expected_task_first = TestDataTask(expected_tasklist_a, 'first')
+        expected_task_second = TestDataTask(expected_tasklist_a, 'second')
+        expected_task_last = TestDataTask(expected_tasklist_a, 'last')
         
-        expected_root = expected_tasktree.root_node
-        
-        expected_tasklist_a = TestDataTaskList("A")
-        tasklist_foo_node = expected_tasktree.append(expected_root, expected_tasklist_a)
-        
-        expected_task_aa = TestDataTask(*list('aa'),
-            tasklist=expected_tasklist_a,
-            parent_task=expected_tasklist_a)
-        expected_tasktree.append(tasklist_foo_node, expected_task_aa)
-        
-        expected_task_ab = TestDataTask(*list('ab'),
-            tasklist=expected_tasklist_a,
-            parent_task=expected_tasklist_a)
-        expected_tasktree.append(tasklist_foo_node, expected_task_ab)
-        
-        expected_task_ac = TestDataTask(*list('ac'),
-            tasklist=expected_tasklist_a,
-            parent_task=expected_tasklist_a)
-        expected_tasktree.append(tasklist_foo_node, expected_task_ac)
-        
-        actual_tasklists = {expected_tasklist_a.entity_id:copy.deepcopy(expected_tasklist_a)}
-        actual_tasks = {expected_task_ac.entity_id:copy.deepcopy(expected_task_ac),
-            expected_task_aa.entity_id:copy.deepcopy(expected_task_aa),
-            expected_task_ab.entity_id:copy.deepcopy(expected_task_ab)}
-        actual_all_tasks = {expected_tasklist_a.entity_id: actual_tasks}
+        actual_task_data = TestDataEntitySupport.create_task_data_dict(
+            expected_tasklist_a, expected_task_last, expected_task_first,
+            expected_task_second)
         
         ### Act ###
-        actual_tasktree = TaskTree(tasklists=actual_tasklists, all_tasks=actual_all_tasks)
+        actual_tasktree = TaskTree(task_data=actual_task_data)
         
         ### Assert ###
         self.assertEqual(expected_tasktree, actual_tasktree)
