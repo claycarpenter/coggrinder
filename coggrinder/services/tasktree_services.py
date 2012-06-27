@@ -185,7 +185,19 @@ class TaskTreeService(object):
         
     def update_task_status(self, task, new_status):
         self.tree.update_task_status(task, new_status)
-        
+    
+    def _get_service(self, entity):
+        # Get the proper service provider by checking where the
+        # entity has a task_status property or not. Presence of the 
+        # property indicates a Task, otherwise the entity is assumed to be
+        # a TaskList.
+        if hasattr(entity, "task_status"):
+            service = self.task_service
+        else:
+            service = self.tasklist_service
+            
+        return service
+    
     def _push_added(self):
         # Find the IDs of all new entities.
         added_entity_ids = TaskTreeComparator.find_added_ids(self._original_tasktree,
@@ -195,13 +207,8 @@ class TaskTreeService(object):
         for entity_id in added_entity_ids:
             entity = self.get_entity_for_id(entity_id)
             
-            # Get the proper service provider.            
-            if hasattr(entity, "tasklist_id"):
-                # Presence of a tasklist ID property should indicate a Task.
-                service = self.task_service
-            else:
-                # Lack of a tasklist ID property should indicate a TaskList.
-                service = self.tasklist_service
+            # Get the proper service provider.  
+            service = self._get_service(entity)
             
             service.insert(entity)
             
@@ -214,13 +221,8 @@ class TaskTreeService(object):
         for entity_id in deleted_entity_ids:
             entity = self._original_tasktree.get_entity_for_id(entity_id)
             
-            # Get the proper service provider.            
-            if hasattr(entity, "tasklist_id"):
-                # Presence of a tasklist ID property should indicate a Task.
-                service = self.task_service
-            else:
-                # Lack of a tasklist ID property should indicate a TaskList.
-                service = self.tasklist_service
+            # Get the proper service provider.              
+            service = self._get_service(entity)
             
             service.delete(entity)
 #------------------------------------------------------------------------------
