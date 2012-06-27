@@ -16,7 +16,6 @@ from coggrinder.core.test import ManagedFixturesTestSupport
 from mockito import mock, when, any
 import copy
 from coggrinder.entities.properties import TaskStatus
-from coggrinder.entities.tree import node_clean_clone
 
 class TaskTreeService(object):
     def __init__(self, auth_service=None, tasklist_service=None,

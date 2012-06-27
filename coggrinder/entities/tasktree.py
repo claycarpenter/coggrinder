@@ -10,7 +10,7 @@ from datetime import datetime
 from coggrinder.entities.tasks import Task, TaskList, TestDataEntitySupport, \
     TestDataTaskList, TestDataTask, UpdatedDateIgnoredTestDataTask, UpdatedDateIgnoredTestDataTaskList, \
     SortedTaskDataChildrenSupport, GoogleServicesTask
-from coggrinder.entities.tree import Tree, node_clean_clone
+from coggrinder.entities.tree import Tree
 from coggrinder.core.test import ManagedFixturesTestSupport
 import copy
 import string
@@ -914,10 +914,10 @@ class TaskTreeSortTest(unittest.TestCase):
         expected_tasklist_foo = TestDataTaskList(expected_tasktree, "Foo")
         
         actual_task_data = TestDataEntitySupport.create_task_data_dict(
-            node_clean_clone(expected_tasklist_foo),
-            node_clean_clone(expected_tasklist_bar),
-            node_clean_clone(expected_tasklist_empty),
-            node_clean_clone(expected_tasklist_baz))
+            expected_tasklist_foo.clone(),
+            expected_tasklist_bar.clone(),
+            expected_tasklist_empty.clone(),
+            expected_tasklist_baz.clone())
         
         ### Act ###
         actual_tasktree = TaskTree(task_data=actual_task_data)
