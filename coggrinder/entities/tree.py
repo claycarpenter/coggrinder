@@ -75,6 +75,13 @@ class TreeNode(DeclaredPropertiesComparable):
     def descendants(self):
         return self._collect_descendants(self)
     
+    @property
+    def has_children(self):
+        if self.children:
+            return True
+        else:
+            return False
+    
     @staticmethod
     def _collect_descendants(node):
         descendants = list()
@@ -107,12 +114,6 @@ class TreeNode(DeclaredPropertiesComparable):
     
     def attach_to_parent(self, parent, child_index=None):
         parent.add_child(self, child_index=child_index)
-        
-    def has_children(self):
-        if self.children:
-            return True
-        else:
-            return False
 
     def _get_comparable_properties(self):
         return ("parent", "path", "value", "children")
