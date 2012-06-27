@@ -9,11 +9,12 @@ import coggrinder.utilities
 import copy
 import string
 import unittest
+from unittest import skip
 from mockito import mock, when, verify, any
 from datetime import datetime
 from coggrinder.entities.properties import TaskStatus, IntConverter, TaskStatusConverter, StrConverter, RFC3339Converter, BooleanConverter
 from coggrinder.utilities import GoogleKeywords
-from coggrinder.core.test import ManagedFixturesTestSupport
+from coggrinder.core.test import ManagedFixturesTestSupport, USE_CASE_DEPRECATED
 import apiclient.discovery
 import json
 
@@ -56,8 +57,7 @@ class AbstractTaskService(object):
 
     def delete(self, task):
         assert (task is not None
-            and task.entity_id is not None
-            and task.tasklist_id is not None)
+            and task.entity_id is not None)
 
         task = self._delete(task)
 
@@ -218,7 +218,7 @@ class GoogleServicesTaskService(AbstractTaskService):
                 parent = tasks[task.parent_id]
                 
             # Ensure the Task is registered as a child of its parent.
-            task.attach_to_parent(parent)
+            parent.add_child(task)
             
         return tasks
 #------------------------------------------------------------------------------ 
@@ -259,7 +259,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
             GoogleKeywords.ID: StrConverter().to_str(expected_task_id),
             GoogleKeywords.TITLE: StrConverter().to_str(expected_task_title),
             GoogleKeywords.UPDATED: RFC3339Converter().to_str(expected_task_updated_date),
-            GoogleKeywords.POSITION: IntConverter().to_str(expected_task_position),            
+            GoogleKeywords.POSITION: IntConverter().to_str(expected_task_position),
             GoogleKeywords.STATUS: TaskStatusConverter().to_str(expected_task_status)
         }
 
@@ -292,7 +292,16 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
                 "etag": "-kSxjsniVV6Hn53-kChReeLNJUE/MTIzODI5MTIxOQ", 
                 "position": "00000000001610612735", 
                 "id": "MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjkzOTI1MDgyNw", 
-                "selfLink": "https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjA/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjkzOTI1MDgyNw"},
+                "selfLink": "https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjA/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjkzOTI1MDgyNw"},            
+            {   "status": "needsAction", 
+                "kind": "tasks#task", 
+                "parent": "MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjkzOTI1MDgyNw", 
+                "title": "a-b", 
+                "updated": "2012-05-25T02:33:30.000Z", 
+                "etag": "-kSxjsniVV6Hn53-kChReeLNJUE/LTE5NTcyNTgzNjk", 
+                "position": "00000000003758096383", 
+                "id": "MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjE0ODk4NzI4MDU", 
+                "selfLink": "https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjA/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjE0ODk4NzI4MDU"},
             {   "status": "needsAction", 
                 "kind": "tasks#task", 
                 "parent": "MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjkzOTI1MDgyNw", 
@@ -310,50 +319,34 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
                 "etag": "-kSxjsniVV6Hn53-kChReeLNJUE/LTUwMjI5ODky", 
                 "position": "00000000002147483647", 
                 "id": "MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjMwNTIwNzY5Ng", 
-                "selfLink": "https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjA/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjMwNTIwNzY5Ng"},            
-            {   "status": "needsAction", 
-                "kind": "tasks#task", 
-                "parent": "MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjkzOTI1MDgyNw", 
-                "title": "a-b", 
-                "updated": "2012-05-25T02:33:30.000Z", 
-                "etag": "-kSxjsniVV6Hn53-kChReeLNJUE/LTE5NTcyNTgzNjk", 
-                "position": "00000000003758096383", 
-                "id": "MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjE0ODk4NzI4MDU", 
-                "selfLink": "https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjA/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjE0ODk4NzI4MDU"}
+                "selfLink": "https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjA/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjMwNTIwNzY5Ng"}
         ], "kind": "tasks#tasks", "etag": "-kSxjsniVV6Hn53-kChReeLNJUE/LTIxMTY1ODMwMTA"}
         '''
         list_result_str_dict = json.loads(list_result_str)
         
         expected_task_a = GoogleServicesTask(expected_tasklist, title="a",
-               updated_date=datetime(2012, 5, 24, 22, 35, 20), 
+               updated_date=datetime(2012, 5, 24, 22, 35, 20),
                position=1610612735,
                entity_id="MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjkzOTI1MDgyNw",
                task_status=TaskStatus.NEEDS_ACTION)
-#        expected_task_a.attach_to_parent()
         
         expected_task_aa = GoogleServicesTask(expected_task_a, title="a-a",
-               updated_date=datetime(2012, 5, 24, 22, 35, 27), 
+               updated_date=datetime(2012, 5, 24, 22, 35, 27),
                position=1610612735, parent_id=expected_task_a.entity_id,
                entity_id="MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjE5ODIyNjA0MTg",
                task_status=TaskStatus.NEEDS_ACTION)
-#        expected_task_aa.attach_to_parent()
         
         expected_task_aaa = GoogleServicesTask(expected_task_aa, title="a-a-a",
-               updated_date=datetime(2012, 5, 25, 2, 33, 33), 
+               updated_date=datetime(2012, 5, 25, 2, 33, 33),
                position=2147483647, parent_id=expected_task_aa.entity_id,
                entity_id="MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjMwNTIwNzY5Ng",
                task_status=TaskStatus.NEEDS_ACTION)
-#        expected_task_aaa.attach_to_parent()
         
         expected_task_ab = GoogleServicesTask(expected_task_a, title="a-b",
-               updated_date=datetime(2012, 5, 25, 2, 33, 30), 
+               updated_date=datetime(2012, 5, 25, 2, 33, 30),
                position=3758096383, parent_id=expected_task_a.entity_id,
                entity_id="MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjE0ODk4NzI4MDU",
-               task_status=TaskStatus.NEEDS_ACTION)
-#        expected_task_ab.attach_to_parent()
-        
-        expected_tasks = [expected_task_a, expected_task_aa, expected_task_aaa,
-            expected_task_ab]          
+               task_status=TaskStatus.NEEDS_ACTION)  
 
         # Mock request object.
         mock_list_request = mock()
@@ -361,10 +354,9 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         when(mock_list_request).execute().thenReturn(list_result_str_dict)
 
         ### Act ###
-        actual_tasks = self.tasklist_service.get_tasks_in_tasklist(actual_tasklist)
+        self.tasklist_service.get_tasks_in_tasklist(actual_tasklist)
 
         ### Assert ###
-#        self.assertEqual(expected_tasks, actual_tasks)
         self.assertEqual(expected_tasklist, actual_tasklist)
 
     def test_update_simple(self):
@@ -583,7 +575,7 @@ class InMemoryTaskService(AbstractTaskService, InMemoryService):
             raise EntityOverwriteError(task.entity_id)
 
         # Store the Task.        
-        self.entity_store.append(task)
+        self.entity_store[task.entity_id] = task
 
         return task
 
@@ -596,23 +588,14 @@ class InMemoryTaskService(AbstractTaskService, InMemoryService):
         task.updated_date = datetime.now()
 
         # Find the deleted Task in the data store, and remove it.
-        entity_store_task = [x for x in self.entity_store if x.entity_id == task.entity_id] 
-        self.entity_store.remove(entity_store_task)
+        del self.entity_store[task.entity_id]
 
         return task
 
-    def _get(self, tasklist_id, task_id):
+    def _get(self, tasklist_id, task_id):        
         try:
-            tasklist_tasks = self.entity_store[tasklist_id]
+            task = self.entity_store[task_id]
         except KeyError:
-            raise UnregisteredTaskListError(tasklist_id)
-
-        try:
-            task = tasklist_tasks[task_id]
-        except KeyError:
-            raise UnregisteredTaskError(task_id)
-
-        if task.is_deleted:
             raise UnregisteredTaskError(task_id)
 
         return task
@@ -639,24 +622,22 @@ class InMemoryTaskService(AbstractTaskService, InMemoryService):
         return task
 #------------------------------------------------------------------------------ 
 
-@unittest.skip("Fix later.")
 class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
     def setUp(self):
         """Established basic fixture for testing the in-memory Task service."""
 
         # Create fake master TaskList.
-        self.expected_tasklist = TaskList()
+        self.expected_tasklist = TaskList(None)
         self.expected_tasklist.entity_id = "tasklistid"
 
         # Create a fake Task data set - a dictionary of dictionaries, with the
         # first dictionary being keyed by the TaskList ID. The inner dictionary
         # has keys that equal that Task IDs, and values that equal the Task
         # instances.
-        tasks = {"t-" + string.ascii_uppercase[x]:
-            Task(entity_id="t-" + string.ascii_uppercase[x], title="Task " + string.ascii_uppercase[x], tasklist_id=self.expected_tasklist.entity_id)
+        self.expected_task_data = {"t-" + string.ascii_uppercase[x]:
+            Task(None, entity_id="t-" + string.ascii_uppercase[x], title="Task " + string.ascii_uppercase[x])
             for x in range(0, 3)}
-        self.expected_task_data = {self.expected_tasklist.entity_id:tasks}
-
+        
         # Create an InMemoryTaskService that uses the expected data set as its
         # data store. Use a clone so that any changes made by the service don't
         # also affect the expected task data fixtures.
@@ -680,7 +661,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
             - That the expected Task and actual Task are equal.
         """
         ### Arrange ###        
-        expected_task = self.expected_task_data[self.expected_tasklist.entity_id].values()[0]
+        expected_task = self.expected_task_data.values()[0]
 
         ### Act ###        
         actual_task = self.tasklist_service.get(
@@ -689,6 +670,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         ### Assert ###
         self.assertEqual(expected_task, actual_task)
 
+    @skip(USE_CASE_DEPRECATED)
     def test_get_invalid_ids(self):
         """Test that the InMemoryTaskService raises an error when asked to
         retrieved a Task with a Task or TaskList ID that isn't registered.
@@ -718,6 +700,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         with self.assertRaises(UnregisteredTaskListError):
             self.tasklist_service.get(unreg_tasklist_id, unreg_task_id)
 
+    @skip("Working on other tests.")
     def test_get_tasks_in_tasklist(self):
         """Test that the InMemoryTaskService can retrieve all of the Tasks
         belonging to a specific TaskList.
@@ -735,6 +718,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
             self.expected_task_data[self.expected_tasklist.entity_id],
             actual_tasks)
 
+    @skip("Working on other tests.")
     def test_update(self):
         """Test that the InMemoryTaskService can persist an updated Task and
         return the updated information when later queried for that Task.
@@ -775,6 +759,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         self.assertEqual(local_task_A.title, actual_task_A.title)
         self.assertGreater(actual_task_A.updated_date, local_task_A.updated_date)
 
+    @skip("Working on other tests.")
     def test_update_invalid_ids(self):
         """Test that attempting to update a Task with an unregistered ID will
         raise an error.
@@ -793,8 +778,11 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
             self.tasklist_service.update(unreg_task_id_task)
         with self.assertRaises(UnregisteredTaskListError):
             self.tasklist_service.update(unreg_tasklist_id_task)
-
-    def test_add(self):
+            
+    """
+    TODO: Update test documentation.
+    """
+    def test_insert(self):
         """Test that adding a Task to the task service will persist the Task,
         and that the same Task can be later retrieved using get().
 
@@ -814,31 +802,22 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         ### Arrange ###
         entity_id = "new"
         title = "New Task"
-        unreg_tasklist_id = "new-tasklist"
         before_operation = datetime.now()
 
-        new_task_reg_tasklist = Task(entity_id=entity_id, title=title,
-            tasklist_id=self.expected_tasklist.entity_id)
-        new_task_unreg_tasklist = Task(entity_id=entity_id, title=title,
-            tasklist_id=unreg_tasklist_id)
+        expected_task = Task(self.expected_tasklist, entity_id=entity_id, title=title)
 
         ### Act ###
-        self.tasklist_service.insert(new_task_reg_tasklist)
-        self.tasklist_service.insert(new_task_unreg_tasklist)
-        actual_task_reg_tasklist = self.tasklist_service.get(
+        self.tasklist_service.insert(expected_task)
+        actual_task = self.tasklist_service.get(
             self.expected_tasklist.entity_id, entity_id)
-        actual_task_unreg_tasklist = self.tasklist_service.get(
-            unreg_tasklist_id, entity_id)
 
         ### Assert ###
         self.assertEqual((entity_id, title),
-            (actual_task_reg_tasklist.entity_id, actual_task_reg_tasklist.title))
-        self.assertEqual((entity_id, title),
-            (actual_task_unreg_tasklist.entity_id, actual_task_unreg_tasklist.title))
+            (actual_task.entity_id, actual_task.title))
 
-        self.assertGreater(actual_task_reg_tasklist.updated_date, before_operation)
-        self.assertGreater(actual_task_unreg_tasklist.updated_date, before_operation)
+        self.assertGreater(actual_task.updated_date, before_operation)
 
+    @skip(USE_CASE_DEPRECATED)
     def test_add_duplicate_id(self):
         """Test that attempting to insert a Task that would overwrite an existing
         Task (identical Task and TaskList IDs) raises an error.
@@ -857,7 +836,10 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         ### Assert ###
         with self.assertRaises(EntityOverwriteError):
             self.tasklist_service.insert(duplicated_task)
-
+            
+    """
+    TODO: Update test documentation.
+    """
     def test_delete(self):
         """Test that deleting a registered Task from the TaskService properly
         updates that Task's deleted and updated date properties.
@@ -870,8 +852,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
             - Attempting to retrieve deleted Task raises an error.
         """
         ### Arrange ###
-        deletable_task = copy.deepcopy(
-            self.expected_task_data[self.expected_tasklist.entity_id].values()[0])
+        deletable_task = copy.deepcopy(self.expected_task_data.values()[0])
         before_deletion = datetime.now()
 
         ### Act ###
@@ -881,6 +862,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         self.assertTrue(deletable_task.is_deleted)
         self.assertGreater(deletable_task.updated_date, before_deletion)
 
+    @skip(USE_CASE_DEPRECATED)
     def test_delete_unreg_ids(self):
         """Test that attempting to delete a Task when either its Task or
         TaskList ID is unregistered raises an error.
