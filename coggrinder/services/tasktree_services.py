@@ -43,11 +43,6 @@ class TaskTreeService(object):
         # Create a new Task and attach it to the parent provided.
         task = Task(parent, title=title)
         
-        """
-        TODO: Is this sort call necessary?
-        """
-        self.sort()
-        
         return task        
 
     def add_tasklist(self):
@@ -57,13 +52,6 @@ class TaskTreeService(object):
         # TaskList to the top of the ordering so that it is more prominent in 
         # the app UI.
         tasklist = TaskList(self.tree, title="")
-        
-#        """
-#        TODO: This is not the most efficient way to keep the tree sorted; 
-#        instead the new TaskList should be inserted directly into the 
-#        correct position.
-#        """
-#        self.sort()
         
         return tasklist
     
