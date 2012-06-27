@@ -1227,17 +1227,17 @@ class TaskTreeViewStateManager(object):
             
         try:
             self._validate_tree_state(tree_state)        
-            
-            # TODO: Remove debug print.
-            debug("Updating tree state: {0}".format(tree_state))
-        
-            self._tree_states[entity.entity_id] = tree_state
         except EmptyTreeStateError:
             # Tree state has been cleared of all flags, so it can be 
             # removed from the collection.
             debug("Removing empty tree state for entity {id}.".format(id=entity.entity_id))
             
             del self._tree_states[entity.entity_id]       
+        else:
+            # TODO: Remove debug print.
+            debug("Updating tree state: {0}".format(tree_state))
+        
+            self._tree_states[entity.entity_id] = tree_state
 
         """
         TODO: Is this call really necessary, especially now that empty 
