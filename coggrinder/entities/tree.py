@@ -8,6 +8,7 @@ import unittest
 from unittest import skip
 from coggrinder.core.comparable import DeclaredPropertiesComparable
 from coggrinder.core.test import USE_CASE_DEPRECATED
+import copy
 
 class TreeNode(DeclaredPropertiesComparable):
     """Simple tree node that contains an arbitrary value and allows 
@@ -57,7 +58,18 @@ class TreeNode(DeclaredPropertiesComparable):
 
     @property
     def child_index(self):
-        return self.parent.children.index(self)
+        try:
+            return self.parent.children.index(self)
+        except AttributeError:
+            # Parent hasn't been defined yet, therefore simply return None.
+            return None
+    
+    """
+    TODO: This lacks test coverage.
+    """
+    @property
+    def child_values(self):
+        return [x.value for x in self.children]
     
     @property
     def descendants(self):
@@ -75,13 +87,11 @@ class TreeNode(DeclaredPropertiesComparable):
             descendants.extend(child.descendants)
         
         return descendants
-
     
     def add_child(self, child, child_index=None):
         # Ensure that the value of that the child node contains is not 
         # already in another of this node's children.
-        sibling_values = [x.value for x in self.children]
-        if not child.value in sibling_values:
+        if not child.value in self.child_values:
             # Insert child into the children list.
             if child_index is None:
                 self.children.append(child)
@@ -99,7 +109,7 @@ class TreeNode(DeclaredPropertiesComparable):
         parent.add_child(self, child_index=child_index)
         
     def has_children(self):
-        if len(self.children) > 0:
+        if self.children:
             return True
         else:
             return False
@@ -895,7 +905,7 @@ class PopulatedTreeTest(unittest.TestCase):
         tree.move_node(node_a, node_b)
 
         ### Assert ###
-        self.assertEqual(node_b, tree.get_node((0,0)))
+        self.assertEqual(node_b, tree.get_node((0, 0)))
 
     def test_move_node_root(self):
         """Test moving the root of a tree.
@@ -2264,3 +2274,60 @@ class TreeNodeEqualityTest(unittest.TestCase):
         ### Assert ###
         self.assertNotEqual(tn_one_parent, tn_two_parent)
 #------------------------------------------------------------------------------ 
+
+def node_clean_clone(tree_node):
+    # Temporarily clear the tree_node's parent and children properties. 
+    # Clearing those properties before the deep copy is executed prevents
+    # the system from making an unnecessary copy of the entire tree to 
+    # which tree_node belongs to (which  would happen should it have to 
+    # follow the parent and children refs).
+    orig_parent = tree_node.parent
+    orig_children = [x for x in tree_node.children]
+    tree_node.parent = None
+    del tree_node.children[:]
+    
+    # Make a complete clone of the tree_node, without the parent and children
+    # properties defined.
+    clone = copy.deepcopy(tree_node)
+    
+    # Reset the tree_node's parent and children properties.
+    tree_node.parent = orig_parent
+    tree_node.children.extend(orig_children)
+
+    return clone
+#------------------------------------------------------------------------------
+
+class NodeCleanCloneTest(unittest.TestCase):
+    def test_node_clean_clone(self):
+        """Test that the node_clean_clone function properly copies the 
+        value of a TreeNode while removing the parent and child references
+        held by the original.
+        
+        Arrange:
+            - Create expected value.
+            - Create parent, original, and child TreeNodes. Give the original
+            TreeNode (which will be the clone target) the expected value.
+        Act:
+            - Clone the original TreeNode.
+        Assert:
+            - That the parent and children properties of the actual cloned 
+            TreeNode are empty.
+            - That the actual cloned TreeNode contains the expected value, but
+            that value is not the same instance as was provided.
+        """
+        ### Arrange ###
+        expected_value = {1:'a', 2:'b'}
+        parent_treenode = TreeNode(value="parent")
+        original_treenode = TreeNode(parent=parent_treenode, value=expected_value)
+        child_treenode = TreeNode(parent=original_treenode, value="child")
+        
+        ### Act ###
+        actual_clone_treenode = node_clean_clone(original_treenode)
+        
+        ### Assert ###
+        self.assertIsNone(actual_clone_treenode.parent)
+        self.assertEqual([],actual_clone_treenode.children)
+        
+        self.assertEqual(expected_value, actual_clone_treenode.value)
+        self.assertIsNot(expected_value, actual_clone_treenode.value)
+#------------------------------------------------------------------------------
