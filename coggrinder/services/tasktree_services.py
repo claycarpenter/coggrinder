@@ -5,16 +5,18 @@ Created on Apr 26, 2012
 '''
 
 import unittest
+from unittest import skip
 import apiclient.discovery
 from datetime import datetime
 from coggrinder.services.task_services import GoogleServicesTaskService, GoogleServicesTaskListService, InMemoryTaskListService, InMemoryTaskService, UnregisteredEntityError
 from coggrinder.entities.tasks import UpdatedDateFilteredTask, UpdatedDateFilteredTaskList, TestDataTaskList, TestDataTask, UpdatedDateIgnoredTestDataTaskList, UpdatedDateIgnoredTestDataTask, TestDataEntitySupport, \
-    TaskList, Task
+    TaskList, Task, TestDataGoogleServicesTask
 from coggrinder.entities.tasktree import TaskTree, TaskDataTestSupport, TaskTreeComparator    
 from coggrinder.core.test import ManagedFixturesTestSupport
 from mockito import mock, when, any
 import copy
 from coggrinder.entities.properties import TaskStatus
+from coggrinder.entities.tree import node_clean_clone
 
 class TaskTreeService(object):
     def __init__(self, auth_service=None, tasklist_service=None,
@@ -37,6 +39,8 @@ class TaskTreeService(object):
         return self._current_tree
     
     def add_task(self, parent, title=""):
+        assert parent is not None
+        
         # Create a new Task and attach it to the parent provided.
         task = Task(parent, title=title)
         
@@ -55,12 +59,12 @@ class TaskTreeService(object):
         # the app UI.
         tasklist = TaskList(self.tree, title="")
         
-        """
-        TODO: This is not the most efficient way to keep the tree sorted; 
-        instead the new TaskList should be inserted directly into the 
-        correct position.
-        """
-        self.sort()
+#        """
+#        TODO: This is not the most efficient way to keep the tree sorted; 
+#        instead the new TaskList should be inserted directly into the 
+#        correct position.
+#        """
+#        self.sort()
         
         return tasklist
     
@@ -85,6 +89,7 @@ class TaskTreeService(object):
     def refresh_task_data(self):
         # Replace the current TaskTree with a new instance built from the 
         # fresh task data.
+        self._current_tree.clear()
         self._current_tree = self._create_tasktree()
 
         # Make a local copy of the clean (unmodified by the user) task data.
@@ -103,7 +108,6 @@ class TaskTreeService(object):
         # Get refreshed task data from the TaskList and Task services.
         tasklists = self.tasklist_service.list()        
         for tasklist in tasklists.values():
-            
             self.task_service.get_tasks_in_tasklist(tasklist)
 
         tasktree = TaskTree(task_data=tasklists)
@@ -281,8 +285,6 @@ class PopulatedTaskTreeServiceTestSupport(TaskTreeServiceTestSupport):
             all_tasks=cloned_all_tasks)
         
         self.expected_tasktree = copy.deepcopy(self.tasktree_srvc.tree)
-        for tasklist in self.expected_tasklists.values():
-            tasklist.attach_to_parent(self.expected_tasktree)
 
         # Register test fixtures.
         self._register_fixtures(self.expected_tasklists,
@@ -320,9 +322,9 @@ class TaskTreeServiceCreationTest(TaskTreeServiceTestSupport, unittest.TestCase)
         a basic set of results.
 
         Arrange:
-            - Create expected TaskList and Tasks.
+            - Create expected TaskTree, TaskList and Tasks.
             - Configure both mock TaskListService and TaskService services to
-            return empty lists when queried.
+            return expected Task/List lists when queried.
         Act:
             - Ask the TaskTreeService to refresh the TaskTree.
         Assert:
@@ -330,23 +332,29 @@ class TaskTreeServiceCreationTest(TaskTreeServiceTestSupport, unittest.TestCase)
             TaskTree.
         """
         ### Arrange ###
-        tasklist_a = TaskList(None, title="a")
-        task_aa = Task(tasklist_a, title="a-a")
-        task_ab = Task(tasklist_a, title="a-b")
-        task_ac = Task(tasklist_a, title="a-c")
-        expected_tasks = {task_aa.entity_id:task_aa, task_ab.entity_id:task_ab, task_ac.entity_id:task_ac}
         
-        when(self.mock_tasklist_srvc).list().thenReturn({tasklist_a.entity_id: tasklist_a})
-        when(self.mock_task_srvc).get_tasks_in_tasklist(tasklist_a).thenReturn(expected_tasks)
+        tasklist_a = TestDataTaskList(None, "a")
+        task_aa = TestDataGoogleServicesTask(tasklist_a, *"aa")
+        task_ab = TestDataGoogleServicesTask(tasklist_a, *"ab")
+        task_ac = TestDataGoogleServicesTask(tasklist_a, *"ac")
+        
+        expected_task_data = TestDataEntitySupport.create_task_data_dict(
+            copy.deepcopy(tasklist_a), copy.deepcopy(task_aa),
+            copy.deepcopy(task_ab), copy.deepcopy(task_ac))
+        expected_tasktree = TaskTree(task_data=expected_task_data)
+        
+        when(self.mock_tasklist_srvc).list().thenReturn(
+            TestDataEntitySupport.create_task_data_dict(tasklist_a))
+        when(self.mock_task_srvc).get_tasks_in_tasklist(tasklist_a).thenReturn(
+            TestDataEntitySupport.create_task_data_dict(task_aa, task_ab, task_ac))
 
         ### Act ###
         self.tasktree_srvc.refresh_task_data()
 
         ### Assert ###
-        self.assertIsNotNone(self.tasktree_srvc.tree)
+        self.assertEqual(expected_tasktree, self.tasktree_srvc.tree)
 #------------------------------------------------------------------------------ 
 
-@unittest.skip("Disabling due to refactoring.")
 class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport, unittest.TestCase):
     """This collection of tests examines the TaskTreeService's ability to
     manage and synchronize the task data it holds with the task data services
@@ -378,7 +386,10 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
 
         ### Assert ###
         self.assertEqual(expected_tasktree, self.tasktree_srvc.tree)
-
+        
+    """
+    TODO: Update test documentation.
+    """
     def test_save_task_data_tasklist_added(self):
         """Test that saving the task data will persist an added TaskList to 
         the task data services.
@@ -396,21 +407,26 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
             Foo.
         """
         ### Arrange ###
-        expected_tasklist_foo = UpdatedDateIgnoredTestDataTaskList("Foo")
-        actual_tasklist_foo = copy.deepcopy(expected_tasklist_foo)
+        expected_tasklist_foo_title = "Foo"
+        before_update = datetime.now()
 
         ### Act ###
-        self.tasktree_srvc.add_entity(actual_tasklist_foo)
-
+        actual_tasklist_foo = self.tasktree_srvc.add_tasklist()
+        actual_tasklist_foo.title = expected_tasklist_foo_title
+        tasklist_foo_id = actual_tasklist_foo.entity_id
+        
         self.tasktree_srvc.push_task_data()
         self.tasktree_srvc.refresh_task_data()
 
-        actual_tasklist_foo = self.tasktree_srvc.get_entity_for_id(
-            expected_tasklist_foo.entity_id)
+        actual_tasklist_foo = self.tasktree_srvc.get_entity_for_id(tasklist_foo_id)
 
         ### Assert ###
-        self.assertEqual(expected_tasklist_foo, actual_tasklist_foo)
+        self.assertEqual(expected_tasklist_foo_title, actual_tasklist_foo.title)
+        self.assertLess(before_update, actual_tasklist_foo.updated_date)
 
+    """
+    TODO: Update test documentation.
+    """
     def test_save_task_data_task_added(self):
         """Test that saving the task data will persist an added Task to 
         the task data services.
@@ -421,7 +437,9 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
         Act:
             - Add actual Task Foo through the TaskTreeService.
             - Save the task tree data.
-            - Refresh the task data.
+            - Refresh the task data (if the new Task hasn't been persisted 
+            correctly, refreshing the task data will wipe it out of the 
+            working tree).
             - Get the actual Task Foo.
         Assert:
             - That the post-refresh task data includes the expected Task Foo.
@@ -429,13 +447,12 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
         ### Arrange ###
         expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(
             TestDataEntitySupport.short_title_to_id('a'))
-        expected_task_foo = UpdatedDateIgnoredTestDataTask("Foo",
-            tasklist_id=expected_tasklist_a.entity_id)
-        actual_task_foo = copy.deepcopy(expected_task_foo)
+        expected_task_foo = UpdatedDateIgnoredTestDataTask(expected_tasklist_a, "Foo")
         expected_task_foo.previous_task_id = TestDataEntitySupport.short_title_to_id(*list('ac'))
 
         ### Act ###
-        self.tasktree_srvc.add_entity(actual_task_foo)
+        actual_task_foo = self.tasktree_srvc.add_task(expected_tasklist_a, "")
+        actual_task_foo.title = expected_task_foo.title
 
         self.tasktree_srvc.push_task_data()
         self.tasktree_srvc.refresh_task_data()
@@ -446,9 +463,12 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
         ### Assert ###
         self.assertEqual(expected_task_foo, actual_task_foo)
 
+    """
+    TODO: Update test documentation.
+    """
     def test_save_task_data_task_deleted(self):
-        """Test that saving the task data will persist a deleted Task to 
-        the task data services.
+        """Test that saving the task data will persist the deletion of a Task 
+        to the task data services.
 
         Arrange:
             - Find expected Task a-c-c and make local clone actual Task a-c-c.
@@ -460,9 +480,8 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
             - That the post-refresh task data does not include Task a-c-c.
         """
         ### Arrange ###
-        expected_task_acc = self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(*list('acc')))        
-        actual_task_acc = copy.deepcopy(expected_task_acc)
+        expected_acc_id = TestDataEntitySupport.short_title_to_id(*'acc') 
+        actual_task_acc = self.tasktree_srvc.get_entity_for_id(expected_acc_id)
 
         ### Act ###
         self.tasktree_srvc.delete_entity(actual_task_acc)
@@ -472,8 +491,11 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
 
         ### Assert ###
         with self.assertRaises(UnregisteredEntityError):
-            self.tasktree_srvc.get_entity_for_id(expected_task_acc.entity_id)
+            self.tasktree_srvc.get_entity_for_id(expected_acc_id)
 
+    """
+    TODO: Update test documentation.
+    """            
     def test_save_task_data_tasklist_deleted(self):
         """Test that saving the task data will persist a deleted TaskList to 
         the task data services.
@@ -490,9 +512,9 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
                 - Task a-c-c (child of TaskList a)
         """
         ### Arrange ###
-        expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id('a'))        
-        actual_tasklist_a = copy.deepcopy(expected_tasklist_a)
+        tasklist_a_id = TestDataEntitySupport.short_title_to_id('a')
+        task_acc_id = TestDataEntitySupport.short_title_to_id(*'acc')
+        actual_tasklist_a = self.tasktree_srvc.get_entity_for_id(tasklist_a_id)
 
         ### Act ###
         self.tasktree_srvc.delete_entity(actual_tasklist_a)
@@ -502,10 +524,9 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
 
         ### Assert ###
         with self.assertRaises(UnregisteredEntityError):
-            self.tasktree_srvc.get_entity_for_id(expected_tasklist_a.entity_id)
+            self.tasktree_srvc.get_entity_for_id(tasklist_a_id)
         with self.assertRaises(UnregisteredEntityError):
-            self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(*list('acc')))
+            self.tasktree_srvc.get_entity_for_id(task_acc_id)
 
     def test_save_task_data_tasklist_task_titles_updated(self):
         """Test that saving the task data will persist updated TaskList and
@@ -531,7 +552,7 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
         expected_tasklist_a.title = updated_title
 
         expected_task_a = self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id('A', 'A'))
+            TestDataEntitySupport.short_title_to_id(*'aa'))
         expected_tasklist_a.title = updated_title
 
         ### Act ###
@@ -543,12 +564,16 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
 
         actual_tasklist_a = self.tasktree_srvc.get_entity_for_id(
             expected_tasklist_a.entity_id)
-        actual_task_a = self.tasktree_srvc.get_entity_for_id(expected_task_a.entity_id)
+        actual_task_a = self.tasktree_srvc.get_entity_for_id(
+            expected_task_a.entity_id)
 
         ### Assert ###
         self.assertEqual(expected_tasklist_a, actual_tasklist_a)
         self.assertEqual(expected_task_a, actual_task_a)
 
+    """
+    TODO: This test likely needs a good cleaning.
+    """
     def test_task_data_not_saved_not_updated(self):
         """Test that updating the task data through TaskTreeService, but not
         saving leaves the task data stores unmodified.
@@ -566,31 +591,37 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
             - That the post-refresh task data does _not_ reflect the updated
             TaskList and Task titles.
         """
-        ### Arrange ###
+        ### Arrange ###            
         updated_title = "Updated!"
 
-        expected_tasklist_a = self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id('a'))
-        cloned_tasklist_a = copy.deepcopy(expected_tasklist_a)
-        cloned_tasklist_a.title = updated_title
+        tasklist_a_id = TestDataEntitySupport.short_title_to_id('a') 
+        actual_tasklist_a = self.tasktree_srvc.get_entity_for_id(tasklist_a_id)
+        expected_tasklist_a = copy.deepcopy(actual_tasklist_a)
+        actual_tasklist_a.title = updated_title
 
-        expected_task_a = self.tasktree_srvc.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(*list("aa")))
-        cloned_task_a = copy.deepcopy(expected_task_a)
-        cloned_task_a.title = updated_title
+        task_aa_id = TestDataEntitySupport.short_title_to_id(*"aa") 
+        actual_task_aa = self.tasktree_srvc.get_entity_for_id(task_aa_id)
+        expected_task_aa = copy.deepcopy(actual_task_aa)
+        actual_task_aa.title = updated_title
 
         ### Act ###
-        self.tasktree_srvc.update_entity(cloned_tasklist_a)
-        self.tasktree_srvc.update_entity(cloned_task_a)
+        self.tasktree_srvc.update_entity(expected_tasklist_a)
+        self.tasktree_srvc.update_entity(expected_task_aa)
+
+        fresh_tasklists = TaskDataTestSupport.create_tasklists(None,
+            tasklist_type=UpdatedDateIgnoredTestDataTaskList)
+        fresh_tasks = TaskDataTestSupport.create_all_tasks(
+            fresh_tasklists, task_type=UpdatedDateIgnoredTestDataTask)    
+        self.mock_tasklist_srvc.entity_store = fresh_tasklists
+        self.mock_task_srvc.entity_store = fresh_tasks
 
         self.tasktree_srvc.refresh_task_data()
 
-        actual_tasklist_a = self.tasktree_srvc.get_entity_for_id(expected_tasklist_a.entity_id)
-        actual_task_a = self.tasktree_srvc.get_entity_for_id(expected_task_a.entity_id)
+        actual_tasklist_a = self.tasktree_srvc.get_entity_for_id(tasklist_a_id)
+        actual_task_aa = self.tasktree_srvc.get_entity_for_id(task_aa_id)
 
         ### Assert ###
-        self.assertEqual(expected_tasklist_a, actual_tasklist_a)
-        self.assertEqual(expected_task_a, actual_task_a)
+        self.assertEqual(self.expected_tasktree, self.tasktree_srvc.tree)
 #------------------------------------------------------------------------------ 
 
 class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest.TestCase):
@@ -633,7 +664,7 @@ class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest
         """
         ### Arrange ###
         expected_tasklist_id = TestDataEntitySupport.short_title_to_id('a')
-        expected_tasklist = self.tasktree_srvc.tree.get_node((0, 0))
+        expected_tasklist = self.tasktree_srvc.tree.get_node((0,))
 
         ### Act ###   
         actual_tasklist = self.tasktree_srvc.get_entity_for_id(expected_tasklist_id)
