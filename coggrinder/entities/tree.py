@@ -111,9 +111,6 @@ class TreeNode(DeclaredPropertiesComparable):
         child.parent = self
         
         return child
-    
-    def attach_to_parent(self, parent, child_index=None):
-        parent.add_child(self, child_index=child_index)
         
     def clone(self):
         # Temporarily clear the parent and children properties. 
@@ -188,8 +185,8 @@ class TreeNodeTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_descendants, root.descendants)
             
-    def test_attach_to_parent_no_duplicates(self):
-        """Test that attaching a TreeNode to its parent only results in a 
+    def test_add_child_no_duplicates(self):
+        """Test that adding a TreeNode to its parent only results in a 
         single entry in the parents children collection, no matter how many 
         times the method is called.
         
@@ -211,8 +208,8 @@ class TreeNodeTest(unittest.TestCase):
         
         ### Act ###
         leaf_a.parent = root
-        leaf_a.attach_to_parent(root)
-        leaf_a.attach_to_parent(root)
+        root.add_child(leaf_a)
+        root.add_child(leaf_a)
         
         ### Assert ###
         self.assertEqual(expected_children, root.children)

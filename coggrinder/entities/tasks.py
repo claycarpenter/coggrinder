@@ -414,11 +414,6 @@ class Task(TaskList):
     
     def __gt__(self, other):
         return not self.__lt__(other)
-    
-    def attach_to_parent(self, parent, child_index=None):
-        # Directly call TreeNode's attach_to_parent implementation, avoiding
-        # the implementation used by TaskList.        
-        TreeNode.attach_to_parent(self, parent, child_index=child_index)
 #------------------------------------------------------------------------------ 
 
 class TaskTest(unittest.TestCase):
