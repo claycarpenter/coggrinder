@@ -80,13 +80,26 @@ class TaskTreeWindowController(object):
 
     @eventListener(event_name=TaskTreeEvents.SAVE)
     def _handle_save_event(self, button):
-        raise NotImplementedError
+        # Send local updates to the server.
         self.tasktree_service.push_task_data()
+        
+        # Refresh the local task data with updates from the server.
+        self.tasktree_service.refresh_task_data()
+        
+        # Update the UI.
+        self.update_view()
 
     @eventListener(event_name=TaskTreeEvents.SYNC)
     def _handle_sync_event(self, button):
-        raise NotImplementedError
-        self.tasktree_service.pull_task_data()
+        # Clear away any user changes and pull down fresh information from 
+        # the server.
+        self.tasktree_service.refresh_task_data()
+        
+        # Clear away any existing tree state (selections, expansions, etc.).
+        self.treeview_state_manager.clear_all_states()
+        
+        # Update the UI.
+        self.update_view()
 
     @eventListener(event_name=TaskTreeEvents.REVERT)
     def _handle_revert_event(self, button):        
