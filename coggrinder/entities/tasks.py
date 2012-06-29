@@ -40,7 +40,7 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
     _KEY_VALUE_MESSAGE = "{key}: {value}"
     
     _properties = (
-            EntityProperty("entity_id", GoogleKeywords.ID),
+            EntityProperty("persistence_id", GoogleKeywords.ID),
             EntityProperty("title", GoogleKeywords.TITLE),
             EntityProperty("updated_date", GoogleKeywords.UPDATED,
                 RFC3339Converter())
@@ -49,11 +49,9 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
     def __init__(self, parent, entity_id=None, title="", updated_date=None, children=None):
         # Initialize TaskList properties first so that they're available during
         # the comparison operations used in the add_child method.
-                
-        # Create a default UUID entity ID if none is provided.
         if entity_id is None:
-            entity_id = str(uuid.uuid4())
-            
+            self.local_id =  TaskList.create_entity_id()
+               
         self.entity_id = entity_id
 
         self.title = title
@@ -70,8 +68,23 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
         TreeNode.__init__(self, parent, value=self)
 
     @property
+    def entity_id(self):
+        if self.persistence_id:
+            return self.persistence_id
+        else:
+            return self.local_id
+        
+    @entity_id.setter
+    def entity_id(self, value):
+        self.persistence_id = value
+
+    @property
     def tasklist(self):
         return self
+    
+    @staticmethod
+    def create_entity_id():
+        return str(uuid.uuid4())
 
     @classmethod
     def from_str_dict(cls, str_dict):
@@ -352,6 +365,7 @@ class Task(TaskList):
         self.completed_date = None
         self.is_deleted = None
         self.is_hidden = None
+        self.parent_id = None
         
         super(Task, self).__init__(parent, entity_id, title, updated_date)
                 
