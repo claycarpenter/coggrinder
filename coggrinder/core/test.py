@@ -7,6 +7,7 @@ Created on Apr 29, 2012
 import mockito
 
 USE_CASE_DEPRECATED = "Test covers use case that is now possibly deprecated."
+DISABLED_WORKING_OTHER_TESTS = "Test is temporarily disabled to focus on fixing or developing other tests."
 
 class ManagedFixturesTestSupport(object):
     '''Simple test case utility that managed the fixtures by establishing and
