@@ -12,7 +12,7 @@ from coggrinder.services.task_services import GoogleServicesTaskService, GoogleS
 from coggrinder.entities.tasks import UpdatedDateFilteredTask, UpdatedDateFilteredTaskList, TestDataTaskList, TestDataTask, UpdatedDateIgnoredTestDataTaskList, UpdatedDateIgnoredTestDataTask, TestDataEntitySupport, \
     TaskList, Task, TestDataGoogleServicesTask
 from coggrinder.entities.tasktree import TaskTree, TaskDataTestSupport, TaskTreeComparator    
-from coggrinder.core.test import ManagedFixturesTestSupport
+from coggrinder.core.test import ManagedFixturesTestSupport, DISABLED_WORKING_OTHER_TESTS
 from mockito import mock, when, any
 import copy
 from coggrinder.entities.properties import TaskStatus
@@ -397,21 +397,17 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
         """
         ### Arrange ###
         expected_tasklist_foo_title = "Foo"
-        before_update = datetime.now()
-
+        expected_tasklist_count = len(self.tasktree_srvc.tree.tasklists) + 1
+        
         ### Act ###
         actual_tasklist_foo = self.tasktree_srvc.add_tasklist()
         actual_tasklist_foo.title = expected_tasklist_foo_title
-        tasklist_foo_id = actual_tasklist_foo.entity_id
         
         self.tasktree_srvc.push_task_data()
         self.tasktree_srvc.refresh_task_data()
 
-        actual_tasklist_foo = self.tasktree_srvc.get_entity_for_id(tasklist_foo_id)
-
         ### Assert ###
-        self.assertEqual(expected_tasklist_foo_title, actual_tasklist_foo.title)
-        self.assertLess(before_update, actual_tasklist_foo.updated_date)
+        self.assertEqual(expected_tasklist_count, len(self.tasktree_srvc.tree.tasklists))
 
     """
     TODO: Update test documentation.
