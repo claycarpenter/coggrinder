@@ -112,7 +112,7 @@ class TreeNode(DeclaredPropertiesComparable):
         
         return child
         
-    def clone(self):
+    def clean_clone(self):
         # Temporarily clear the parent and children properties. 
         # Clearing those properties before the deep copy is executed prevents
         # the system from making an unnecessary copy of the entire tree to 
@@ -274,7 +274,7 @@ class TreeNodeTest(unittest.TestCase):
         child_treenode = TreeNode(parent=original_treenode, value="child")
         
         ### Act ###
-        actual_clone_treenode = original_treenode.clone()
+        actual_clone_treenode = original_treenode.clean_clone()
         
         ### Assert ###
         self.assertIsNone(actual_clone_treenode.parent)

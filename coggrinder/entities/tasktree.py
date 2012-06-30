@@ -914,10 +914,10 @@ class TaskTreeSortTest(unittest.TestCase):
         expected_tasklist_foo = TestDataTaskList(expected_tasktree, "Foo")
         
         actual_task_data = TestDataEntitySupport.create_task_data_dict(
-            expected_tasklist_foo.clone(),
-            expected_tasklist_bar.clone(),
-            expected_tasklist_empty.clone(),
-            expected_tasklist_baz.clone())
+            expected_tasklist_foo.clean_clone(),
+            expected_tasklist_bar.clean_clone(),
+            expected_tasklist_empty.clean_clone(),
+            expected_tasklist_baz.clean_clone())
         
         ### Act ###
         actual_tasktree = TaskTree(task_data=actual_task_data)
