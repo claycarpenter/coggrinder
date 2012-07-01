@@ -85,6 +85,8 @@ class DeclaredPropertiesComparable(object):
                         self_value = getattr(self, property_name)
                         other_value = getattr(other, property_name)
                     except AttributeError:
+                        debug("Attribute error while trying to compare equality on property: '{0}'".format(property_name))
+                        
                         are_equal = False
                         break
 
