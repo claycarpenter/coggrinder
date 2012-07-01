@@ -513,44 +513,6 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         self.assertIsNotNone(actual_task)
         self.assertEqual(expected_updated_date, actual_task.updated_date)
         self.assertTrue(actual_task.is_deleted, True)
-
-    @unittest.skip("Waiting for task tree to be completed before working on this test.")
-    def test_move_task_change_parent_task(self):
-        """
-        Set up a simple hierarchy of three tasks, with task A the parent of
-        B, and B the parent of C.
-
-        Move task C up to be a direct child of A.
-
-        Check that:
-        -- C is a child of A, not B
-        -- C is ordered below B (i.e., has a higher position value)
-        """
-
-        self.assertTrue(False)
-
-    @unittest.skip("Waiting for task tree to be completed before working on this test.")
-    def test_move_task_change_parent_to_tasklist(self):
-        """
-        Set up a simple hierarchy of two tasks, with task A the parent of
-        B.
-
-        Move task B up to be a direct descendant of the owning tasklist.
-        """
-
-        self.assertTrue(False)
-
-    @unittest.skip("Waiting for task tree to be completed before working on this test.")
-    def test_move_task_change_position(self):
-        """
-        Set up a simple hierarchy of three tasks, with task A the parent of
-        both B and C (which are siblings). B initially has a higher position
-        than C.
-
-        Move C to be the first task under A (higher position than sibling B).
-        """
-
-        self.assertTrue(False)
 #------------------------------------------------------------------------------
 
 class InMemoryService(object):
@@ -670,36 +632,6 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         ### Assert ###
         self.assertEqual(expected_task, actual_task)
 
-    @skip(USE_CASE_DEPRECATED)
-    def test_get_invalid_ids(self):
-        """Test that the InMemoryTaskService raises an error when asked to
-        retrieved a Task with a Task or TaskList ID that isn't registered.
-
-        Arrange:
-            - Establish fake/unregistered Task and TaskList IDs to query for.
-            - Establish a valid Task and TaskList ID to pair with the opposite
-            query parameters (i.e., task with tasklist).
-        Assert:
-            - That asking for the Task associated with the following
-            combinations of IDs raises an error:
-                - Registered TaskList, unregistered Task
-                - Unregistered TaskList, registered Task
-                - Unregistered TaskList, unregistered Task
-        """
-        ### Arrange ###        
-        reg_task_id = self.expected_task_data[self.expected_tasklist.entity_id].keys()[0]
-        reg_tasklist_id = self.expected_tasklist.entity_id
-        unreg_task_id = "fake-task-id"
-        unreg_tasklist_id = "fake-tasklist-id"
-
-        ### Assert ###
-        with self.assertRaises(UnregisteredTaskError):
-            self.tasklist_service.get(reg_tasklist_id, unreg_task_id)
-        with self.assertRaises(UnregisteredTaskListError):
-            self.tasklist_service.get(unreg_tasklist_id, reg_task_id)
-        with self.assertRaises(UnregisteredTaskListError):
-            self.tasklist_service.get(unreg_tasklist_id, unreg_task_id)
-
     @skip("Working on other tests.")
     def test_get_tasks_in_tasklist(self):
         """Test that the InMemoryTaskService can retrieve all of the Tasks
@@ -758,26 +690,6 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         ### Assert ###
         self.assertEqual(local_task_A.title, actual_task_A.title)
         self.assertGreater(actual_task_A.updated_date, local_task_A.updated_date)
-
-    @skip("Working on other tests.")
-    def test_update_invalid_ids(self):
-        """Test that attempting to update a Task with an unregistered ID will
-        raise an error.
-
-        Arrange:
-            - Create a new Task with a fake ID.
-        Assert:
-            - That updating the Task through the task service raises an error.
-        """
-        ### Arrange ###
-        unreg_task_id_task = Task(entity_id="unreg-id", tasklist_id=self.expected_tasklist.entity_id)
-        unreg_tasklist_id_task = Task(entity_id="t-A", tasklist_id="unreg-id")
-
-        ### Assert ###
-        with self.assertRaises(UnregisteredTaskError):
-            self.tasklist_service.update(unreg_task_id_task)
-        with self.assertRaises(UnregisteredTaskListError):
-            self.tasklist_service.update(unreg_tasklist_id_task)
             
     """
     TODO: Update test documentation.
@@ -817,26 +729,6 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
 
         self.assertGreater(actual_task.updated_date, before_operation)
 
-    @skip(USE_CASE_DEPRECATED)
-    def test_add_duplicate_id(self):
-        """Test that attempting to insert a Task that would overwrite an existing
-        Task (identical Task and TaskList IDs) raises an error.
-
-        Arrange:
-            - Create a new Task with Task and TaskList ID values that are
-            identical to that of Task A in the test fixture.
-        Assert:
-            - Adding the Task raises an error.
-        """
-        ### Arrange ###
-        duplicated_task = Task(
-            entity_id=self.expected_task_data[self.expected_tasklist.entity_id].keys()[0],
-            tasklist_id=self.expected_tasklist.entity_id)
-
-        ### Assert ###
-        with self.assertRaises(EntityOverwriteError):
-            self.tasklist_service.insert(duplicated_task)
-            
     """
     TODO: Update test documentation.
     """
@@ -861,30 +753,6 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         ### Assert ###
         self.assertTrue(deletable_task.is_deleted)
         self.assertGreater(deletable_task.updated_date, before_deletion)
-
-    @skip(USE_CASE_DEPRECATED)
-    def test_delete_unreg_ids(self):
-        """Test that attempting to delete a Task when either its Task or
-        TaskList ID is unregistered raises an error.
-
-        Arrange:
-            - Create a Task with an unregistered Task ID.
-            - Create a Task with an unregistered TaskList ID.
-        Assert:
-            - That deleting either Task will raise an error.
-        """
-        ### Arrange ###
-        unreg_task_id_task = Task(entity_id="unreg",
-            tasklist_id=self.expected_tasklist.entity_id)
-        unreg_tasklist_id_task = Task(
-            entity_id=self.expected_task_data[self.expected_tasklist.entity_id].keys()[0],
-            tasklist_id="unreg")
-
-        ### Assert ###
-        with self.assertRaises(UnregisteredTaskError):
-            self.tasklist_service.delete(unreg_task_id_task)
-        with self.assertRaises(UnregisteredTaskListError):
-            self.tasklist_service.delete(unreg_tasklist_id_task)
 #------------------------------------------------------------------------------
 
 class EntityOverwriteError(Exception):
