@@ -1,24 +1,24 @@
-'''
+"""
 Created on Apr 27, 2012
 
 @author: Clay Carpenter
-'''
+"""
 
 import unittest
 from logging import debug
 
 class DeclaredPropertiesComparable(object):
-    '''Simply compares between two objects, using declared properties.
-    '''
+    """Simply compares between two objects, using declared properties."""
     def _get_comparable_properties(self):
         return self.__dict__.keys()
+    
+    @classmethod
+    def compare(cls, first, second, comparable_properties):
+        """Compares the equality of this object with another, based upon the
+        set of provided comparable properties.
 
-    def __eq__(self, other):
-        """Compares the equality of this object with another, based upon a
-        set of declared comparable properties.
-
-        In the case of a circular reference between two objects (i.e., A.other
-        = B and B.other = A), the property is ignored.
+        In the case of a circular reference between two objects (i.e., A.second
+        = B and B.second = A), the property is ignored.
 
         Circular reference in a parent-child relationship:
             A.child = B
@@ -26,18 +26,21 @@ class DeclaredPropertiesComparable(object):
             C.child = D
             D.parent = C
 
-        If I get rid of other.comparing, can I detect this circular reference?
+        If I get rid of second.comparing, can I detect this circular reference?
 
-        A.child = B
-        B.parent = C
-        C.child = D
-        D.parent = A
+            A.child = B
+            B.parent = C
+            C.child = D
+            D.parent = A
 
         I think so, because it all wraps back to A eventually...
 
-
         Args:
-            other: The other object to compare this object to.
+            first: The first object under comparison.
+            second: The second (other) object under comparison.
+            comparable_properties: An iterable that generates a sequence of 
+            str property names that should be consider when comparing the
+            equality of arguments first and second.
         Returns:
             True if the objects have equal values for all of their declared
             comparable properties; false otherwise.
@@ -46,65 +49,56 @@ class DeclaredPropertiesComparable(object):
         
         # Test if one or both of the comparable objects are None. If both are, 
         # return True, otherwise the objects are different.
-        if self is None or other is None:
-            return self is other
+        if first is None or second is None:
+            return first is second
 
         # TODO: Can this be accomplished without setting a comparing flag on 
-        # other?
+        # second?
         try:
-            if self._comparing == other._comparing:
+            if first._comparing == second._comparing:
                 # In a loop, exit immediately with True.
                 return True
         except AttributeError:
             # Objects lack comparing flag, add it.
-            self._comparing = True
+            first._comparing = True
             
             try:
-                other._comparing = True
+                second._comparing = True
             except AttributeError:
-                # Other object is a built-in class, and self is not. They 
+                # second object is a built-in class, first is not. They 
                 # are not equal.
                 return False
 
         # Simple shortcut in case of identity comparison.
-        if self is not other:
-            comparable_prop_names = self._get_comparable_properties()
+        if first is not second:
+            for property_name in comparable_properties:
+                try:
+                    first_value = getattr(first, property_name)
+                    second_value = getattr(second, property_name)
+                except AttributeError:
+                    debug("Attribute error while trying to compare equality on property: '{0}'".format(property_name))
+                    
+                    are_equal = False
+                    break
 
-            try:
-                other_comparable_prop_names = other._get_comparable_properties()
-            except AttributeError:
-                # Other object does not implement the comparable interface, 
-                # therefore they will not be considered equal.
-                return False 
-
-            if comparable_prop_names != other_comparable_prop_names:
-                are_equal = False
-            else:
-                for property_name in comparable_prop_names:
-                    try:
-                        self_value = getattr(self, property_name)
-                        other_value = getattr(other, property_name)
-                    except AttributeError:
-                        debug("Attribute error while trying to compare equality on property: '{0}'".format(property_name))
-                        
+                # Protect against infinite recursion occurring because of circular
+                # references between two objects.
+                if first_value is not second and second_value is not first:
+                    if first_value != second_value:
                         are_equal = False
+                        debug("Equality test difference -> prop: {0}, first val: '{1}', second: '{2}' --- first: {3} --- second: {4}".format(
+                            property_name, first_value, second_value, first, second))
                         break
 
-                    # Protect against infinite recursion occurring because of circular
-                    # references between two objects.
-                    if self_value is not other and other_value is not self:
-                        if self_value != other_value:
-                            are_equal = False
-                            debug("Equality test difference -> prop: {0}, self val: '{1}', other: '{2}' --- self: {3} --- other: {4}".format(
-                                property_name, self_value, other_value, self, other))
-                            break
+            # Clear the comparing flag on second.            
+            del second._comparing
 
-            # Clear the comparing flag on other.            
-            del other._comparing
-
-        del self._comparing
+        del first._comparing
 
         return are_equal
+
+    def __eq__(self, other):
+        return self.compare(self, other, self._get_comparable_properties())
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -125,25 +119,6 @@ class DeclaredPropertiesComparableTest(unittest.TestCase):
 
         ### Assert ###
         self.assertEqual(comparable_one, comparable_two)
-
-    def test_blank_vs_populated(self):
-        """Test that a blank DCP is not equal to a DCP with a property value
-        set.
-
-        Act:
-            Create a blank DCP object.
-            Create a second DCP object and give its property "a" a value of
-            1.
-        Assert:
-            That the two DCP objects are _not_ equal.
-        """
-        ### Act ###
-        comparable_one = DeclaredPropertiesComparable()
-        comparable_two = DeclaredPropertiesComparable()
-        comparable_two.a = 1
-
-        ### Assert ###
-        self.assertNotEqual(comparable_one, comparable_two)
 
     def test_populated_vs_populated_identical(self):
         """Test that two DCPs with a property value set to identical values
@@ -266,4 +241,36 @@ class DeclaredPropertiesComparableTest(unittest.TestCase):
         ### Assert ###
         self.assertNotEqual(a, b)
         self.assertNotEqual(c, d)
+        
+    def test_compare_as_classmethod(self):
+        """Test the compare functionality as a class/static method.
+        
+        Arrange:
+        
+        Act:
+        
+        Assert:
+                
+        """
+        ### Arrange ###
+        class Person(object):
+            def __init__(self, name, age, hobby):
+                self.name = name
+                self.age = age
+                self.hobby = hobby
+        
+        john = Person('John', 35, 'Sailing')
+        mary = Person('Mary', 24, 'Running')
+        john2 = Person('John', 35, 'Cooking')
+        
+        comparable_properties = ['name','age']
+        all_properties = comparable_properties + ['hobby']
+        
+        ### Assert ###
+        self.assertTrue(
+            DeclaredPropertiesComparable.compare(john, john2, comparable_properties))
+        self.assertFalse(
+            DeclaredPropertiesComparable.compare(john, john2, all_properties))
+        self.assertFalse(
+            DeclaredPropertiesComparable.compare(john, mary, comparable_properties))
 #------------------------------------------------------------------------------
