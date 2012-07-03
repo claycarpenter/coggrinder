@@ -6,6 +6,7 @@ Created on Mar 18, 2012
 
 from datetime import datetime
 import unittest
+from unittest import skip
 import uuid
 import coggrinder.utilities
 from coggrinder.entities.properties import EntityProperty, RFC3339Converter, IntConverter, BooleanConverter, TaskStatus, TaskStatusConverter
@@ -50,7 +51,7 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
         # Initialize TaskList properties first so that they're available during
         # the comparison operations used in the add_child method.
         if entity_id is None:
-            self.local_id =  TaskList.create_entity_id()
+            self.local_id = TaskList.create_entity_id()
                
         self.entity_id = entity_id
 
@@ -81,6 +82,14 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
     @property
     def tasklist(self):
         return self
+    
+    @property
+    def treeless_value(self):        
+        entity_properties = list()
+        for prop in self._get_properties():
+            entity_properties.append(prop.entity_key)
+            
+        return [self.__dict__.get(prop, None) for prop in entity_properties]
     
     @staticmethod
     def create_entity_id():
@@ -210,13 +219,16 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
     def __repr__(self):
         return self.__str__()
     
-    def __lt__(self, other):        
-        if self.title.lower() < other.title.lower():
-            return True
-        elif self.title == other.title:
-            return self.entity_id.lower() < self.entity_id.lower()
-        
-        return False
+    def __lt__(self, other):      
+        try:  
+            if self.title.lower() < other.title.lower():
+                return True
+            elif self.title == other.title:
+                return self.entity_id.lower() < self.entity_id.lower()
+            
+            return False
+        except AttributeError:
+            return NotImplemented
     
     def __gt__(self, other):
         return not self.__lt__(other)
@@ -243,6 +255,26 @@ class TaskListTest(unittest.TestCase):
         entity_2 = TaskList(None, entity_id=entity_id, title=title, updated_date=updated_date)
 
         self.assertEqual(entity_1, entity_2)
+        
+    def test_compare_different_object(self):
+        """Test equality against another type of object (a dict, in this case).
+        
+        Arrange:
+            - Create "other object" dict.
+            - Create TaskList A.        
+        Assert:
+            - That Other is not equal to TaskList A.
+            - That Other can be compared to TaskList A without raising an 
+            error.
+        """
+        ### Arrange ###
+        other = {'name':'John', 'age':35}
+        tl_a = TaskList(None, title="A")
+        
+        ### Assert ###
+        self.assertNotEqual(other, tl_a)
+        self.assertLess(tl_a, other)
+        self.assertGreater(other, tl_a)
 
     def test_ordering_comparison(self):        
         """Test the greater than and lesser than comparison operators.
@@ -409,22 +441,25 @@ class Task(TaskList):
         return entity
     
     def __lt__(self, other):
-        if self.child_index == other.child_index:
-            return super(Task, self).__lt__(other)
-        
-        # Check for an "undefined" position. This is indicated by a zero value,
-        # and such positions should be considered _greater_ than any other
-        # defined position value.
-        if self.child_index == None:
+        try:
+            if self.child_index == other.child_index:
+                return super(Task, self).__lt__(other)
+            
+            # Check for an "undefined" position. This is indicated by a zero value,
+            # and such positions should be considered _greater_ than any other
+            # defined position value.
+            if self.child_index == None:
+                return False
+            
+            if other.child_index == None:
+                return True
+            
+            if self.child_index < other.child_index:
+                return True
+            
             return False
-        
-        if other.child_index == None:
-            return True
-        
-        if self.child_index < other.child_index:
-            return True
-        
-        return False
+        except AttributeError:
+            return NotImplemented
     
     def __gt__(self, other):
         return not self.__lt__(other)
@@ -512,6 +547,25 @@ class TaskTest(unittest.TestCase):
         actual_taskitem = Task.from_str_dict(str_dict)
 
         self.assertEqual(expected_taskitem, actual_taskitem)
+        
+    def test_compare_different_object(self):
+        """Test equality against another type of object (a dict, in this case).
+        
+        Arrange:
+            - Create "other object" dict.
+            - Create Task A.        
+        Assert:
+            - That Other is not equal to Task A.
+            - That Other can be compared to Task A without raising an error.
+        """
+        ### Arrange ###
+        other = {'name':'John', 'age':35}
+        t_a = Task(None, title="A")
+        
+        ### Assert ###
+        self.assertNotEqual(other, t_a)
+        self.assertLess(t_a, other)
+        self.assertGreater(other, t_a)
 #------------------------------------------------------------------------------ 
 
 class GoogleServicesTask(Task):
@@ -686,11 +740,12 @@ class GoogleServicesTaskTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_sorted_tasks, actual_sorted_tasks)
         
+    @skip("Disabling until Task/GoogleServiceTask ordering use cases are better defined.")
     def test_sort_heterogenous_collection(self):
         """Verify that a collection of Tasks sorts in the correct order.
         
         Arrange:
-            - Create GoogleServicesTasks.
+            - Create GoogleServicesTasks 1, 2 and Task 1.
             - Create a collection of expected, sorted Tasks.
             - Create a collection of unordered Tasks.            
         Act:
