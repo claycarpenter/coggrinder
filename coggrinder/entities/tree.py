@@ -7,7 +7,7 @@ Created on Apr 11, 2012
 import unittest
 from unittest import skip
 from coggrinder.core.comparable import DeclaredPropertiesComparable
-from coggrinder.core.test import USE_CASE_DEPRECATED
+from coggrinder.core.test import USE_CASE_DEPRECATED, DISABLED_WORKING_OTHER_TESTS
 import copy
 
 class TreeNode(DeclaredPropertiesComparable):
@@ -69,7 +69,12 @@ class TreeNode(DeclaredPropertiesComparable):
     """
     @property
     def child_values(self):
-        return [x.value for x in self.children]
+        """Creates a collection of the tree-less values of each of the 
+        children.
+        
+        See the treeless_value property documentation for more information.       
+        """
+        return [x.treeless_value for x in self.children]
     
     @property
     def descendants(self):
@@ -81,6 +86,13 @@ class TreeNode(DeclaredPropertiesComparable):
             return True
         else:
             return False
+
+    @property
+    def treeless_value(self):
+        """This represents the value of the TreeNode without taking into 
+        consideration the parent and child relationships.      
+        """
+        return self.value
     
     @staticmethod
     def _collect_descendants(node):
@@ -278,7 +290,7 @@ class TreeNodeTest(unittest.TestCase):
         
         ### Assert ###
         self.assertIsNone(actual_clone_treenode.parent)
-        self.assertEqual([],actual_clone_treenode.children)
+        self.assertEqual([], actual_clone_treenode.children)
         
         self.assertEqual(expected_value, actual_clone_treenode.value)
         self.assertIsNot(expected_value, actual_clone_treenode.value)
@@ -506,10 +518,6 @@ class Tree(TreeNode):
 
         parent_node = self.get_parent_node(node_indices)
 
-        # Ensure that there is only one root to the tree.
-        if parent_node is self and parent_node.children:
-                raise DuplicateRootError()
-
         if child_index < 0 or child_index > len(parent_node.children):
             raise IndexError("Node index {0} is not valid for the parent at path {1}".format(child_index, parent_node_address))
 
@@ -580,12 +588,6 @@ class Tree(TreeNode):
             sorted_nodes.insert(insert_index, node)
 
         return sorted_nodes
-
-    def remove(self, node_indices):
-        node = self.get_node(node_indices)
-        node = self.remove_node(node)
-
-        return node
 
     def remove_node(self, node):
         try:
@@ -811,82 +813,9 @@ class PopulatedTreeTest(unittest.TestCase):
         self.assertIs(tree, leaf_node.parent.parent)
         self.assertIs(leaf_node, root_node.children[0])
 
-    @skip(USE_CASE_DEPRECATED)
-    def test_tree_insert_root_twice(self):
-        """Ensure tree raises DuplicateRootError if there are more than one root node
-        insert requests.
-
-        Arrange:
-            Create a tree with a root node.
-        Act,Assert:
-            Inserting second node (at "0") raises DuplicateRootError. (specific type of
-            exception?)
-        """
-        ### Arrange ###########################################################
-        tree = Tree()
-        tree.insert(Tree.ROOT_PATH, None)
-
-        ### Assert ############################################################
-        with self.assertRaises(DuplicateRootError):
-            tree.insert(Tree.ROOT_PATH, None)
-
-    @skip(USE_CASE_DEPRECATED)
-    def test_create_three_node_tree(self):
-        """Create a tree with the following architecture:
-        - N0
-            - N0:0
-            - N0:1
-
-        Arrange:
-            Create values to store in the two level-1 nodes (use tree path as
-            expected value).
-        Act:
-            Create a new tree.
-            Create a root node, store no value.
-            Create two nodes below root, with expected values.
-        Assert:
-            Root node has children.
-            Paths 0:0, 0:1 retrieve expected values.
-        """
-        ### Arrange ###########################################################
-        n0_0_path = Tree.ROOT_PATH + (0,)
-        n0_1_path = Tree.ROOT_PATH + (1,)
-
-        ### Act ###############################################################
-        tree = Tree()
-        tree.insert(Tree.ROOT_PATH, None)
-        tree.insert(n0_0_path, n0_0_path)
-        tree.insert(n0_1_path, n0_1_path)
-
-        ### Assert ############################################################
-        self.assertTrue(tree.has_children(Tree.ROOT_PATH))
-        self.assertEqual(n0_0_path, tree.get(n0_0_path))
-        self.assertEqual(n0_1_path, tree.get(n0_1_path))
-
-    @skip("Test may no longer be relevant.")
-    def test_build_path_from_str_no_args(self):
-        """Test building a list of path indices from a string path
-        representation.
-
-        The result should be a path with a single index that points to the
-        root node.
-
-        Arrange:
-            Create the expected path tuple (0,).
-        Act:
-            Generate a path without any arguments.
-        Assert:
-            The generated path equals the root path: 0.
-        """
-        ### Arrange ###########################################################
-        expected_root_path = Tree.ROOT_PATH
-
-        ### Act ###############################################################   
-        actual_root_path = Tree.build_path_from_str()
-
-        ### Assert ############################################################
-        self.assertEqual(expected_root_path, actual_root_path)
-
+    """
+    TODO: Verify test relevancy.
+    """
     def test_build_path_from_str_three_indices(self):
         """Test building a path indices list from a string path
         representing a third-level node.
@@ -909,6 +838,9 @@ class PopulatedTreeTest(unittest.TestCase):
         ### Assert ############################################################
         self.assertEqual(expected_leaf_path, actual_leaf_path)
 
+    """
+    TODO: Verify test relevancy.
+    """
     def test_build_str_from_path_three_levels(self):
         """Assert that building a path string with arguments creates the
         expected node address(es), and that the address generated includes
@@ -1064,18 +996,18 @@ class PopulatedTreeTest(unittest.TestCase):
             tree.get(expected_leaf_node_path)
         self.assertFalse(tree.children)
 
-    @unittest.skip("Disabling due to possible deprecation after Tree/Task refactoring.")
+    @unittest.skip(DISABLED_WORKING_OTHER_TESTS)
     def test_remove_node_leaf(self):
         """Test removing a leaf node (via remove_node).
 
         Test tree architecture:
-        - root
+        - <tree root>
             - A
             - B
 
         Arrange:
             - Create blank Tree.
-            - Create TreeNodes root, A, B.
+            - Create TreeNodes A, B.
             - Create expected Tree with nodes root, B.
         Act:
             - Remove TreeNode A.
@@ -1085,13 +1017,11 @@ class PopulatedTreeTest(unittest.TestCase):
         """
         ### Arrange ###
         tree = Tree()
-        tree.insert(Tree.ROOT_PATH, "root")
-        actual_node_a = tree.insert(Tree.ROOT_PATH + (0,), "A")
-        tree.insert(Tree.ROOT_PATH + (1,), "B")
+        actual_node_a = tree.insert((0,), "A")
+        tree.insert((1,), "B")
         
         expected_tree = Tree()
-        expected_tree.insert(Tree.ROOT_PATH, "root")
-        expected_node_b = expected_tree.insert(Tree.ROOT_PATH + (0,), "B")
+        expected_node_b = expected_tree.insert((0,), "B")
 
         ### Act ###
         tree.remove_node(actual_node_a)
@@ -1100,59 +1030,6 @@ class PopulatedTreeTest(unittest.TestCase):
         first_child_node = tree.get_node(expected_node_b.path)
         self.assertEqual(expected_node_b, first_child_node) 
         self.assertEqual(expected_tree, tree)
-
-    @unittest.skip("Disabling due to possible deprecation after Tree/Task refactoring.")
-    def test_remove_root(self):
-        """Test removing the root node of a tree with a leaf node.
-
-        Test tree architecture:
-        - 0
-            - 0:0
-
-        Arrange:
-            Create blank tree.
-            Create root node.
-            Create leaf node.
-        Act:
-            Remove root node.
-        Assert:
-            Accessing root node raises NodeNotFoundError.
-            Accessing leaf node raises NodeNotFoundError.
-        """
-        ### Arrange ###########################################################
-        tree = Tree()
-        tree.insert(Tree.ROOT_PATH)
-        tree.insert(Tree.ROOT_PATH + (0,))
-
-        ### Act ###############################################################   
-        tree.remove(Tree.ROOT_PATH)
-
-        ### Assert ############################################################
-        with self.assertRaises(NodeNotFoundError):
-            tree.get(Tree.ROOT_PATH)
-        with self.assertRaises(NodeNotFoundError):
-            tree.get(Tree.ROOT_PATH + (0,))
-
-    def test_remove_nonexistent_node(self):
-        """Test removing a nonexistent node.
-
-        This should cause an error to be raised.
-
-        Test tree architecture:
-        - 0
-
-        Arrange:
-            Create blank tree.
-            Create root node.
-        Assert:
-            Removing nonexistent node raises NodeNotFoundError.
-        """
-        ### Arrange ###########################################################
-        tree = Tree()
-
-        ### Assert ############################################################
-        with self.assertRaises(NodeNotFoundError):
-            tree.remove((0,))
 
     def test_set_nonexistent_node(self):
         """Test setting the value on a nonexistent node.
@@ -1230,176 +1107,6 @@ class PopulatedTreeTest(unittest.TestCase):
 
         ### Assert ############################################################
         self.assertFalse(tree.has_path(nonexistent_leaf_path))
-
-    @skip(USE_CASE_DEPRECATED)
-    def test_has_children_childless_node(self):
-        """Test if the tree recognizes a childless node.
-
-        Arrange:
-            Create blank tree.
-            Create root node.
-        Assert:
-            Tree reports the root node _does not_ have children.
-        """
-        ### Arrange ###########################################################
-        tree = Tree()
-        tree.insert(Tree.ROOT_PATH)
-
-        ### Assert ############################################################
-        self.assertFalse(tree.has_children(Tree.ROOT_PATH))
-    
-    @skip(USE_CASE_DEPRECATED)
-    def test_has_children_parent_node(self):
-        """Test if the tree recognizes a parent (with children) node.
-
-        Arrange:
-            Create blank tree.
-            Create root node.
-            Create a leaf node child of the root.
-        Assert:
-            Tree reports the root node does have children.
-        """
-        ### Arrange ###########################################################
-        tree = Tree()
-        tree.insert(Tree.ROOT_PATH)
-        tree.insert(Tree.ROOT_PATH + (0,))
-
-        ### Assert ############################################################
-        self.assertTrue(tree.has_children(Tree.ROOT_PATH))
-
-    @skip(USE_CASE_DEPRECATED)
-    def test_insert_occupied_position(self):
-        """Ensure inserting into an occupied position bumps up the current
-        occupant node into the next higher position.
-
-        Initial tree:
-        - None
-            - val 1
-
-        Expected result tree:
-        - None
-            - val 2
-            - val 1
-
-        Arrange:
-            Create blank tree.
-            Create root node.
-            Create expected values for the two leaf children.
-        Act:
-            Insert leaf child at position 0:0 with value val 1.
-            Insert leaf child at position 0:0 with value val 2.
-        Assert:
-            The node at position 0:0 has value val 2.
-            The node at position 0:1 has value val 1.
-            Nodes at positions 0:0,0:1 have updated paths.
-        """
-        ### Arrange ###########################################################
-        tree = Tree()
-        tree.insert(Tree.ROOT_PATH)
-        n0_0_path = Tree.ROOT_PATH + (0,)
-        n0_1_path = Tree.ROOT_PATH + (1,)
-        expected_val_1 = "val 1"
-        expected_val_2 = "val 2"
-
-        ### Act ###############################################################
-        tree.insert(n0_0_path, expected_val_1)
-        tree.insert(n0_0_path, expected_val_2)
-
-        ### Assert ############################################################
-        self.assertEqual(expected_val_2, tree.get(n0_0_path))
-        self.assertEqual(expected_val_1, tree.get(n0_1_path))
-        self.assertEqual(n0_0_path, tree.get_node(n0_0_path).path)
-        self.assertEqual(n0_1_path, tree.get_node(n0_1_path).path)
-
-    @skip(USE_CASE_DEPRECATED)
-    def test_insert_position_out_of_bounds(self):
-        """Ensure inserting into an "out of bounds" position raises an error.
-
-        An "out of bounds" position is higher than the number of children (as
-        the index starts at 0), or a negative number.
-
-        Arrange:
-            Create blank tree.
-            Create root node.
-            Create leaf node.
-        Assert:
-            Inserting a node at a negative position raises an IndexError.
-            Inserting a node at position 0:2 (when there is only one other child
-            node) raises an IndexError.
-        """
-        ### Arrange ###
-        tree = Tree()
-        tree.insert(Tree.ROOT_PATH, "root")
-        tree.insert(Tree.ROOT_PATH + (0,), "0:0")
-
-        ### Assert ###
-        with self.assertRaises(IndexError):
-            tree.insert(Tree.ROOT_PATH + (-1,), "0:-1")
-            tree.insert(Tree.ROOT_PATH + (2,), "0:2")
-
-    @skip(USE_CASE_DEPRECATED)
-    def test_insert_root_sibling(self):
-        """Ensure inserting a sibling to the root node causes a failure.
-
-        Arrange:
-            Create blank tree.
-            Create root node.
-        Assert:
-            Inserting a node at position 1 (would be a sibling to the root
-            node) raises an IndexError.
-        """
-        ### Arrange ###
-        tree = Tree()
-        tree.insert(Tree.ROOT_PATH)
-
-        ### Assert ###
-        with self.assertRaises(DuplicateRootError):
-            tree.insert((1,))
-
-    @skip("Test may no longer be relevant.")
-    def test_append_root(self):
-        """Append a root element to an empty tree.
-
-        Arrange:
-            Create blank tree.
-        Act:
-            Append new node to tree without specifying a path (creating a root
-            node).
-        Assert:
-            The tree now has a root node with the expected value.
-        """
-        ### Arrange ###
-        tree = Tree()
-        expected_value = "root"
-
-        ### Act ###
-        tree.append((), expected_value)
-
-        ### Assert ###
-        self.assertTrue(tree.has_path(Tree.ROOT_PATH))
-        self.assertEqual(expected_value, tree.get(Tree.ROOT_PATH))
-
-    @skip("Test may no longer be relevant.")
-    def test_append_second_root(self):
-        """Append another root element to a populated tree.
-
-        Arrange:
-            Create blank tree.
-            Append a root node.
-        Assert:
-            Verifying that appending a second root node to the tree raises an
-            error.
-        """
-        ### Arrange ###
-        tree = Tree()
-        expected_value = "root"
-
-        ### Act ###
-        tree.append((), expected_value)
-
-        ### Assert ###
-        self.assertTrue(tree.has_path(Tree.ROOT_PATH))
-        self.assertEqual(expected_value, tree.get(Tree.ROOT_PATH))
 
     def test_append_small_tree(self):
         """Use append to build a small, populated tree.
