@@ -22,7 +22,7 @@ class SortedTaskDataChildrenSupport(object):
             # before the first value found to compare greater than the 
             # new child's value.
             for child_index, sibling_value in enumerate(self.child_values):
-                if child.value < sibling_value:
+                if child.treeless_value < sibling_value:
                     super(SortedTaskDataChildrenSupport, self).add_child(child, child_index=child_index)
             else:
                 # This child has a value greater than those held by another 
@@ -387,8 +387,8 @@ class Task(TaskList):
             EntityProperty("is_hidden", GoogleKeywords.HIDDEN, BooleanConverter()),
         )
 
-    def __init__(self, parent, entity_id=None, title="", updated_date=None,
-            task_status=TaskStatus.NEEDS_ACTION):        
+    def __init__(self, parent, entity_id=None, tasklist_id=None, title="", updated_date=None,
+            task_status=TaskStatus.NEEDS_ACTION, parent_id=None):        
         self.task_status = task_status
 
         # Establish default properties.
@@ -397,7 +397,8 @@ class Task(TaskList):
         self.completed_date = None
         self.is_deleted = None
         self.is_hidden = None
-        self.parent_id = None
+        self.parent_id = parent_id
+        self._tasklist_id = tasklist_id
         
         super(Task, self).__init__(parent, entity_id, title, updated_date)
                 
@@ -412,7 +413,18 @@ class Task(TaskList):
         
     @property
     def tasklist_id(self):
-        return self.tasklist.entity_id
+        if self._tasklist_id is None:
+            try:
+                self._tasklist_id = self.tasklist.entity_id
+            except AttributeError:
+                # No parent TaskList defined, ignore the error.
+                pass
+            
+        return self._tasklist_id
+    
+    @tasklist_id.setter
+    def tasklist_id(self, tasklist_id):
+        self._tasklist_id = tasklist_id
 
     def _get_filter_keys(self):
         base_keys = super(Task, self)._get_filter_keys()
@@ -566,6 +578,24 @@ class TaskTest(unittest.TestCase):
         self.assertNotEqual(other, t_a)
         self.assertLess(t_a, other)
         self.assertGreater(other, t_a)
+        
+    def test_tasklist_id(self):
+        """Test that the tasklist_id property, if not manually defined, will
+        attempt to automatically resolve to the ID of the TaskList parent.
+        
+        Arrange:
+        
+        Act:
+        
+        Assert:
+                
+        """
+        ### Arrange ###
+        tl_a = TestDataTaskList(None, 'a')
+        t_foo = TestDataTask(tl_a, 'foo')
+        
+        ### Assert ###
+        self.assertEqual(tl_a.entity_id, t_foo.tasklist_id)
 #------------------------------------------------------------------------------ 
 
 class GoogleServicesTask(Task):
@@ -574,11 +604,10 @@ class GoogleServicesTask(Task):
             EntityProperty("position", GoogleKeywords.POSITION, IntConverter())
         )
 
-    def __init__(self, parent, parent_id=None, position=None, **kwargs):        
-        self.parent_id = parent_id
+    def __init__(self, parent, tasklist_id=None, parent_id=None, position=None, **kwargs):
         self.position = position
         
-        super(GoogleServicesTask, self).__init__(parent, **kwargs)
+        super(GoogleServicesTask, self).__init__(parent, parent_id=parent_id, tasklist_id=tasklist_id, **kwargs)
     
     @classmethod
     def _create_blank_entity(cls):
@@ -791,7 +820,9 @@ class TestDataTaskList(TaskList):
 
         # Create an entity id from the short title sections.
         entity_id = TestDataEntitySupport.short_title_to_id(*short_title_sections)
-
+        if not entity_id:
+            entity_id = TaskList.create_entity_id()
+            
         super(TestDataTaskList, self).__init__(parent, entity_id=entity_id, title=title,
             updated_date=datetime.now(), **kwargs)
 #------------------------------------------------------------------------------ 
@@ -831,6 +862,8 @@ class TestDataTask(Task):
 
         # Create an entity id from the short title sections.
         entity_id = TestDataEntitySupport.short_title_to_id(*short_title_sections)
+        if not entity_id:
+            entity_id = TaskList.create_entity_id()
 
         super(TestDataTask, self).__init__(parent, entity_id=entity_id, title=title,
             updated_date=datetime.now(), **kwargs)
