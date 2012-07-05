@@ -109,12 +109,13 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
                 # Key is present, convert to object value.
                 str_value = str_dict[prop.str_dict_key]
 
-                # Using the property's specific converter, convert from the string 
-                # representation to the object value.
+                # Using the property's specific converter, convert from 
+                # the string representation to the object value.
                 obj_value = prop.from_str(str_value)
 
-                # Push the object value into the new entity's corresponding property.
-                entity.__dict__[prop.entity_key] = obj_value
+                # Push the object value into the new entity's 
+                # corresponding property.
+                setattr(entity, prop.entity_key, obj_value)
 
         # Return the (hopefully completed) entity.
         return entity
@@ -397,10 +398,37 @@ class Task(TaskList):
         self.completed_date = None
         self.is_deleted = None
         self.is_hidden = None
-        self.parent_id = parent_id
+        
+        # If a parent ref has been provided, copy the ID and TaskList ID into
+        # the corresponding attributes.
+        try:
+            parent_id = parent.entity_id
+            
+            tasklist_id = parent.tasklist.entity_id
+        except AttributeError:
+            # This is fine, simply indicating that a proper parent ref wasn't
+            # provided.
+            pass
+        
+        self._parent_id = parent_id            
         self._tasklist_id = tasklist_id
         
         super(Task, self).__init__(parent, entity_id, title, updated_date)
+        
+    @property
+    def parent_id(self):
+        if self._parent_id is None:
+            try:
+                self._parent_id = self.parent.entity_id
+            except AttributeError:
+                # No parent defined, ignore the error.
+                pass
+            
+        return self._parent_id
+    
+    @parent_id.setter
+    def parent_id(self, parent_id):
+        self._parent_id = parent_id
                 
     @property
     def tasklist(self):
@@ -579,9 +607,14 @@ class TaskTest(unittest.TestCase):
         self.assertLess(t_a, other)
         self.assertGreater(other, t_a)
         
+    """
+    TODO: Update test documentation.
+    """
     def test_tasklist_id(self):
         """Test that the tasklist_id property, if not manually defined, will
         attempt to automatically resolve to the ID of the TaskList parent.
+        
+        Ensure that this property is established even for "early" clones.
         
         Arrange:
         
@@ -593,9 +626,37 @@ class TaskTest(unittest.TestCase):
         ### Arrange ###
         tl_a = TestDataTaskList(None, 'a')
         t_foo = TestDataTask(tl_a, 'foo')
+        t_foo_clone = t_foo.clean_clone()
         
         ### Assert ###
         self.assertEqual(tl_a.entity_id, t_foo.tasklist_id)
+        self.assertEqual(tl_a.entity_id, t_foo_clone.tasklist_id)
+        
+    """
+    TODO: Update test documentation.
+    """
+    def test_parent_id(self):
+        """Test that the parent_id property, if not manually defined, will
+        attempt to automatically resolve to the ID of the parent (Task or 
+        TaskList).
+        
+        Ensure that this property is established even for "clean" clones.
+        
+        Arrange:
+        
+        Act:
+        
+        Assert:
+                
+        """
+        ### Arrange ###
+        t_parent = TestDataTask(None, 'parent')
+        t_foo = TestDataTask(t_parent, 'foo')
+        t_foo_clone = t_foo.clean_clone()
+        
+        ### Assert ###
+        self.assertEqual(t_parent.entity_id, t_foo.parent_id)
+        self.assertEqual(t_parent.entity_id, t_foo_clone.parent_id)
 #------------------------------------------------------------------------------ 
 
 class GoogleServicesTask(Task):
