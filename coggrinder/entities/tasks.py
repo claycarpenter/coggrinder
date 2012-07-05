@@ -402,7 +402,9 @@ class Task(TaskList):
         # If a parent ref has been provided, copy the ID and TaskList ID into
         # the corresponding attributes.
         try:
-            parent_id = parent.entity_id
+            # Only set the parent ID if the parent is _not_ a TaskList.
+            if hasattr(parent, "parent_id"):
+                parent_id = parent.entity_id    
             
             tasklist_id = parent.tasklist.entity_id
         except AttributeError:
@@ -410,8 +412,8 @@ class Task(TaskList):
             # provided.
             pass
         
-        self._parent_id = parent_id            
-        self._tasklist_id = tasklist_id
+        self.parent_id = parent_id            
+        self.tasklist_id = tasklist_id
         
         super(Task, self).__init__(parent, entity_id, title, updated_date)
         
@@ -419,7 +421,8 @@ class Task(TaskList):
     def parent_id(self):
         if self._parent_id is None:
             try:
-                self._parent_id = self.parent.entity_id
+                if hasattr(self.parent, "parent_id"):
+                    self._parent_id = self.parent.entity_id
             except AttributeError:
                 # No parent defined, ignore the error.
                 pass
@@ -650,13 +653,15 @@ class TaskTest(unittest.TestCase):
                 
         """
         ### Arrange ###
-        t_parent = TestDataTask(None, 'parent')
+        t_parent = TestDataTaskList(None, 'parent')
         t_foo = TestDataTask(t_parent, 'foo')
-        t_foo_clone = t_foo.clean_clone()
+        t_bar = TestDataTask(t_foo,'bar')
+        t_bar_clone = t_bar.clean_clone()
         
         ### Assert ###
-        self.assertEqual(t_parent.entity_id, t_foo.parent_id)
-        self.assertEqual(t_parent.entity_id, t_foo_clone.parent_id)
+        self.assertEqual(None, t_foo.parent_id)
+        self.assertEqual(t_foo.entity_id, t_bar.parent_id)
+        self.assertEqual(t_foo.entity_id, t_bar_clone.parent_id)
 #------------------------------------------------------------------------------ 
 
 class GoogleServicesTask(Task):
