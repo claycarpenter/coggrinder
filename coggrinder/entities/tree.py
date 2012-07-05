@@ -110,7 +110,7 @@ class TreeNode(DeclaredPropertiesComparable):
     def add_child(self, child, child_index=None):
         # Ensure that the value of that the child node contains is not 
         # already in another of this node's children.
-        if not child.value in self.child_values:
+        if not child.treeless_value in self.child_values:
             # Insert child into the children list.
             if child_index is None:
                 self.children.append(child)
