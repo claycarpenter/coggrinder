@@ -979,7 +979,7 @@ class TestDataGoogleServicesTask(GoogleServicesTask):
             # ASCII letters, to compute a position. If this assumption about the
             # ASCII letters is incorrect, default to a position of 0.
             try:
-                position = self.short_title_to_position(*short_title_sections)
+                position = self.title_to_position(title)
             except ValueError:
                 position = 0
 
@@ -988,11 +988,15 @@ class TestDataGoogleServicesTask(GoogleServicesTask):
             updated_date=datetime.now(), position=position, **kwargs)
     
     @staticmethod
-    def short_title_to_position(*short_title_sections):
-        position = ""
-        for section in short_title_sections:
-            position_index = string.ascii_lowercase.index(section.lower()) + 1
-            position = position + str(position_index)
+    def title_to_position(title):
+        position = 0
+        for char in title:
+            try:
+                position_index = string.ascii_lowercase.index(char.lower()) + 1
+            except ValueError:
+                position_index = 0
+                
+            position = position + position_index
         
         return int(position)
 #------------------------------------------------------------------------------ 
@@ -1022,7 +1026,7 @@ class TestDataGoogleServicesTaskTest(unittest.TestCase):
         ### Arrange ###
         expected_long_title = "TestDataGoogleServicesTask A-C"
         expected_id = "a-c"
-        expected_position = 13
+        expected_position = 306
 
         ### Act ###
         actual_task_a = TestDataGoogleServicesTask(None, *"AC")
