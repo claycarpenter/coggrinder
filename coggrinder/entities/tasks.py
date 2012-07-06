@@ -13,6 +13,7 @@ from coggrinder.entities.properties import EntityProperty, RFC3339Converter, Int
 from coggrinder.utilities import GoogleKeywords
 from coggrinder.entities.tree import TreeNode
 import string
+from coggrinder.core.test import DISABLED_WORKING_OTHER_TESTS, USE_CASE_DEPRECATED
 
 class SortedTaskDataChildrenSupport(object):
     def add_child(self, child, child_index=None):
@@ -85,11 +86,7 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
     
     @property
     def treeless_value(self):        
-        entity_properties = list()
-        for prop in self._get_properties():
-            entity_properties.append(prop.entity_key)
-            
-        return [self.__dict__.get(prop, None) for prop in entity_properties]
+        return self.clean_clone()
     
     @staticmethod
     def create_entity_id():
@@ -386,11 +383,14 @@ class Task(TaskList):
             EntityProperty("completed_date", GoogleKeywords.COMPLETED, RFC3339Converter()),
             EntityProperty("is_deleted", GoogleKeywords.DELETED, BooleanConverter()),
             EntityProperty("is_hidden", GoogleKeywords.HIDDEN, BooleanConverter()),
+            EntityProperty("parent_id", GoogleKeywords.PARENT),
+            EntityProperty("position", GoogleKeywords.POSITION, IntConverter())
         )
 
     def __init__(self, parent, entity_id=None, tasklist_id=None, title="", updated_date=None,
-            task_status=TaskStatus.NEEDS_ACTION, parent_id=None):        
+            task_status=TaskStatus.NEEDS_ACTION, parent_id=None, position=None):        
         self.task_status = task_status
+        self.position = position
 
         # Establish default properties.
         self.notes = None
@@ -484,25 +484,47 @@ class Task(TaskList):
         return entity
     
     def __lt__(self, other):
-        try:
-            if self.child_index == other.child_index:
-                return super(Task, self).__lt__(other)
-            
-            # Check for an "undefined" position. This is indicated by a zero value,
-            # and such positions should be considered _greater_ than any other
-            # defined position value.
-            if self.child_index == None:
-                return False
-            
-            if other.child_index == None:
-                return True
-            
-            if self.child_index < other.child_index:
-                return True
+        if self.child_index == other.child_index and self.position == other.position:
+            return super(Task, self).__lt__(other)
+        
+        # Prefer to order based on child index.
+        if self.child_index is not None:
+            # Order by child index.
+            try:                
+                if other.child_index == None:
+                    return True
+                
+                if self.child_index == other.child_index:
+                    return super(Task, self).__lt__(other)
+                
+                return self.child_index < other.child_index
+            except AttributeError:
+                return NotImplemented
             
             return False
-        except AttributeError:
-            return NotImplemented
+        else:
+            # Order by position.
+            try:
+                # Check for an "undefined" position. This is indicated by a zero value,
+                # and such positions should be considered _greater_ than any other
+                # defined position value.
+                if self.position == None:
+                    return False
+                
+                if other.position == None:
+                    return True
+                
+                if self.position == other.position:
+                    return super(Task, self).__lt__(other)
+                
+                return self.position < other.position
+            except AttributeError:
+                # In the case of comparisons against another Task-type entity 
+                # that lacks a position property, defer to sorting the Tasks
+                # by the basic Task implementation (currently by child index).
+                return NotImplemented 
+        
+        raise ValueError("Could not compare the two operands {this} and {other}".format(this=self, other=other))
     
     def __gt__(self, other):
         return not self.__lt__(other)
@@ -591,25 +613,6 @@ class TaskTest(unittest.TestCase):
 
         self.assertEqual(expected_taskitem, actual_taskitem)
         
-    def test_compare_different_object(self):
-        """Test equality against another type of object (a dict, in this case).
-        
-        Arrange:
-            - Create "other object" dict.
-            - Create Task A.        
-        Assert:
-            - That Other is not equal to Task A.
-            - That Other can be compared to Task A without raising an error.
-        """
-        ### Arrange ###
-        other = {'name':'John', 'age':35}
-        t_a = Task(None, title="A")
-        
-        ### Assert ###
-        self.assertNotEqual(other, t_a)
-        self.assertLess(t_a, other)
-        self.assertGreater(other, t_a)
-        
     """
     TODO: Update test documentation.
     """
@@ -655,7 +658,7 @@ class TaskTest(unittest.TestCase):
         ### Arrange ###
         t_parent = TestDataTaskList(None, 'parent')
         t_foo = TestDataTask(t_parent, 'foo')
-        t_bar = TestDataTask(t_foo,'bar')
+        t_bar = TestDataTask(t_foo, 'bar')
         t_bar_clone = t_bar.clean_clone()
         
         ### Assert ###
@@ -664,57 +667,24 @@ class TaskTest(unittest.TestCase):
         self.assertEqual(t_foo.entity_id, t_bar_clone.parent_id)
 #------------------------------------------------------------------------------ 
 
+"""
+TODO: This class is unnecessary at this point, and needs to be removed.
+"""
 class GoogleServicesTask(Task):
-    _properties = Task._get_properties() + (
-            EntityProperty("parent_id", GoogleKeywords.PARENT),
-            EntityProperty("position", GoogleKeywords.POSITION, IntConverter())
-        )
-
     def __init__(self, parent, tasklist_id=None, parent_id=None, position=None, **kwargs):
-        self.position = position
         
-        super(GoogleServicesTask, self).__init__(parent, parent_id=parent_id, tasklist_id=tasklist_id, **kwargs)
+        super(GoogleServicesTask, self).__init__(parent, parent_id=parent_id,
+            tasklist_id=tasklist_id, position=position, **kwargs)
     
     @classmethod
     def _create_blank_entity(cls):
         entity = GoogleServicesTask(None)
 
         return entity
-
-    def _get_comparable_properties(self):
-        base_properties = Task._get_comparable_properties(self)
-        base_properties.append("parent_id")
-        base_properties.append("position")
-        
-        return base_properties
-    
-    def __lt__(self, other):
-        try:
-            if self.position == other.position:
-                return super(Task, self).__lt__(other)
-            
-            # Check for an "undefined" position. This is indicated by a zero value,
-            # and such positions should be considered _greater_ than any other
-            # defined position value.
-            if self.position == None:
-                return False
-            
-            if other.position == None:
-                return True
-            
-            if self.position < other.position:
-                return True
-        except AttributeError:
-            # In the case of comparisons against another Task-type entity 
-            # that lacks a position property, defer to sorting the Tasks
-            # by the basic Task implementation (currently by child index).
-            return Task.__lt__(self, other) 
-        
-        return False
 #------------------------------------------------------------------------------
 
 class GoogleServicesTaskTest(unittest.TestCase):        
-    def assertRichComparison(self, lesser, greater):
+    def assertLesserGreaterRichComparison(self, lesser, greater):
         self.assertNotEqual(greater, lesser)
         self.assertGreater(greater, lesser)
         self.assertLess(lesser, greater)
@@ -793,19 +763,21 @@ class GoogleServicesTaskTest(unittest.TestCase):
                 - 0 Foo > 0 Bar 
         """    
         ### Arrange ###
-        entity_1 = GoogleServicesTask(None, position=1)
-        entity_02 = GoogleServicesTask(None, position=02)
-        entity_3403 = GoogleServicesTask(None, position=3403)
-        entity_undefined = GoogleServicesTask(None)
-        entity_undefined_foo = GoogleServicesTask(None, title="Foo")
-        entity_undefined_bar = GoogleServicesTask(None, title="Bar")
+        gstask_1 = GoogleServicesTask(None, position=1)
+        gstask_02 = GoogleServicesTask(None, position=02)
+        gstask_3403 = GoogleServicesTask(None, position=3403)
+        gstask_undefined = GoogleServicesTask(None)
+        gstask_undefined_foo = GoogleServicesTask(None, title="Foo")
+        gstask_undefined_bar = GoogleServicesTask(None, title="Bar")
+        task_empty = Task(None, title="")
 
         ### Assert ###
-        self.assertRichComparison(entity_1, entity_02)
-        self.assertRichComparison(entity_02, entity_3403)
-        self.assertRichComparison(entity_1, entity_undefined)
-        self.assertRichComparison(entity_3403, entity_undefined)
-        self.assertRichComparison(entity_undefined_bar, entity_undefined_foo)
+        self.assertLesserGreaterRichComparison(gstask_1, gstask_02)
+        self.assertLesserGreaterRichComparison(gstask_02, gstask_3403)
+        self.assertLesserGreaterRichComparison(gstask_1, gstask_undefined)
+        self.assertLesserGreaterRichComparison(gstask_3403, gstask_undefined)
+        self.assertLesserGreaterRichComparison(gstask_undefined_bar, gstask_undefined_foo)
+        self.assertLesserGreaterRichComparison(gstask_1, task_empty)
         
     def test_sort_collection(self):
         """Verify that a collection of GoogleServiceTasks sort in the 
@@ -835,34 +807,31 @@ class GoogleServicesTaskTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(expected_sorted_tasks, actual_sorted_tasks)
         
-    @skip("Disabling until Task/GoogleServiceTask ordering use cases are better defined.")
     def test_sort_heterogenous_collection(self):
-        """Verify that a collection of Tasks sorts in the correct order.
+        """Verify that the addition of a new Task to a sibling group that 
+        contains only GoogleServicesTasks will be properly ordered at the
+        bottom of the sibling group.
         
         Arrange:
-            - Create GoogleServicesTasks 1, 2 and Task 1.
-            - Create a collection of expected, sorted Tasks.
-            - Create a collection of unordered Tasks.            
+            - Create Parent TaskList and GoogleServicesTasks 1, 2.
+            - Create an index value where the new Task should be found.
         Act:
-            - Calculate the actual sorted collection of Tasks.
+            - Create the new Task.
         Assert:
-            - That the expected sorted and actual sorted GoogleServicesTask collections 
-            are equal.
+            - Compare the newly created Task with the child that is ordered
+            at the bottom of the Parent TaskList children sibling group. 
         """    
         ### Arrange ###
         tasklist = TaskList(None, title="Parent TaskList")
         gtask_1 = GoogleServicesTask(tasklist, title="gtask 1", position=1)
-        task_1 = Task(tasklist, title="task 1")
         gtask_2 = GoogleServicesTask(tasklist, title="gtask 2", position=2)
+        expected_new_task_child_index = len(tasklist.children)
         
-        expected_sorted_tasks = [gtask_1, task_1, gtask_2]
-        input_tasks = [gtask_2, gtask_1, task_1]
-        
-        ### Act ###
-        actual_sorted_tasks = sorted(input_tasks)
+        ### Act ###        
+        new_task = Task(tasklist, title="")
         
         ### Assert ###
-        self.assertEqual(expected_sorted_tasks, actual_sorted_tasks)
+        self.assertEqual(new_task, tasklist.children[expected_new_task_child_index])
 
 #------------------------------------------------------------------------------
 class UpdatedDateFilteredTask(Task):
@@ -972,16 +941,16 @@ class TestDataGoogleServicesTask(GoogleServicesTask):
         entity_id = TestDataEntitySupport.short_title_to_id(*short_title_sections)
         
         # Default to position value in kwargs.
-        if "position" in kwargs.keys():
+        try:
             position = kwargs["position"]
-        else:
+        except KeyError:
             # Use the short title sections, expected to be single character 
             # ASCII letters, to compute a position. If this assumption about the
             # ASCII letters is incorrect, default to a position of 0.
             try:
                 position = self.title_to_position(title)
             except ValueError:
-                position = 0
+                position = None
 
         super(TestDataGoogleServicesTask, self).__init__(parent,
             entity_id=entity_id, title=title,
