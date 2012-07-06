@@ -273,6 +273,14 @@ class TaskTreeServiceTestSupport(ManagedFixturesTestSupport):
 #------------------------------------------------------------------------------
 
 class PopulatedTaskTreeServiceTestSupport(TaskTreeServiceTestSupport):
+    @classmethod
+    def setUpClass(cls):
+        # Create the expected task data and their containers.
+        cls.expected_tasklists = TaskDataTestSupport.create_tasklists(None,
+            tasklist_type=TestDataTaskList)
+        cls.expected_all_tasks = TaskDataTestSupport.create_all_tasks(
+            cls.expected_tasklists, task_type=TestDataGoogleServicesTask)
+        
     def setUp(self):
         """Establish test fixtures common to all tests within this setup.
 
@@ -281,12 +289,6 @@ class PopulatedTaskTreeServiceTestSupport(TaskTreeServiceTestSupport):
         - Wire the test fixture TaskTreeService to use both of these services
         for data storage.
         """
-
-        # Create the expected task data and their containers.
-        self.expected_tasklists = TaskDataTestSupport.create_tasklists(None,
-            tasklist_type=TestDataTaskList)
-        self.expected_all_tasks = TaskDataTestSupport.create_all_tasks(
-            self.expected_tasklists, task_type=TestDataGoogleServicesTask)
 
         # Create cloned copies of the expected task data that can be given to 
         # the mock task data services.
@@ -304,8 +306,7 @@ class PopulatedTaskTreeServiceTestSupport(TaskTreeServiceTestSupport):
         self.expected_tasktree = copy.deepcopy(self.tasktree_srvc.tree)
 
         # Register test fixtures.
-        self._register_fixtures(self.expected_tasklists,
-            self.expected_all_tasks, self.expected_tasktree)
+        self._register_fixtures(self.expected_tasktree)
 #------------------------------------------------------------------------------ 
 
 class TaskTreeServiceCreationTest(TaskTreeServiceTestSupport, unittest.TestCase):
