@@ -10,6 +10,9 @@ from logging import debug
 class DeclaredPropertiesComparable(object):
     """Simply compares between two objects, using declared properties."""
     def _get_comparable_properties(self):
+        """Simple default implementation uses all mappings in the instance's
+        __dict__ attribute.        
+        """
         return self.__dict__.keys()
     
     @classmethod
@@ -86,8 +89,8 @@ class DeclaredPropertiesComparable(object):
                 if first_value is not second and second_value is not first:
                     if first_value != second_value:
                         are_equal = False
-                        debug("Equality test difference -> prop: {0}, first val: '{1}', second: '{2}' --- first: {3} --- second: {4}".format(
-                            property_name, first_value, second_value, first, second))
+                        debug("Equality test difference -> prop: {property_name}, first value: '{first_value}', second: '{second_value}' --- first: {first} --- second: {second}".format(
+                            property_name=property_name, first_value=first_value, second_value=second_value, first=first, second=second))
                         break
 
             # Clear the comparing flag on second.            
