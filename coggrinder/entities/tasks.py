@@ -473,10 +473,14 @@ class Task(TaskList):
     on all relevant attributes.
     """
     def _get_comparable_properties(self):
-        base_properties = TaskList._get_comparable_properties(self)
+        comparable_properties = list()
+        for prop in self._get_properties():
+            comparable_properties.append(prop.entity_key)
+           
+        comparable_properties.append("tasklist_id")
         
-        return base_properties
-
+        return comparable_properties
+    
     @classmethod
     def _create_blank_entity(cls):
         entity = Task(None)
@@ -535,6 +539,30 @@ class TaskTest(unittest.TestCase):
     TODO: This test case probably needs to include a couple of tests to ensure
     that equality comparisons (eq, ne) are working properly.
     """
+    def test_equality(self):
+        """Test the equality comparisons by comparing like and unlike Tasks.
+        
+        Arrange:
+            - Create Tasks A, B (identical to A but in different TaskList), 
+            A2 (identical to A).
+        Assert:
+            - That Tasks A and A2 are identical.
+            - That Tasks A and B are not identical.
+        """
+        ### Arrange ###
+        t_a = Task(None, entity_id="a", title="a", parent_id=None, position=123,
+            task_status=TaskStatus.NEEDS_ACTION, tasklist_id="tl-a")
+        t_a2 = Task(None, entity_id=t_a.entity_id, title=t_a.title,
+            parent_id=t_a.parent_id, position=t_a.position,
+            task_status=t_a.task_status, tasklist_id=t_a.tasklist_id)
+        t_b = Task(None, entity_id=t_a.entity_id, title=t_a.title,
+            parent_id=t_a.parent_id, position=t_a.position,
+            task_status=t_a.task_status, tasklist_id="tl-b")
+        
+        ### Assert ###
+        self.assertEqual(t_a, t_a2)
+        self.assertNotEqual(t_a, t_b)
+            
     def test_to_str_dict(self):
         task_id = "abcid"
         task_title = "task title"
