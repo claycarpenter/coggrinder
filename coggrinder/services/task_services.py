@@ -15,7 +15,6 @@ from datetime import datetime
 from coggrinder.entities.properties import TaskStatus, IntConverter, TaskStatusConverter, StrConverter, RFC3339Converter, BooleanConverter
 from coggrinder.utilities import GoogleKeywords
 from coggrinder.core.test import ManagedFixturesTestSupport, USE_CASE_DEPRECATED
-import apiclient.discovery
 import json
 
 class ProxiedService(object):
@@ -203,6 +202,9 @@ class GoogleServicesTaskService(AbstractTaskService):
                 # Create a Task to represent the result captured in the 
                 # str dict.
                 task = GoogleServicesTask.from_str_dict(task_str_dict)
+                
+                # Link the Task to it's owning TaskList.
+                task.tasklist_id = tasklist.entity_id
 
                 # Add the resulting Task to the results collection.
                 tasks[task.entity_id] = task
@@ -314,24 +316,28 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
                updated_date=datetime(2012, 5, 24, 22, 35, 20),
                position=1610612735,
                entity_id="MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjkzOTI1MDgyNw",
+               tasklist_id=expected_tasklist.entity_id,
                task_status=TaskStatus.NEEDS_ACTION)
         
         expected_task_aa = GoogleServicesTask(None, title="a-a",
                updated_date=datetime(2012, 5, 24, 22, 35, 27),
                position=1610612735, parent_id=expected_task_a.entity_id,
                entity_id="MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjE5ODIyNjA0MTg",
+               tasklist_id=expected_tasklist.entity_id,
                task_status=TaskStatus.NEEDS_ACTION)
         
         expected_task_aaa = GoogleServicesTask(None, title="a-a-a",
                updated_date=datetime(2012, 5, 25, 2, 33, 33),
                position=2147483647, parent_id=expected_task_aa.entity_id,
                entity_id="MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjMwNTIwNzY5Ng",
+               tasklist_id=expected_tasklist.entity_id,
                task_status=TaskStatus.NEEDS_ACTION)
         
         expected_task_ab = GoogleServicesTask(None, title="a-b",
                updated_date=datetime(2012, 5, 25, 2, 33, 30),
                position=3758096383, parent_id=expected_task_a.entity_id,
                entity_id="MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjE0ODk4NzI4MDU",
+               tasklist_id=expected_tasklist.entity_id,
                task_status=TaskStatus.NEEDS_ACTION)  
 
         expected_tasks = TestDataEntitySupport.create_task_data_dict(expected_task_a, expected_task_aa, expected_task_aaa, expected_task_ab)
