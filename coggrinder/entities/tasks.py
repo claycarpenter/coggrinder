@@ -17,24 +17,40 @@ from coggrinder.core.test import DISABLED_WORKING_OTHER_TESTS, USE_CASE_DEPRECAT
 
 class SortedTaskDataChildrenSupport(object):
     def add_child(self, child, child_index=None):
-        if child_index is None:
-            # No child index was specified. Determine the sorted order for this
-            # new child by iterating over the sibling values, and inserting 
-            # before the first value found to compare greater than the 
-            # new child's value.
-            for child_index, sibling_value in enumerate(self.child_values):
-                if child.treeless_value < sibling_value:
-                    super(SortedTaskDataChildrenSupport, self).add_child(child, child_index=child_index)
-            else:
-                # This child has a value greater than those held by another 
-                # other sibling. Simply add this new child to the end of the
-                # current list (lowest order).
-                super(SortedTaskDataChildrenSupport, self).add_child(child)
-        else:
-            # Child index is defined. Defer to the super (TreeNode?) 
-            # implementation that will insert this node directly into the 
-            # specified position.
+        if child_index is not None:
             super(SortedTaskDataChildrenSupport, self).add_child(child, child_index=child_index)
+        else:
+            try:
+                if child.position is not None:
+                    # New child is a Task-like entity and has a defined 
+                    # position.
+                    # Order by position, placing any Tasks with defined 
+                    # positions before those that have undefined positions.
+                    for sibling_index, sibling in enumerate(self.children):
+                        if sibling.position is None or child.position < sibling.position:
+                            # Sibling either has no position or has a higher
+                            # position value (and therefore a lower ordering)
+                            # than the new child. Insert the new child before
+                            # the sibling.
+                            child_index = sibling_index
+                            break
+                            
+                # If the new child is a Task-like entity without a defined
+                # position, the child_index value will still be None. This
+                # will insert the new Task at the end of the sibling group.
+                super(SortedTaskDataChildrenSupport, self).add_child(child, child_index=None)
+            except AttributeError:
+                # New child is a TaskList-type entity.
+                for sibling_index, sibling in enumerate(self.children):
+                    if child.title < sibling.title:
+                        child_index = sibling_index
+                        break
+                
+                # If the new TaskList has a title with a higher lexicographical
+                # ordering, it will reach this point with a child_index value 
+                # that is still None. This will add the new TaskList to the
+                # end (lowest order) of the sibling group (self.children). 
+                super(SortedTaskDataChildrenSupport, self).add_child(child, child_index=child_index)
 #------------------------------------------------------------------------------
 
 class TaskList(SortedTaskDataChildrenSupport, TreeNode):
@@ -693,6 +709,29 @@ class TaskTest(unittest.TestCase):
         self.assertEqual(None, t_foo.parent_id)
         self.assertEqual(t_foo.entity_id, t_bar.parent_id)
         self.assertEqual(t_foo.entity_id, t_bar_clone.parent_id)
+        
+    """
+    TODO: This test needs to be documented.
+    """
+    def test_new_task_ordering(self):
+        """
+        
+        Arrange:
+        
+        Act:
+        
+        Assert:
+                
+        """
+        ### Arrange ###
+        t_parent = Task(None, title="parent")
+        
+        ### Act ###
+        t_1 = Task(t_parent, title="1")
+        t_2 = Task(t_parent, title="")
+        
+        ### Assert ###
+        self.assertEqual([t_1, t_2], t_parent.children)
 #------------------------------------------------------------------------------ 
 
 """
