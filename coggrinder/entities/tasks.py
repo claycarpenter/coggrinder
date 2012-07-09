@@ -14,6 +14,7 @@ from coggrinder.utilities import GoogleKeywords
 from coggrinder.entities.tree import TreeNode
 import string
 from coggrinder.core.test import DISABLED_WORKING_OTHER_TESTS, USE_CASE_DEPRECATED
+import json
 
 class SortedTaskDataChildrenSupport(object):
     def add_child(self, child, child_index=None):
@@ -64,15 +65,20 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
                 RFC3339Converter())
         )
 
-    def __init__(self, parent, entity_id=None, title="", updated_date=None, children=None):
+    def __init__(self, parent, entity_id=None, title="", updated_date=None, 
+        children=None, persistence_id=None, is_persisted=False):
         # Initialize TaskList properties first so that they're available during
         # the comparison operations used in the add_child method.
         if entity_id is None:
             self.local_id = TaskList.create_entity_id()
-               
+        else:
+            self.local_id = None
+            
+        self.persistence_id = persistence_id            
         self.entity_id = entity_id
-
         self.title = title
+        
+        self.is_persisted = is_persisted
 
         if updated_date is None:
             updated_date = datetime.now()
@@ -80,8 +86,8 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
         # Strip the timestamp down to just date (year, month, day) and 
         # a time that includes hours, minutes, and seconds. Microseconds and
         # any timezone info are not preserved.            
-        self.updated_date = datetime(updated_date.year, updated_date.month, updated_date.day,
-            updated_date.hour, updated_date.minute, updated_date.second)
+        self.updated_date = datetime(updated_date.year, updated_date.month, 
+            updated_date.day, updated_date.hour, updated_date.minute, updated_date.second)
                 
         TreeNode.__init__(self, parent, value=self)
 
@@ -113,23 +119,8 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
         # Create a new blank entity.
         entity = cls._create_blank_entity()
 
-        # Loop through each property, converting each string representation 
-        # into the correct "object" value for the property.
-        for prop in cls._get_properties():
-            # For each property, lookup the value of the property in the string
-            # dict.
-            if str_dict.has_key(prop.str_dict_key):
-                # Key is present, convert to object value.
-                str_value = str_dict[prop.str_dict_key]
-
-                # Using the property's specific converter, convert from 
-                # the string representation to the object value.
-                obj_value = prop.from_str(str_value)
-
-                # Push the object value into the new entity's 
-                # corresponding property.
-                setattr(entity, prop.entity_key, obj_value)
-
+        entity.update_from_str_dict(str_dict)
+                
         # Return the (hopefully completed) entity.
         return entity
 
@@ -186,6 +177,26 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
 
         return entity_dict
     
+    def update_from_str_dict(self, str_dict):
+        # Loop through each property, converting each string representation 
+        # into the correct "object" value for the property.
+        for prop in self._get_properties():
+            # For each property, lookup the value of the property in the string
+            # dict.
+            if str_dict.has_key(prop.str_dict_key):
+                # Key is present, convert to object value.
+                str_value = str_dict[prop.str_dict_key]
+
+                # Using the property's specific converter, convert from 
+                # the string representation to the object value.
+                obj_value = prop.from_str(str_value)
+
+                # Push the object value into the new entity's 
+                # corresponding property.
+                setattr(self, prop.entity_key, obj_value)
+                
+        return self
+    
     def _ordered_entity_info(self, str_dict):
         prop_values = list()
         for prop in self._get_properties():
@@ -221,6 +232,7 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
         """
         comparable_properties.append("children")
         comparable_properties.append("parent")
+        comparable_properties.append("is_persisted")
         
         return comparable_properties
     
@@ -249,10 +261,13 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
 #------------------------------------------------------------------------------ 
 
 class TaskListTest(unittest.TestCase):
+    """
+    TODO: This test really needs some cleanup work done.
+    """
     def test_creation(self):
         # This should work.
         TaskList(None, entity_id="aljkdfkj", title="Title")
-
+        
         # Using a string as an updated_date timestamp should fail.
         with self.assertRaises(AttributeError):
             TaskList(None, entity_id="aljkdfkj", title="Title", updated_date=29)
@@ -267,8 +282,12 @@ class TaskListTest(unittest.TestCase):
         updated_date = datetime.now()
         entity_1 = TaskList(None, entity_id=entity_id, title=title, updated_date=updated_date)
         entity_2 = TaskList(None, entity_id=entity_id, title=title, updated_date=updated_date)
+        
+        persisted_tasklist = TaskList(None, entity_id=entity_id, title=title, updated_date=updated_date, is_persisted=True)
+        transient_tasklist = TaskList(None, entity_id=entity_id, title=title, updated_date=updated_date, is_persisted=False)
 
         self.assertEqual(entity_1, entity_2)
+        self.assertNotEqual(persisted_tasklist, transient_tasklist)
         
     def test_compare_different_object(self):
         """Test equality against another type of object (a dict, in this case).
@@ -364,6 +383,40 @@ class TaskListTest(unittest.TestCase):
         result_entity = TaskList.from_str_dict(entity_dict)
 
         self.assertEqual(expected_entity, result_entity)
+        
+    """
+    TODO: Update/complete test doc.
+    """
+    def test_update_from_str_dict(self):
+        """
+        
+        Arrange:
+            - Create a new TaskList.
+        Act:
+            - Update the TaskList with a mock insert request response.
+        Assert:
+            - That the TaskList has been updated with the mock information.
+        """
+        ### Arrange ###
+        mock_insert_response_str = '''{
+            "kind": "tasks#taskList",
+            "id": "MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTk3NDg0OTU5Mjow",
+            "etag": "-kSxjsniVV6Hn53-kChReeLNJUE/C-2Y15dCA_rEUUo1IGBfAfOcI-Q",
+            "title": "mock insert",
+            "updated": "2012-07-08T22:08:26.000Z",
+            "selfLink": "https://www.googleapis.com/tasks/v1/users/@me/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTk3NDg0OTU5Mjow"
+        }'''
+        insert_result_str_dict = json.loads(mock_insert_response_str)
+        tl_new = TaskList(None, title="TL New")
+        
+        ### Act ###
+        tl_new.update_from_str_dict(insert_result_str_dict)
+        
+        ### Assert ###
+        self.assertEqual(tl_new.entity_id, insert_result_str_dict["id"])
+        
+        updated_date = datetime.strptime(insert_result_str_dict["updated"],"%Y-%m-%dT%H:%M:%S.000Z")
+        self.assertEqual(tl_new.updated_date, updated_date)
 
     def test_to_dict(self):
         entity = TaskList(None, entity_id="1",
@@ -403,8 +456,9 @@ class Task(TaskList):
             EntityProperty("position", GoogleKeywords.POSITION, IntConverter())
         )
 
-    def __init__(self, parent, entity_id=None, tasklist_id=None, title="", updated_date=None,
-            task_status=TaskStatus.NEEDS_ACTION, parent_id=None, position=None):        
+    def __init__(self, parent, entity_id=None, tasklist_id=None, title="",
+        updated_date=None, task_status=TaskStatus.NEEDS_ACTION,
+        parent_id=None, position=None, persistence_id=None, is_persisted=False):        
         self.task_status = task_status
         self.position = position
 
@@ -431,22 +485,32 @@ class Task(TaskList):
         self.parent_id = parent_id            
         self.tasklist_id = tasklist_id
         
-        super(Task, self).__init__(parent, entity_id, title, updated_date)
+        super(Task, self).__init__(parent, entity_id, title, updated_date, persistence_id=persistence_id, is_persisted=is_persisted)
         
     @property
     def parent_id(self):
-        if self._parent_id is None:
-            try:
-                if hasattr(self.parent, "parent_id"):
-                    self._parent_id = self.parent.entity_id
-            except AttributeError:
-                # No parent defined, ignore the error.
-                pass
-            
+        if self.parent is not None and hasattr(self.parent, "task_status"):
+            return self.parent.entity_id
+        
         return self._parent_id
     
     @parent_id.setter
     def parent_id(self, parent_id):
+        # Make sure that if this Task is linked to a parent Task, the
+        # updated ID matches that of the linked Task. Note that Task's that
+        # are direct children of their belonging TaskList have undefined 
+        # (None) parent values.
+        """
+        TODO: This needs a test to validate its behavior.
+        """
+        try:
+            if self.parent is not None:
+                assert parent_id == self.parent.entity_id
+        except AttributeError:
+            # Parent-child relationship has not been established.
+            # Set the parent_id to be None.
+            pass
+            
         self._parent_id = parent_id
                 
     @property
@@ -460,19 +524,23 @@ class Task(TaskList):
         
     @property
     def tasklist_id(self):
-        if self._tasklist_id is None:
-            try:
-                self._tasklist_id = self.tasklist.entity_id
-            except AttributeError:
-                # No parent TaskList defined, ignore the error.
-                pass
-            
+        if self.tasklist is not None:
+            return self.tasklist.entity_id
+        
         return self._tasklist_id
     
     @tasklist_id.setter
     def tasklist_id(self, tasklist_id):
+        # Make sure that if this Task is linked to a parent TaskList, the
+        # updated ID matches that of the linked TaskList.
+        """
+        TODO: This needs a test to validate its behavior.
+        """
+        if self.tasklist is not None:
+            assert tasklist_id == self.tasklist.entity_id
+            
         self._tasklist_id = tasklist_id
-
+        
     def _get_filter_keys(self):
         base_keys = super(Task, self)._get_filter_keys()
 
@@ -492,8 +560,12 @@ class Task(TaskList):
         comparable_properties = list()
         for prop in self._get_properties():
             comparable_properties.append(prop.entity_key)
-           
-        comparable_properties.append("tasklist_id")
+
+        """
+       TODO: Shouldn't this also include/compare parent_id?
+       """           
+        comparable_properties.append("tasklist_id")   
+        comparable_properties.append("is_persisted")
         
         return comparable_properties
     
@@ -568,6 +640,8 @@ class TaskTest(unittest.TestCase):
         ### Arrange ###
         t_a = Task(None, entity_id="a", title="a", parent_id=None, position=123,
             task_status=TaskStatus.NEEDS_ACTION, tasklist_id="tl-a")
+        t_a_persisted = Task(None, entity_id="a", title="a", parent_id=None, position=123,
+            task_status=TaskStatus.NEEDS_ACTION, tasklist_id="tl-a", is_persisted=True)
         t_a2 = Task(None, entity_id=t_a.entity_id, title=t_a.title,
             parent_id=t_a.parent_id, position=t_a.position,
             task_status=t_a.task_status, tasklist_id=t_a.tasklist_id)
@@ -578,6 +652,7 @@ class TaskTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(t_a, t_a2)
         self.assertNotEqual(t_a, t_b)
+        self.assertNotEqual(t_a, t_a_persisted)
             
     def test_to_str_dict(self):
         task_id = "abcid"
@@ -739,9 +814,9 @@ TODO: This class is unnecessary at this point, and needs to be removed.
 """
 class GoogleServicesTask(Task):
     def __init__(self, parent, tasklist_id=None, parent_id=None, position=None, **kwargs):
-        
+        # GoogleServicesTasks are always persisted.
         super(GoogleServicesTask, self).__init__(parent, parent_id=parent_id,
-            tasklist_id=tasklist_id, position=position, **kwargs)
+            tasklist_id=tasklist_id, position=position, is_persisted=True, **kwargs)
     
     @classmethod
     def _create_blank_entity(cls):
