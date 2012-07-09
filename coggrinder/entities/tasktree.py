@@ -16,7 +16,6 @@ import copy
 import string
 from coggrinder.services.task_services import UnregisteredTaskListError, \
     EntityOverwriteError, UnregisteredEntityError, UnregisteredTaskError
-from operator import attrgetter
 from coggrinder.entities.properties import TaskStatus
 from logging import debug as temp_debug
 
@@ -532,7 +531,7 @@ class TaskDataTestSupport(object):
             tasklist_short_title = string.ascii_uppercase[tl_i]
             
             # Create all TaskLists without attachments to any TaskTree.
-            tasklist = tasklist_type(tasktree, tasklist_short_title)
+            tasklist = tasklist_type(tasktree, tasklist_short_title, is_persisted=True)
             tasklists[tasklist.entity_id] = tasklist
             
         return tasklists
@@ -2048,7 +2047,6 @@ class TaskTreeComparator(object):
         return updated_ids
 #------------------------------------------------------------------------------ 
 
-@unittest.skip("Ordering broken with Task refactor.")
 class TaskTreeComparatorTest(PopulatedTaskTreeTestSupport, unittest.TestCase):
     def setUp(self):
         PopulatedTaskTreeTestSupport.setUp(self)
@@ -2080,14 +2078,14 @@ class TaskTreeComparatorTest(PopulatedTaskTreeTestSupport, unittest.TestCase):
         ### Arrange ###
         tasklist_a = self.working_tasktree.get_entity_for_id("a")
         task_aa = self.working_tasktree.get_entity_for_id(TestDataEntitySupport.short_title_to_id(*list("aa")))
-        task_g = self.working_tasktree.add_entity(TestDataTask("g", tasklist_id=tasklist_a.entity_id, parent_id=task_aa.entity_id))
+        task_g = TestDataTask(task_aa, "g")
         
-        tasklist_d = self.working_tasktree.add_entity(TestDataTaskList("d"))
-        task_daa = self.working_tasktree.add_entity(TestDataTask(*list("daa"), tasklist_id=tasklist_d.entity_id))
-        task_dab = self.working_tasktree.add_entity(TestDataTask(*list("dab"), tasklist_id=tasklist_d.entity_id))
+        tasklist_d = TestDataTaskList(self.working_tasktree, "d")
+        task_daa = TestDataTask(tasklist_d, *list("daa"))
+        task_dab = TestDataTask(tasklist_d, *list("dab"))
                         
-        expected_added_ids = set([tasklist_d.entity_id, task_daa.entity_id,
-            task_dab.entity_id, task_g.entity_id])
+        expected_added_ids = set([tasklist_d.entity_id, task_g.entity_id,
+            task_daa.entity_id, task_dab.entity_id])
 
         ### Act ###
         actual_added_ids = self.comparator.find_added_ids(self.baseline_tasktree,
