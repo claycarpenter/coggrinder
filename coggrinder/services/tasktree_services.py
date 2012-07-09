@@ -16,6 +16,7 @@ from coggrinder.core.test import ManagedFixturesTestSupport, DISABLED_WORKING_OT
 from mockito import mock, when, any
 import copy
 from coggrinder.entities.properties import TaskStatus
+from operator import attrgetter
 
 class TaskTreeService(object):
     def __init__(self, auth_service=None, tasklist_service=None,
@@ -95,13 +96,13 @@ class TaskTreeService(object):
         task_data = dict()
         
         # Get refreshed task data from the TaskList and Task services.
-        # The tasklists and task_data collections are being kept separate 
+        # The all_tasklists and task_data collections are being kept separate 
         # here so that in the following loop, the task_data additions don't 
         # corrupt the loop control.
-        tasklists = self.tasklist_service.list()     
-        task_data.update(tasklists)
+        all_tasklists = self.tasklist_service.list()     
+        task_data.update(all_tasklists)
            
-        for tasklist in tasklists.values():
+        for tasklist in all_tasklists.values():
             tasklist_tasks = self.task_service.get_tasks_in_tasklist(tasklist)
             
             task_data.update(tasklist_tasks)
@@ -201,10 +202,15 @@ class TaskTreeService(object):
         added_entity_ids = TaskTreeComparator.find_added_ids(self._original_tasktree,
             self.tree)
         
+        # Convert the entity IDs to a list of entities and then sort that
+        # collection by path. This allows the entities to be added in the
+        # proper order, with parents coming before children and siblings in
+        # the order they appear in within the sibling group.
+        added_entities = [self.get_entity_for_id(x) for x in added_entity_ids]
+        sorted_entities = sorted(added_entities, key=attrgetter('path'))
+        
         # For each new entity, add it to its respective service.
-        for entity_id in added_entity_ids:
-            entity = self.get_entity_for_id(entity_id)
-            
+        for entity in sorted_entities:
             # Get the proper service provider.  
             service = self._get_service(entity)
             
@@ -486,6 +492,43 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
     """
     TODO: Update test documentation.
     """
+    def test_save_task_data_task_branch_added(self):
+        """Test that saving the task data will persist a new TaskList/Task 
+        branch to the task data services, and do so in the correct 
+        (shallowest-first) order.
+
+        Arrange:
+        Act:
+        Assert:
+        """
+        ### Arrange ###
+        
+        ### Act ###
+        tl_d = self.tasktree_srvc.add_tasklist()
+        tl_d.title = "TL D"
+        
+        t_a = self.tasktree_srvc.add_task(tl_d)
+        t_a.title = "T A"
+        t_b = self.tasktree_srvc.add_task(tl_d)
+        t_b.title = "T B"
+        t_aa = self.tasktree_srvc.add_task(t_a)
+        t_aa.title = "T A A"
+
+        self.tasktree_srvc.push_task_data()
+        self.tasktree_srvc.refresh_task_data()
+
+#        expected_tl_d = self.tasktree_srvc.get_entity_for_id(
+#            expected_tasklist_a.entity_id)
+#        actual_task_foo = self.tasktree_srvc.get_entity_for_id(
+#            actual_task_foo.entity_id)
+
+        ### Assert ###
+#        self.assertEqual(actual_task_foo,
+#            expected_tasklist_a.children[expected_new_task_index])
+
+    """
+    TODO: Update test documentation.
+    """
     def test_save_task_data_task_deleted(self):
         """Test that saving the task data will persist the deletion of a Task 
         to the task data services.
@@ -588,9 +631,8 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
             expected_task_a.entity_id)
 
         ### Assert ###
-        self.assertEqual(expected_tasklist_a.treeless_value, 
-            actual_tasklist_a.treeless_value)
-        self.assertEqual(expected_task_a.treeless_value, 
+        self.assertEqual(expected_tasklist_a.title, actual_tasklist_a.title)
+        self.assertEqual(expected_task_a.treeless_value,
             actual_task_a.treeless_value)
 
     """
