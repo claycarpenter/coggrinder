@@ -4,7 +4,8 @@ Created on Mar 18, 2012
 @author: Clay Carpenter
 """
 
-from coggrinder.entities.tasks import TaskList, Task, GoogleServicesTask, TestDataEntitySupport
+from coggrinder.entities.tasks import TaskList, Task, GoogleServicesTask, TestDataEntitySupport, \
+    TestDataTask, TestDataTaskList
 import coggrinder.utilities
 import copy
 import string
@@ -126,21 +127,12 @@ class GoogleServicesTaskService(AbstractTaskService):
             result_str_dict = self.service_proxy.insert(
                 tasklist=task.tasklist_id, body=insert_str_dict).execute()
         
-        """
-        TODO: This shouldn't be necessary with the switch to ref-less Tasks.
-        """
-        # Store a ref to the Task's parent. This link will be broken after
-        # the from_str_dict operation.
-        parent = task.parent
-        assert parent is not None
-        
         # Replace the Task with a new Task populated with the updated 
-        # properties, and restore the parent link.
-        inserted_task = GoogleServicesTask.from_str_dict(result_str_dict)
-        inserted_task.tasklist_id = task.tasklist_id
-        inserted_task.parent = parent # TODO: Also shouldn't be necessary.
+        # properties, and set the persisted flag.
+        task.update_from_str_dict(result_str_dict)
+        task.is_persisted = True
 
-        return inserted_task
+        return task
 
     def _delete(self, task):
         # Execute the delete operation.
@@ -243,6 +235,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         expected_task_updated_date = datetime(2012, 3, 26, 22, 59, 24)
         expected_task_position = 10456
         expected_task_status = TaskStatus.NEEDS_ACTION
+        
 
         result_str_dict = {
             GoogleKeywords.ID: StrConverter().to_str(expected_task_id),
@@ -260,7 +253,12 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         actual_task = self.task_service.get(tasklist.entity_id, expected_task_id)
 
         ### Assert ###
+        """
+        TODO: This should probably be refactored to use an actual Task instance
+        for expected value comparison.
+        """
         self.assertIsNotNone(actual_task)
+        self.assertTrue(actual_task.is_persisted)
         self.assertEqual(expected_task_id, actual_task.entity_id)
         self.assertEqual(expected_task_title, actual_task.title)
         self.assertEqual(expected_task_updated_date, actual_task.updated_date)
@@ -406,6 +404,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         # Task should be present and have these updated properties:
         # * update date
         self.assertIsNotNone(actual_task)
+        self.assertTrue(actual_task.is_persisted)
         self.assertEqual(expected_updated_date, actual_task.updated_date)
         self.assertEqual(expected_task.entity_id, actual_task.entity_id)
         self.assertEqual(expected_task.tasklist_id, actual_task.tasklist_id)
@@ -415,41 +414,39 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
 
     def test_insert(self):
         ### Arrange ###
-        tasklist = TaskList(None)
-        tasklist.entity_id = "tasklistid"
+        tasklist = TaskList(None, title="Mock TaskList")
+        tasklist.entity_id = "MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTk3NDg0OTU5Mjow"
+        tasklist.is_persisted = True
+        
+        mock_insert_response_str = '''{
+            "kind": "tasks#task",
+            "id": "MTM3ODEyNTc4OTA1OTU2NzE3NTM6MjA0ODgwMzUxNjo3NDE1MTg4NzM",
+            "etag": "-kSxjsniVV6Hn53-kChReeLNJUE/LTkyMDExNzk4Nw",
+            "title": "mock insert",
+            "updated": "2012-07-09T00:37:32.000Z",
+            "selfLink": "https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MjA0ODgwMzUxNjow/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MjA0ODgwMzUxNjo3NDE1MTg4NzM",
+            "position": "00000000001073741823",
+            "status": "needsAction"
+        }'''
+        insert_result_str_dict = json.loads(mock_insert_response_str)
 
-        expected_task = GoogleServicesTask(tasklist, entity_id="abcid", title="Task title", tasklist_id=tasklist.entity_id) 
-
-        now = datetime.now()
-        expected_task_updated_date = datetime(now.year, now.month, now.day,
-            now.hour, now.minute, now.second)
-        expected_task_position = 10456
-        expected_task_status = TaskStatus.NEEDS_ACTION
-
-        result_str_dict = {
-            GoogleKeywords.ID: StrConverter().to_str(expected_task.entity_id),
-            GoogleKeywords.TITLE: StrConverter().to_str(expected_task.title),
-            GoogleKeywords.UPDATED: RFC3339Converter().to_str(expected_task_updated_date),
-            GoogleKeywords.POSITION: IntConverter().to_str(expected_task_position),
-            GoogleKeywords.STATUS: TaskStatusConverter().to_str(expected_task_status)
-        }
+        task = GoogleServicesTask(tasklist, title="Task title") 
 
         mock_insert_request = mock()
         when(self.mock_service_proxy).insert(tasklist=tasklist.entity_id,
             body=any(dict)).thenReturn(mock_insert_request)
-        when(mock_insert_request).execute().thenReturn(result_str_dict)
+        when(mock_insert_request).execute().thenReturn(insert_result_str_dict)
 
         ### Act ###
-        actual_task = self.task_service.insert(expected_task)
+        self.task_service.insert(task)
 
         ### Assert ###
-        self.assertIsNotNone(actual_task)
-        self.assertEqual(expected_task.entity_id, actual_task.entity_id)
-        self.assertEqual(expected_task.tasklist_id, actual_task.tasklist_id)
-        self.assertEqual(expected_task.title, actual_task.title)
-        self.assertEqual(expected_task_updated_date, actual_task.updated_date)
-        self.assertEqual(expected_task_position, actual_task.position)
-        self.assertEqual(expected_task_status, actual_task.task_status)
+        self.assertEqual(task.entity_id, insert_result_str_dict["id"])
+        
+        updated_date = datetime.strptime(insert_result_str_dict["updated"], "%Y-%m-%dT%H:%M:%S.000Z")
+        self.assertEqual(task.updated_date, updated_date)
+        
+        self.assertTrue(task.is_persisted)
 
     def test_delete(self):
         ### Arrange ###
@@ -528,15 +525,37 @@ class InMemoryService(object):
 
 class InMemoryTaskService(AbstractTaskService, InMemoryService):    
     def _insert(self, task):
+        # Ensure that the Task parent--if it's another Task--is already 
+        # persisted. 
+        if not task.parent.is_persisted:
+            raise TransientParentError(task.parent.entity_id)
+        
+        # Ensure that the TaskList the Task belongs to is already 
+        # persisted. 
+        if not task.tasklist.is_persisted:
+            raise TransientParentError(task.tasklist.entity_id)
+        
         # Update the updated date on the Task.
         task.updated_date = datetime.now()
 
         # Ensure that the Task isn't already registered in the data store.
         if task.entity_id in self.entity_ids:
             raise EntityOverwriteError(task.entity_id)
-
-        # Store the Task.        
-        self.entity_store[task.entity_id] = task
+        
+        # Remove the local_id version of the Task in favor of the 
+        # persistence_id copy.
+        try:
+            del self.entity_store[task.local_id]
+        except KeyError:
+            # Ignore, deletion isn't mandatory.
+            pass
+        
+        # Mark the Task as persisted, give it a new persistence ID and store 
+        # the Task clean clone.        
+        task.is_persisted = True
+        if not task.persistence_id:
+            task.persistence_id = InMemoryService.PERSISTENCE_ID_PREFIX + task.entity_id
+        self.entity_store[task.entity_id] = task.clean_clone()
 
         return task
 
@@ -585,9 +604,11 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
     def setUp(self):
         """Established basic fixture for testing the in-memory Task service."""
 
-        # Create fake master TaskList.
+        # Create fake master TaskList (that has already been persisted).
         self.expected_tasklist = TaskList(None)
         self.expected_tasklist.entity_id = "tasklistid"
+        self.expected_tasklist.persistence_id = InMemoryService.PERSISTENCE_ID_PREFIX + self.expected_tasklist.entity_id
+        self.expected_tasklist.is_persisted = True
 
         # Create a fake Task data set - a dictionary of dictionaries, with the
         # first dictionary being keyed by the TaskList ID. The inner dictionary
@@ -596,7 +617,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         self.expected_task_data = {"t-" + string.ascii_uppercase[x]:
             Task(None, entity_id="t-" + string.ascii_uppercase[x],
             title="Task " + string.ascii_uppercase[x],
-            tasklist_id=self.expected_tasklist.entity_id)
+            tasklist_id=self.expected_tasklist.entity_id, is_persisted=True)
             for x in range(0, 3)}
         
         # Create an InMemoryTaskService that uses the expected data set as its
@@ -623,6 +644,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         """
         ### Arrange ###        
         expected_task = self.expected_task_data.values()[0]
+        expected_task.is_persisted = True
 
         ### Act ###        
         actual_task = self.task_service.get(
@@ -652,6 +674,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         for actual_task in actual_tasks.values():
             self.assertIsNot(actual_task,
                 self.task_service.entity_store[actual_task.entity_id])
+            self.assertTrue(actual_task.is_persisted)
 
     def test_update(self):
         """Test that the InMemoryTaskService can persist an updated Task and
@@ -691,6 +714,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
 
         ### Assert ###
         self.assertEqual(local_task_A.title, actual_task_A.title)
+        self.assertTrue(actual_task_A.is_persisted)
         self.assertGreater(actual_task_A.updated_date, local_task_A.updated_date)
             
     """
@@ -699,9 +723,6 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
     def test_insert(self):
         """Test that adding a Task to the task service will persist the Task,
         and that the same Task can be later retrieved using get().
-
-        This test will be attempted with both a registered and unregistered
-        TaskList ID.
 
         Arrange:
             - Create two new Tasks, one with an existing TaskList ID and one
@@ -715,23 +736,55 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         """
         ### Arrange ###
         entity_id = "new"
+        persisted_entity_id = InMemoryService.PERSISTENCE_ID_PREFIX + entity_id
         title = "New Task"
         before_operation = datetime.now()
 
         expected_task = Task(self.expected_tasklist,
             tasklist_id=self.expected_tasklist.entity_id,
-            entity_id=entity_id, title=title)
+            entity_id=persisted_entity_id, title=title)
 
         ### Act ###
         self.task_service.insert(expected_task)
         actual_task = self.task_service.get(
-            self.expected_tasklist.entity_id, entity_id)
+            self.expected_tasklist.entity_id, persisted_entity_id)
 
         ### Assert ###
-        self.assertEqual((entity_id, title),
-            (actual_task.entity_id, actual_task.title))
+        self.assertEqual(
+            (persisted_entity_id, title, InMemoryService.PERSISTENCE_ID_PREFIX + entity_id),
+            (actual_task.entity_id, actual_task.title, actual_task.persistence_id))
+        self.assertTrue(actual_task.is_persisted)
 
         self.assertGreater(actual_task.updated_date, before_operation)
+            
+    """
+    TODO: Update test documentation.
+    """
+    def test_insert_missing_parent(self):
+        """Test that adding a Task that has a parent Task or TaskList which 
+        has not yet been persisted will cause an error.
+
+        Arrange:
+            - Create
+        Act:
+        Assert:
+        """
+        ### Arrange ###
+        transient_tasklist = TestDataTaskList(None, "transient")
+        persisted_parent_task = TestDataTask(transient_tasklist, "persisted parent", is_persisted=True)
+        new_task_transient_tasklist = TestDataTask(persisted_parent_task, "New Task - Transient TaskList")
+        
+        transient_parent_task = TestDataTask(self.expected_tasklist, "parent")
+        new_task_transient_parent = TestDataTask(transient_parent_task, "New Task - Transient Parent")
+
+        ### Assert ###
+        with self.assertRaises(TransientParentError):
+            self.task_service.insert(new_task_transient_parent)
+        self.assertFalse(new_task_transient_parent.is_persisted)
+        
+        with self.assertRaises(TransientParentError):
+            self.task_service.insert(new_task_transient_tasklist)
+        self.assertFalse(new_task_transient_tasklist.is_persisted)
 
     """
     TODO: Update test documentation.
@@ -785,14 +838,22 @@ class UnregisteredEntityError(Exception):
         return None
 #------------------------------------------------------------------------------ 
 
-class UnregisteredTaskError(Exception):
+class UnregisteredTaskError(UnregisteredEntityError):
     def _get_entity_name(self):
         return "Task"
 #------------------------------------------------------------------------------ 
 
-class UnregisteredTaskListError(Exception):
+class UnregisteredTaskListError(UnregisteredEntityError):
     def _get_entity_name(self):
         return "TaskList"
+#------------------------------------------------------------------------------ 
+
+class TransientParentError(UnregisteredEntityError):
+    def __init__(self, entity_id):
+            # Use a generic error message. 
+            Exception.__init__(self,
+                "Cannot persist because of transient parent entity with ID: '{entity_id}'".format(
+                entity_id=entity_id))
 #------------------------------------------------------------------------------ 
 
 class AbstractTaskListService(object):
@@ -876,8 +937,12 @@ class GoogleServicesTaskListService(AbstractTaskListService):
 
         tasklists = dict()
         for tasklist_dict in tasklist_items_list:
+            # Convert from the JSON/str representation to a TaskList instance.
             tasklist = TaskList.from_str_dict(tasklist_dict)
 
+            # Set the persisted flag.
+            tasklist.is_persisted = True
+            
             tasklists[tasklist.entity_id] = tasklist
 
         return tasklists
@@ -887,6 +952,9 @@ class GoogleServicesTaskListService(AbstractTaskListService):
 
         tasklist = TaskList.from_str_dict(tasklist_dict)
 
+        # Set the persisted flag.
+        tasklist.is_persisted = True
+        
         return tasklist
 
     def _insert(self, tasklist):
@@ -901,10 +969,13 @@ class GoogleServicesTaskListService(AbstractTaskListService):
         # Execute the insert operation.
         result_dict = self.service_proxy.insert(body=filtered_insert_dict).execute()
 
-        # Convert the resulting dict (which contains assigned ID, updated values
-        # from the service) back into a TaskList object.
-        tasklist = TaskList.from_str_dict(result_dict)
+        # Update the TaskList with the insert operation response (which 
+        # contains assigned ID, updated values from the service).
+        tasklist.update_from_str_dict(result_dict)
 
+        # Set the persisted flag.
+        tasklist.is_persisted = True
+        
         return tasklist
 
     def _delete(self, tasklist):
@@ -926,9 +997,12 @@ class GoogleServicesTaskListService(AbstractTaskListService):
         result_dict = self.service_proxy.patch(tasklist=tasklist.entity_id,
             body=filtered_update_dict).execute()
 
-        # Convert the resulting dict (which contains updated values  from the 
+        # Convert the resulting dict (which contains updated values from the 
         # service) back into a TaskList object.
         tasklist = TaskList.from_str_dict(result_dict)
+        
+        # Set the persisted flag.
+        tasklist.is_persisted = True
 
         return tasklist
 #------------------------------------------------------------------------------
@@ -940,7 +1014,8 @@ class GoogleServicesTaskListServiceTest(unittest.TestCase):
     """
     def test_get(self):
         expected_tasklist = TaskList(None, entity_id="1",
-            title="Test List Title", updated_date=datetime(2012, 3, 10, 3, 30, 6))
+            title="Test List Title", is_persisted=True,
+            updated_date=datetime(2012, 3, 10, 3, 30, 6))
 
         mock_service_proxy = mock()
         mock_get_request = mock()
@@ -962,7 +1037,8 @@ class GoogleServicesTaskListServiceTest(unittest.TestCase):
 
         for count in range(1, 4):
             tasklist = TaskList(None, entity_id=str(count),
-                title="Test List " + str(count), updated_date=datetime(2012, 3, 10, 3, 30, 6))
+                title="Test List " + str(count), is_persisted=True,
+                updated_date=datetime(2012, 3, 10, 3, 30, 6))
 
             expected_tasklists[tasklist.entity_id] = tasklist
             
@@ -986,7 +1062,7 @@ class GoogleServicesTaskListServiceTest(unittest.TestCase):
         mock_update_request = mock()
 
         tasklist = TaskList(None, entity_id="abcdfakekey", title="Test List 1",
-            updated_date=datetime(2012, 3, 22, 13, 50, 00))
+            updated_date=datetime(2012, 3, 10, 3, 30, 6))
 
         when(mock_service_proxy).patch(tasklist=tasklist.entity_id, body=any(dict)).thenReturn(mock_update_request)
         when(mock_update_request).execute().thenReturn(tasklist.to_str_dict())
@@ -998,24 +1074,41 @@ class GoogleServicesTaskListServiceTest(unittest.TestCase):
         verify(mock_update_request).execute()
         self.assertIsNotNone(result_tasklist)
         self.assertIsNotNone(result_tasklist.entity_id)
+        self.assertTrue(result_tasklist.is_persisted)
 
     def test_insert(self):
+        ### Arrange ###
         mock_service_proxy = mock()
         mock_insert_request = mock()
 
-        tasklist = TaskList(None, entity_id="abcdfakekey", title="Test List 1",
-            updated_date=datetime(2012, 3, 22, 13, 50, 00))
+        mock_insert_response_str = '''{
+            "kind": "tasks#taskList",
+            "id": "MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTk3NDg0OTU5Mjow",
+            "etag": "-kSxjsniVV6Hn53-kChReeLNJUE/C-2Y15dCA_rEUUo1IGBfAfOcI-Q",
+            "title": "mock insert",
+            "updated": "2012-07-08T22:08:26.000Z",
+            "selfLink": "https://www.googleapis.com/tasks/v1/users/@me/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTk3NDg0OTU5Mjow"
+        }'''
+        insert_result_str_dict = json.loads(mock_insert_response_str)
+        
+        tasklist = TaskList(None, title="mock insert")
 
         when(mock_service_proxy).insert(body=any(dict)).thenReturn(mock_insert_request)
-        when(mock_insert_request).execute().thenReturn(tasklist.to_str_dict())
+        when(mock_insert_request).execute().thenReturn(insert_result_str_dict)
 
         tasklist_service = GoogleServicesTaskListService()
         tasklist_service.service_proxy = mock_service_proxy
-        result_tasklist = tasklist_service.insert(tasklist)
+        
+        ### Act ###
+        tasklist_service.insert(tasklist)
 
-        verify(mock_insert_request).execute()
-        self.assertIsNotNone(result_tasklist)
-        self.assertIsNotNone(result_tasklist.entity_id)
+        ### Assert ###
+        self.assertEqual(tasklist.entity_id, insert_result_str_dict["id"])
+        
+        updated_date = datetime.strptime(insert_result_str_dict["updated"], "%Y-%m-%dT%H:%M:%S.000Z")
+        self.assertEqual(tasklist.updated_date, updated_date)
+        
+        self.assertTrue(tasklist.is_persisted)
 
     def test_delete(self):
         """
@@ -1050,8 +1143,14 @@ class InMemoryTaskListService(AbstractTaskListService, InMemoryService):
         if tasklist.persistence_id is None:
             tasklist.entity_id = self.PERSISTENCE_ID_PREFIX + TaskList.create_entity_id()
         
-        # Push the TaskList into the entity store.
-        self._put(tasklist)
+        # Update the TaskList's updated date timestamp.
+        now = datetime.now()
+        tasklist.updated_date = datetime(now.year, now.month, now.day, now.hour, now.minute, now.second)
+        
+        # Set the persisted flag, and push the TaskList clean clone into 
+        # the entity store.
+        tasklist.is_persisted = True
+        self._put(tasklist.clean_clone())
 
         return tasklist
 
@@ -1066,6 +1165,9 @@ class InMemoryTaskListService(AbstractTaskListService, InMemoryService):
     def _list(self):
         cloned_tasklists = {tl.entity_id: tl.clean_clone() for tl in self.entity_store.values()}
         
+        for tasklist in cloned_tasklists.values():
+            tasklist.is_persisted = True
+        
         return cloned_tasklists
 
     def _get(self, entity_id):
@@ -1074,6 +1176,7 @@ class InMemoryTaskListService(AbstractTaskListService, InMemoryService):
         # cannot be found, raise an error.
         try:
             tasklist = self.entity_store[entity_id].clean_clone()
+            tasklist.is_persisted = True
         except KeyError:
             raise UnregisteredTaskListError(entity_id)
 
@@ -1092,8 +1195,10 @@ class InMemoryTaskListService(AbstractTaskListService, InMemoryService):
         if tasklist.entity_id not in self.entity_store:
             raise UnregisteredTaskListError(tasklist.entity_id)
         
-        # Push the updated TaskList into the entity store.
-        self._put(tasklist)            
+        # Set the persisted flag, and push the TaskList clean clone into 
+        # the entity store.
+        tasklist.is_persisted = True
+        self._put(tasklist.clean_clone())       
 
         return tasklist
 #------------------------------------------------------------------------------ 
@@ -1106,7 +1211,8 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
         # Create fake, expected data set - a dictionary of TaskLists, with 
         # keys being the TaskList ID and values being the TaskList instances.
         self.expected_tasklists = {"tl-" + string.ascii_uppercase[x]:
-            TaskList(None, entity_id="tl-" + string.ascii_uppercase[x], title="TaskList " + string.ascii_uppercase[x])
+            TaskList(None, entity_id="tl-" + string.ascii_uppercase[x],
+            title="TaskList " + string.ascii_uppercase[x], is_persisted=True)
             for x in range(0, 3)}
 
         # Create an InMemoryTaskListService that uses the expected data set 
@@ -1117,6 +1223,9 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
 
         self._register_fixtures(self.tasklist_service, self.expected_tasklists)
 
+    """
+    TODO: This documentation is out of date.
+    """
     def test_insert(self):
         """Test that adding a TaskList to the TaskList service will persist
         the new TaskList, and that the same TaskList can later be retrieved
@@ -1135,19 +1244,19 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
                 the insert operation.
         """
         ### Arrange ###
-        expected_id = "tl-foo"
         expected_title = "TaskList Foo"
-        before_operation = datetime.now()
-        expected_tasklist = TaskList(None, entity_id=expected_id,
-             title=expected_title)
+        now = datetime.now()
+        before_operation = datetime(now.year, now.month, now.day, now.hour, now.minute, now.second - 1)
+        insert_tasklist = TaskList(None, title=expected_title)
 
         ### Act ###
-        self.tasklist_service.insert(expected_tasklist)
-        actual_tasklist = self.tasklist_service.get(expected_id)
+        actual_tasklist = self.tasklist_service.insert(insert_tasklist)
 
         ### Assert ###
-        self.assertEqual(expected_id, actual_tasklist.entity_id)
         self.assertEqual(expected_title, actual_tasklist.title)
+        
+        self.assertTrue(actual_tasklist.is_persisted)
+        
         self.assertGreater(actual_tasklist.updated_date, before_operation)
 
     def test_insert_duplicate_id(self):
@@ -1221,6 +1330,7 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
         """
         ### Arrange ###
         expected_tasklist_a = copy.deepcopy(self.expected_tasklists.values()[0])
+        expected_tasklist_a.is_persisted = True
 
         ### Act ###
         actual_tasklist_a = self.tasklist_service.get(
@@ -1305,6 +1415,7 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
         expected_id = self.expected_tasklists.keys()[0]
         cloned_tasklist_a = copy.deepcopy(self.expected_tasklists[expected_id])
         cloned_tasklist_a.title = expected_title
+        cloned_tasklist_a.is_persisted = False
         before_operation = datetime.now()
 
         ### Act ###
@@ -1314,6 +1425,7 @@ class InMemoryTaskListServiceTest(unittest.TestCase, ManagedFixturesTestSupport)
         ### Assert ###
         self.assertEqual(expected_id, actual_tasklist_a.entity_id)
         self.assertEqual(expected_title, actual_tasklist_a.title)
+        self.assertTrue(actual_tasklist_a.is_persisted)
         self.assertGreater(actual_tasklist_a.updated_date, before_operation)
 
     def test_update_unreg_id(self):
