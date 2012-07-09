@@ -43,7 +43,7 @@ class SortedTaskDataChildrenSupport(object):
             except AttributeError:
                 # New child is a TaskList-type entity.
                 for sibling_index, sibling in enumerate(self.children):
-                    if child.title < sibling.title:
+                    if child.treeless_value < sibling.treeless_value:
                         child_index = sibling_index
                         break
                 

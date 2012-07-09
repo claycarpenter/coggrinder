@@ -797,7 +797,10 @@ class TaskTreeTest(unittest.TestCase):
         """
         ### Arrange ###        
         expected_tasklist_a = TestDataTaskList(None, 'a')
-        actual_tasklist_a = copy.deepcopy(expected_tasklist_a)
+        actual_tasklist_a = expected_tasklist_a.clean_clone()
+        
+        expected_tasklist_b = TestDataTaskList(None, 'B')
+        actual_tasklist_b = expected_tasklist_b.clean_clone()
         
         expected_task_aa = TestDataTask(None, *'aa', tasklist_id=expected_tasklist_a.entity_id)
         actual_task_aa = copy.deepcopy(expected_task_aa)
@@ -805,10 +808,13 @@ class TaskTreeTest(unittest.TestCase):
         expected_tasklist_a.add_child(expected_task_aa)
         
         expected_tasktree = TaskTree()
-        expected_tasktree.add_child(expected_tasklist_a)
+        expected_tasktree.children.append(expected_tasklist_a)
+        expected_tasklist_a.parent = expected_tasktree
+        expected_tasktree.children.append(expected_tasklist_b)
+        expected_tasklist_b.parent = expected_tasktree
         
-        task_data = {actual_tasklist_a.entity_id:actual_tasklist_a,
-            actual_task_aa.entity_id:actual_task_aa}
+        task_data = TestDataEntitySupport.create_task_data_dict(
+            actual_tasklist_b, actual_tasklist_a, actual_task_aa)
         
         ### Act ###
         actual_tasktree = TaskTree(task_data=task_data)
@@ -920,7 +926,7 @@ class TaskTreeSortTest(unittest.TestCase):
         ### Arrange ###
         expected_tasktree = TaskTree()
         expected_tasklist_empty = TestDataTaskList(expected_tasktree, "")
-        expected_tasklist_bar = TestDataTaskList(expected_tasktree, "Bar")
+        expected_tasklist_bar = TestDataTaskList(expected_tasktree, "bar")
         expected_tasklist_baz = TestDataTaskList(expected_tasktree, "Baz")
         expected_tasklist_foo = TestDataTaskList(expected_tasktree, "Foo")
         

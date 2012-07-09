@@ -366,15 +366,21 @@ class TaskTreeServiceCreationTest(TaskTreeServiceTestSupport, unittest.TestCase)
         task_ab = TestDataGoogleServicesTask(None, *"ab", tasklist_id=tasklist_a.entity_id)
         task_ac = TestDataGoogleServicesTask(None, *"ac", tasklist_id=tasklist_a.entity_id)
         
+        tasklist_b = TestDataTaskList(None, "b")
+        task_ba = TestDataGoogleServicesTask(None,*"ba",tasklist_id=tasklist_b.entity_id)
+        
         expected_task_data = TestDataEntitySupport.create_task_data_dict(
+            tasklist_b.clean_clone(), task_ba.clean_clone(),
             tasklist_a.clean_clone(), task_aa.clean_clone(),
             task_ab.clean_clone(), task_ac.clean_clone())
         expected_tasktree = TaskTree(task_data=expected_task_data)
         
         when(self.mock_tasklist_srvc).list().thenReturn(
-            TestDataEntitySupport.create_task_data_dict(tasklist_a))
+            TestDataEntitySupport.create_task_data_dict(tasklist_b,tasklist_a))
         when(self.mock_task_srvc).get_tasks_in_tasklist(tasklist_a).thenReturn(
             TestDataEntitySupport.create_task_data_dict(task_aa, task_ab, task_ac))
+        when(self.mock_task_srvc).get_tasks_in_tasklist(tasklist_b).thenReturn(
+            TestDataEntitySupport.create_task_data_dict(task_ba))
 
         ### Act ###
         self.tasktree_srvc.refresh_task_data()
