@@ -18,6 +18,7 @@ from coggrinder.services.task_services import UnregisteredTaskListError, \
     EntityOverwriteError, UnregisteredEntityError, UnregisteredTaskError
 from coggrinder.entities.properties import TaskStatus
 from logging import debug as temp_debug
+from coggrinder.core.comparable import DeclaredPropertiesComparable
 
 class TaskTree(SortedTaskDataChildrenSupport, Tree):
     def __init__(self, tasklists=None, all_tasks=None, task_data=None):
@@ -903,7 +904,6 @@ class TaskTreeTest(unittest.TestCase):
         self.assertEquals(0, len(empty_tasktree.task_data))
 #------------------------------------------------------------------------------ 
 
-@unittest.skip(DISABLED_WORKING_OTHER_TESTS)
 class TaskTreeSortTest(unittest.TestCase):                
     def test_tasklist_ordering_via_init_task_data(self):
         """Test that TaskLists are stored in order based on lexicographical 
@@ -1480,21 +1480,21 @@ class PopulatedTaskTreeTest(PopulatedTaskTreeTestSupport, unittest.TestCase):
         """
         ### Arrange ###        
         expected_task_ab = self.working_tasktree.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(*list("ab")))
+            TestDataEntitySupport.short_title_to_id(*"ab"))
         
         expected_task_aa = copy.deepcopy(
             self.working_tasktree.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(*list("aa"))))
+            TestDataEntitySupport.short_title_to_id(*"aa")))
         
         expected_task_aba = copy.deepcopy(
             self.working_tasktree.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(*list("aba"))))
+            TestDataEntitySupport.short_title_to_id(*"aba")))
         expected_task_aba.parent_id = None
         expected_task_aba.previous_task_id = expected_task_aa.entity_id
         
         expected_task_ac = copy.deepcopy(
             self.working_tasktree.get_entity_for_id(
-            TestDataEntitySupport.short_title_to_id(*list("ac"))))
+            TestDataEntitySupport.short_title_to_id(*"ac")))
         expected_task_ac.previous_task_id = TestDataEntitySupport.short_title_to_id(*list("abc"))
         
         ### Act ###
@@ -1626,252 +1626,200 @@ class PopulatedTaskTreeTest(PopulatedTaskTreeTestSupport, unittest.TestCase):
         self.assertEqual(expected_task_c, postop_task_c)
 #------------------------------------------------------------------------------ 
 
-@unittest.skip("Waiting on tree nav reimplementation")
 class TaskTreeReorderTest(PopulatedTaskTreeTestSupport, unittest.TestCase):        
     def test_reorder_up_task(self):
-        """Test that the reorder up operation properly updates the sibling
-        links of the Tasks within the targeted Task's sibling group.
+        """Test that the reorder up operation properly repositions Tasks
+        among their sibling group.
                 
         Arrange:
-            - Find expected Tasks a-a-a..c.
-            - Update previous_task_id properties of expected Tasks a..c.            
+            - Find expected Tasks a-a-b, a-a-c.
+            - Create a new list of expected children for Task a-a.
         Act:
-            - Find actual Task a-c and reorder it up.
+            - Find actual Tasks a-a-b, a-a-c and reorder them up.
         Assert:
-            - Tasks a-b, a-c from working TaskTree are identical to expected
-            Tasks.    
+            - Tasks a-a-b, a-a-c are located at the expected paths (0,0,0) 
+            and (0,0,1).
+            - Task a-a has the expected children, in the expected order.
         """
         ### Arrange ###
-        expected_task_aaa = self.find_task(self.baseline_tasktree, *'aaa')
-        expected_task_aab = self.find_task(self.baseline_tasktree, *'aab')
-        expected_task_aac = self.find_task(self.baseline_tasktree, *'aac')
+        actual_task_aab = self.find_task(self.working_tasktree, *'aab')
+        actual_task_aac = self.find_task(self.working_tasktree, *'aac')
         
-        expected_task_aa_children = [expected_task_aab, expected_task_aaa, expected_task_aac]
+        actual_task_aa = self.find_task(self.working_tasktree, *'aa')
+        
+        expected_task_aa_children = [
+            self.find_task(self.working_tasktree, *'aab'),
+            self.find_task(self.working_tasktree, *'aac'),
+            self.find_task(self.working_tasktree, *'aaa')]
         
         ### Act ###
-        actual_task_aab = self.find_task(self.working_tasktree, *'aab')
-        self.working_tasktree.reorder_task_up(actual_task_aab)
+        self.working_tasktree.reorder_task_up(actual_task_aab, actual_task_aac)
         
         ### Assert ###
-        actual_task_aa = actual_task_aab.parent
+        self.assertEqual((0, 0, 0),
+            self.find_task(self.working_tasktree, *'aab').path)
+        self.assertEqual((0, 0, 1),
+            self.find_task(self.working_tasktree, *'aac').path)
+        
         self.assertEqual(expected_task_aa_children, actual_task_aa.children)
         
-    def test_reorder_up_tasklist(self):
-        """Test that the reorder up operation raises an error if provided a 
-        TaskList target.
-                
-        Arrange:
-            - Find expected TaskList b.
-        Assert:
-            - Attempting to reorder up TaskList b raises an error.
-        """
-        ### Arrange ###
-        expected_tasklist_b = self.find_tasklist(self.baseline_tasktree, *list('b'))
-        
-        ### Assert ###
-        with self.assertRaises(InvalidReorderOperationTargetError):
-            self.working_tasktree.reorder_task_up(expected_tasklist_b)
-        
     def test_reorder_down_task(self):
-        """Test that the reorder down operation properly updates the sibling
-        links of the Tasks within the targeted Task's sibling group.
+        """Test that the reorder down operation properly repositions Tasks
+        among their sibling group.
         
         Arrange:
-            - Find expected Tasks a-a..c.
-            - Update previous_task_id properties of expected Tasks.            
+            - Find expected Tasks a-a-a, a-a-b.
+            - Create a new list of expected children for Task a-a.
         Act:
-            - Find actual Task a-a and reorder it down.
+            - Find actual Tasks a-a-a, a-a-b and reorder them down.
         Assert:
             - Tasks a..c from working TaskTree are identical to expected
             Tasks.  
         """
         ### Arrange ###
-        expected_task_aa = self.find_task(self.baseline_tasktree, *list('aa'))
-        expected_task_ab = self.find_task(self.baseline_tasktree, *list('ab'))
-        expected_task_ac = self.find_task(self.baseline_tasktree, *list('ac'))
+        actual_task_aaa = self.find_task(self.working_tasktree, *'aaa')
+        actual_task_aab = self.find_task(self.working_tasktree, *'aab')
         
-        expected_task_ab.previous_task_id = None
-        expected_task_aa.previous_task_id = expected_task_ab.entity_id
-        expected_task_ac.previous_task_id = expected_task_aa.entity_id
+        actual_task_aa = self.find_task(self.working_tasktree, *'aa')
+        
+        expected_task_aa_children = [
+            self.find_task(self.working_tasktree, *'aac'),
+            self.find_task(self.working_tasktree, *'aaa'),
+            self.find_task(self.working_tasktree, *'aab')]
         
         ### Act ###
-        actual_task_aa = self.find_task(self.working_tasktree, *list('aa'))
-        self.working_tasktree.reorder_task_down(actual_task_aa)
+        self.working_tasktree.reorder_task_down(actual_task_aaa, actual_task_aab)
         
         ### Assert ###
-        self.assertEqual(expected_task_aa,
-            self.find_task(self.working_tasktree, *list('aa')))
-        self.assertEqual(expected_task_ab,
-            self.find_task(self.working_tasktree, *list('ab')))
-        self.assertEqual(expected_task_ac,
-            self.find_task(self.working_tasktree, *list('ac')))
+        self.assertEqual((0, 0, 1),
+            self.find_task(self.working_tasktree, *'aaa').path)
+        self.assertEqual((0, 0, 2),
+            self.find_task(self.working_tasktree, *'aab').path)
         
-    def test_reorder_down_tasklist(self):
-        """Test that the reorder down operation raises an error if provided a 
-        TaskList target.
-                
-        Arrange:
-            - Find expected TaskList b.
-        Assert:
-            - Attempting to reorder down TaskList b raises an error.
-        """
-        ### Arrange ###
-        expected_tasklist_b = self.find_tasklist(self.baseline_tasktree, *list('b'))
-        
-        ### Assert ###
-        with self.assertRaises(InvalidReorderOperationTargetError):
-            self.working_tasktree.reorder_task_down(expected_tasklist_b)
+        self.assertEqual(expected_task_aa_children, actual_task_aa.children)
         
     def test_promote_task_single(self):
-        """Test that the promote operation properly updates the sibling
-        links of the all Task sibling groups affected.
-        
-        This should update both the Task siblings that the Task moves up to 
-        join, and the Task siblings that the Task left.
+        """Test that the promote operation properly moves the targeted Task 
+        to before the sibling of its parent under its pre-promotion 
+        grandparent.
         
         Arrange:
-            - Find expected Tasks a-b..c, a-b-a..b.
-            - Update previous_task_id properties of expected Tasks.
+            - Find expected Tasks a-a, a-a-a, TaskList a.
+            - Create new lists of expected children for TaskList a and Task 
+            a-a.
         Act:
-            - Find actual Task a-b-a and promote it.
+            - Find actual Task a-a-a and promote it.
         Assert:
-            - Tasks a-b-a..b and a-c from working TaskTree are identical 
-            to expected Tasks.  
+            - Task a-a-a is located at the expected path (0,1).
+            - TaskList a and Task a-a have the expected children, in the 
+            expected order.
         """
         ### Arrange ###
-        expected_task_ab = self.find_task(self.baseline_tasktree, *list('ab'))
-        expected_task_ac = self.find_task(self.baseline_tasktree, *list('ac'))
+        actual_task_aaa = self.find_task(self.working_tasktree, *'aaa')
+        actual_task_aa = self.find_task(self.working_tasktree, *'aa')
+        actual_tasklist_a = self.find_tasklist(self.working_tasktree, 'a')
         
-        expected_task_aba = self.find_task(self.baseline_tasktree, *list('aba'))
-        expected_task_abb = self.find_task(self.baseline_tasktree, *list('abb'))
-        
-        expected_task_aba.previous_task_id = expected_task_ab.entity_id
-        expected_task_aba.parent_id = None
-        expected_task_ac.previous_task_id = expected_task_aba.entity_id
-        
-        expected_task_abb.previous_task_id = expected_task_ab.entity_id
+        expected_tasklist_a_children = [
+            self.find_task(self.working_tasktree, *'aa'),
+            self.find_task(self.working_tasktree, *'aaa'),
+            self.find_task(self.working_tasktree, *'ab'),
+            self.find_task(self.working_tasktree, *'ac')]
+        expected_task_aa_children = [
+            self.find_task(self.working_tasktree, *'aab'),
+            self.find_task(self.working_tasktree, *'aac')]
         
         ### Act ###
-        actual_task_aba = self.find_task(self.working_tasktree, *list('aba'))
-        self.working_tasktree.promote(actual_task_aba)
+        self.working_tasktree.promote(actual_task_aaa)
         
         ### Assert ###
-        self.assertEqual(expected_task_aba,
-            self.find_task(self.working_tasktree, *list('aba')))
-        self.assertEqual(expected_task_abb,
-            self.find_task(self.working_tasktree, *list('abb')))
-        self.assertEqual(expected_task_ac,
-            self.find_task(self.working_tasktree, *list('ac')))
+        self.assertEqual((0, 1),
+            self.find_task(self.working_tasktree, *'aaa').path)
+        
+        self.assertEqual(expected_tasklist_a_children, actual_tasklist_a.children)
+        self.assertEqual(expected_task_aa_children, actual_task_aa.children)
     
     def test_promote_task_multiple(self):
         """Test that the promote operation properly moves the targeted set of
-        Tasks, and that it maintains the sibling links of all affected Task 
-        sibling groups.
+        Tasks.
                 
         Arrange:
-            - Find expected Tasks a-a-a..c, a-b.
-            - Update previous_task_id properties of expected Tasks.
+            - Find expected Tasks a-a-a, a-a-c, a-a, and TaskList a.
+            - Create new lists of expected children for TaskList a and Task 
+            a-a.
         Act:
-            - Find actual Task a-b and demote it.
+            - Find actual Tasks a-a-a, a-a-c and promote them.
         Assert:
-            - Tasks a-a-b..c previous_task_id references point to parent 
-            Task a-a-a.
+            - Tasks a-a-b, a-a-c are located at the expected paths (0,1) 
+            and (0,2).
+            - Task a-a and TaskList a have the expected children, in the 
+            expected order.
         """
         ### Arrange ###
-        expected_task_aa = self.find_task(self.baseline_tasktree, *list('aa'))
-        expected_task_ab = self.find_task(self.baseline_tasktree, *list('ab'))
+        actual_task_aaa = self.find_task(self.working_tasktree, *'aaa')
+        actual_task_aac = self.find_task(self.working_tasktree, *'aac')    
+        actual_task_aa = self.find_task(self.working_tasktree, *'aa')
+        actual_tasklist_a = self.find_tasklist(self.working_tasktree, 'a')    
         
-        expected_task_aaa = self.find_task(self.baseline_tasktree, *list('aaa'))        
-        expected_task_aab = self.find_task(self.baseline_tasktree, *list('aab'))
-        expected_task_aac = self.find_task(self.baseline_tasktree, *list('aac'))
-        
-        expected_task_aaa.parent_id = None
-        expected_task_aaa.previous_task_id = expected_task_aa.entity_id
-                
-        expected_task_aab.previous_task_id = expected_task_aa.entity_id
-        
-        expected_task_aac.parent_id = None
-        expected_task_aac.previous_task_id = expected_task_aaa.entity_id
-        
-        expected_task_ab.previous_task_id = expected_task_aac.entity_id
+        expected_tasklist_a_children = [
+            self.find_task(self.working_tasktree, *'aa'),
+            self.find_task(self.working_tasktree, *'aaa'),
+            self.find_task(self.working_tasktree, *'aac'),
+            self.find_task(self.working_tasktree, *'ab'),
+            self.find_task(self.working_tasktree, *'ac')]
+        expected_task_aa_children = [
+            self.find_task(self.working_tasktree, *'aab')]
                         
         ### Act ###
-        actual_task_aaa = self.find_task(self.working_tasktree, *list('aaa'))
-        actual_task_aac = self.find_task(self.working_tasktree, *list('aac'))
         self.working_tasktree.promote(actual_task_aaa, actual_task_aac)
         
         ### Assert ###
-        self.assertEqual(expected_task_aaa,
-            self.find_task(self.working_tasktree, *list('aaa')))
-        self.assertEqual(expected_task_aab,
-            self.find_task(self.working_tasktree, *list('aab')))
-        self.assertEqual(expected_task_aac,
-            self.find_task(self.working_tasktree, *list('aac')))
+        self.assertEqual((0, 1),
+            self.find_task(self.working_tasktree, *'aaa').path)
+        self.assertEqual((0, 2),
+            self.find_task(self.working_tasktree, *'aac').path)
         
-        self.assertEqual(expected_task_ab,
-            self.find_task(self.working_tasktree, *list('ab')))
-        
-    def test_promote_tasklist(self):
-        """Test that the promote operation raises an error if provided a 
-        TaskList target.
-                
-        Arrange:
-            - Find expected TaskList b.
-        Assert:
-            - Attempting to promote TaskList b raises an error.
-        """
-        ### Arrange ###
-        expected_tasklist_b = self.find_tasklist(self.baseline_tasktree, *list('b'))
-        
-        ### Assert ###
-        with self.assertRaises(InvalidReorderOperationTargetError):
-            self.working_tasktree.promote(expected_tasklist_b)
+        self.assertEqual(expected_tasklist_a_children, actual_tasklist_a.children)
+        self.assertEqual(expected_task_aa_children, actual_task_aa.children)
     
     def test_demote_task_single(self):
-        """Test that the demote operation properly updates the sibling
-        links of the all Task sibling groups affected.
-        
-        This should update both the Task siblings that the Task moves down to 
-        join, and the Task siblings that the Task left.
+        """Test that the demote operation properly moves the targeted Task to
+        become the last (lowest ordered) direct child of its previous 
+        preceeding sibling.
         
         Arrange:
-            - Find expected Tasks a-a?..c, a-b-a..b.
-            - Update previous_task_id properties of expected Tasks.
+            - Find expected Tasks a-a, a-b, TaskList a.
+            - Create new lists of expected children for TaskList a and Task 
+            a-a.
         Act:
             - Find actual Task a-b and demote it.
         Assert:
-            - Tasks a-b-a..c remain children of Task a-b.
-            - Task a-b previous_task_id points to Task a-a-c.
-            - Task a-c previous_task_id points to Task a-a.
+            - Task a-b is located at the expected path (0,0,3).
+            - TaskList a and Task a-a have the expected children, in the 
+            expected order.
         """
         ### Arrange ###
-        expected_task_aa = self.find_task(self.baseline_tasktree, *list('aa'))
-        expected_task_ab = self.find_task(self.baseline_tasktree, *list('ab'))
-        expected_task_ac = self.find_task(self.baseline_tasktree, *list('ac'))
+        actual_task_ab = self.find_task(self.working_tasktree, *'ab')
+        actual_task_aa = self.find_task(self.working_tasktree, *'aa')
+        actual_tasklist_a = self.find_tasklist(self.working_tasktree, 'a')
         
-        expected_task_aac = self.find_task(self.baseline_tasktree, *list('aac'))
-        
-        expected_task_ab.previous_task_id = expected_task_aac.entity_id
-        expected_task_ab.parent_id = expected_task_aa.entity_id
-        expected_task_ac.previous_task_id = expected_task_aa.entity_id
+        expected_tasklist_a_children = [
+            self.find_task(self.working_tasktree, *'aa'),
+            self.find_task(self.working_tasktree, *'ac')]
+        expected_task_aa_children = [
+            self.find_task(self.working_tasktree, *'aaa'),
+            self.find_task(self.working_tasktree, *'aab'),
+            self.find_task(self.working_tasktree, *'aac'),
+            self.find_task(self.working_tasktree, *'ab')]
         
         ### Act ###
-        actual_task_ab = self.find_task(self.working_tasktree, *list('ab'))
         self.working_tasktree.demote(actual_task_ab)
         
         ### Assert ###
-        self.assertEqual(expected_task_ab.entity_id,
-            self.find_task(self.working_tasktree, *list('aba')).parent_id)
-        self.assertEqual(expected_task_ab.entity_id,
-            self.find_task(self.working_tasktree, *list('abb')).parent_id)
-        self.assertEqual(expected_task_ab.entity_id,
-            self.find_task(self.working_tasktree, *list('abc')).parent_id)
-                
-        self.assertEqual(expected_task_ab,
-            self.find_task(self.working_tasktree, *list('ab')))
+        self.assertEqual((0, 0, 3),
+            self.find_task(self.working_tasktree, *'ab').path)
         
-        self.assertEqual(expected_task_ac,
-            self.find_task(self.working_tasktree, *list('ac')))
+        self.assertEqual(expected_tasklist_a_children, actual_tasklist_a.children)
+        self.assertEqual(expected_task_aa_children, actual_task_aa.children)
     
     """
     TODO: This test still randomly fails. Frustratingly, every 
@@ -1879,53 +1827,43 @@ class TaskTreeReorderTest(PopulatedTaskTreeTestSupport, unittest.TestCase):
     """
     def test_demote_task_multiple(self):
         """Test that the demote operation properly moves the targeted set of
-        Tasks, and that it maintains the sibling links of all affected Task 
-        sibling groups.
+        Tasks.
                 
         Arrange:
-            - Find expected Tasks a-a-a..c, a-b.
-            - Update previous_task_id properties of expected Tasks.
+            - Find expected Tasks a-a-b, a-a-c, a-a, a-a-a.
+            - Create new lists of expected children for Tasks a-a and a-a-a.
         Act:
-            - Find actual Task a-b and demote it.
+            - Find actual Tasks a-a-b, a-a-c and demote them.
         Assert:
-            - Tasks a-a-b..c previous_task_id references point to parent 
-            Task a-a-a.
+            - Tasks a-a-b, a-a-c are located at the expected paths (0,0,0,0) 
+            and (0,0,0,1).
+            - Tasks a-a and Task a-a-a have the expected children, in the 
+            expected order.
         """
         ### Arrange ###
-        expected_task_aaa = self.find_task(self.baseline_tasktree, *list('aaa'))        
-        expected_task_aab = self.find_task(self.baseline_tasktree, *list('aab'))
-        expected_task_aac = self.find_task(self.baseline_tasktree, *list('aac'))
+        actual_task_aab = self.find_task(self.working_tasktree, *'aab')
+        actual_task_aac = self.find_task(self.working_tasktree, *'aac')
         
-        expected_task_aab.parent_id = expected_task_aaa.entity_id
-        expected_task_aab.previous_task_id = expected_task_aab.parent_id
-        expected_task_aac.parent_id = expected_task_aaa.entity_id
-                
+        actual_task_aa = self.find_task(self.working_tasktree, *'aa')
+        actual_task_aaa = self.find_task(self.working_tasktree, *'aaa')
+        
+        expected_task_aa_children = [
+            self.find_task(self.working_tasktree, *'aaa')]
+        expected_task_aaa_children = [
+            self.find_task(self.working_tasktree, *'aab'),
+            self.find_task(self.working_tasktree, *'aac')]
+        
         ### Act ###
-        actual_task_aab = self.find_task(self.working_tasktree, *list('aab'))
-        actual_task_aac = self.find_task(self.working_tasktree, *list('aac'))
         self.working_tasktree.demote(actual_task_aab, actual_task_aac)
         
         ### Assert ###
-        self.assertEqual(expected_task_aab,
-            self.find_task(self.working_tasktree, *list('aab')))
-        self.assertEqual(expected_task_aac,
-            self.find_task(self.working_tasktree, *list('aac')))
+        self.assertEqual((0, 0, 0, 0),
+            self.find_task(self.working_tasktree, *'aab').path)
+        self.assertEqual((0, 0, 0, 1),
+            self.find_task(self.working_tasktree, *'aac').path)
         
-    def test_demote_tasklist(self):
-        """Test that the demote operation raises an error if provided a 
-        TaskList target.
-                
-        Arrange:
-            - Find expected TaskList b.
-        Assert:
-            - Attempting to demote TaskList b raises an error.
-        """
-        ### Arrange ###
-        expected_tasklist_b = self.find_tasklist(self.baseline_tasktree, *list('b'))
-        
-        ### Assert ###
-        with self.assertRaises(InvalidReorderOperationTargetError):
-            self.working_tasktree.demote(expected_tasklist_b)
+        self.assertEqual(expected_task_aa_children, actual_task_aa.children)
+        self.assertEqual(expected_task_aaa_children, actual_task_aaa.children)
 #------------------------------------------------------------------------------
 
 @unittest.skip("Ordering broken with Task refactor.")
@@ -2047,7 +1985,11 @@ class TaskTreeComparator(object):
             baseline_entity = baseline_tree.get_entity_for_id(entity_id)
             altered_entity = altered_tree.get_entity_for_id(entity_id)
             
-            if baseline_entity.treeless_value != altered_entity.treeless_value:
+            updated_ignored_props = baseline_entity._get_comparable_properties()
+            updated_ignored_props.remove('updated_date')
+            
+            if not DeclaredPropertiesComparable.compare(
+                baseline_entity.treeless_value, altered_entity.treeless_value, updated_ignored_props):
                 updated_ids.add(entity_id)
                 
         return updated_ids
@@ -2150,7 +2092,6 @@ class TaskTreeComparatorTest(PopulatedTaskTreeTestSupport, unittest.TestCase):
         self.assertEqual(expected_deleted_ids, actual_deleted_ids)
 #------------------------------------------------------------------------------ 
 
-@unittest.skip("Ordering broken with Task refactor.")
 class TaskTreeComparatorFindUpdatedTest(PopulatedTaskTreeTestSupport, unittest.TestCase):
     def setUp(self):
         PopulatedTaskTreeTestSupport.setUp(self)
@@ -2191,8 +2132,7 @@ class TaskTreeComparatorFindUpdatedTest(PopulatedTaskTreeTestSupport, unittest.T
         self.working_tasktree.update_entity(tasklist_a)
         self.working_tasktree.update_entity(task_b)
                 
-        tasklist_foo = TestDataTaskList('foo')
-        self.working_tasktree.add_entity(tasklist_foo)
+        TestDataTaskList(self.working_tasktree, 'foo')
         
         expected_updated_ids = set([tasklist_a.entity_id, task_b.entity_id])
 
@@ -2283,6 +2223,43 @@ class TaskTreeComparatorFindUpdatedTest(PopulatedTaskTreeTestSupport, unittest.T
 
         ### Assert ###
         self.assertEqual(expected_updated_ids, actual_updated_ids)
+        
+    @skip(DISABLED_WORKING_OTHER_TESTS)
+    def test_find_updated_ignores_reordering(self):
+        """Test that the TaskTreeComparator will not consider reordered 
+        tasks to be updated. 
+
+        Arrange:
+            - Find Task a-a-b in working TaskTree.
+            - Promote Task a-a-b.
+        Act:
+            - Use TaskTreeComparator.find_updated_id to locate the entity IDs
+            any updated entity IDs. This should not find anything.
+        Assert:
+            - That the actual set of updated entity IDs is empty.
+        """
+        ### Arrange ###
+        task_cac = self.find_task(self.working_tasktree, *list('aab'))
+        
+        self.working_tasktree.promote_task(task_cac)
+
+        ### Act ###
+        actual_updated_ids = self.comparator.find_updated_ids(
+            self.baseline_tasktree, self.working_tasktree)
+
+        ### Assert ###
+        self.assertEqual(set(), actual_updated_ids)
+#------------------------------------------------------------------------------
+
+@unittest.skip("Ordering broken with Task refactor.")
+class TaskTreeComparatorFindReorderedTest(PopulatedTaskTreeTestSupport, unittest.TestCase):
+    def setUp(self):
+        PopulatedTaskTreeTestSupport.setUp(self)
+
+        # Create the TaskTreeComparator that will be under test.
+        self.comparator = TaskTreeComparator()
+
+        self._register_fixtures(self.comparator)
         
     def test_find_reorder_up_updated_task(self):
         """Test that the TaskTreeComparator can identify any Tasks in a 
@@ -2405,8 +2382,8 @@ class TaskTreeComparatorFindUpdatedTest(PopulatedTaskTreeTestSupport, unittest.T
             identical.
         """
         ### Arrange ###
-        task_ab = self.find_task(self.working_tasktree, *list('ab'))
-        task_ac = self.find_task(self.working_tasktree, *list('ac'))
+        task_ab = self.find_task(self.working_tasktree, *'ab')
+        task_ac = self.find_task(self.working_tasktree, *'ac')
 
         self.working_tasktree.demote(task_ab)
         
@@ -2464,7 +2441,7 @@ class TaskTreeComparatorFindUpdatedTest(PopulatedTaskTreeTestSupport, unittest.T
 
         ### Assert ###
         self.assertEqual(expected_updated_ids, actual_updated_ids)
-#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------ 
 
 class TaskDataError(Exception):
     def __init__(self, message):
