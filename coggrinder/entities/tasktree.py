@@ -1864,8 +1864,7 @@ class TaskTreeReorderTest(PopulatedTaskTreeTestSupport, unittest.TestCase):
         
         self.assertEqual(expected_task_aa_children, actual_task_aa.children)
         self.assertEqual(expected_task_aaa_children, actual_task_aaa.children)
-#------------------------------------------------------------------------------
-s#------------------------------------------------------------------------------ 
+#------------------------------------------------------------------------------ 
         
 class TaskTreeComparator(object):
     @classmethod
@@ -1904,6 +1903,35 @@ class TaskTreeComparator(object):
                 updated_ids.add(entity_id)
                 
         return updated_ids
+    
+    @classmethod
+    def find_moved_task_ids(cls, baseline_tree, altered_tree):
+        # Begin with a list of all IDs that are in both Trees.
+        common_ids = baseline_tree.entity_ids & altered_tree.entity_ids
+        
+        moved_task_ids = set()
+        for entity_id in common_ids:
+            # For each common entity ID, pull the entity from both trees and
+            # compare their tree positions.
+            baseline_entity = baseline_tree.get_entity_for_id(entity_id)
+            altered_entity = altered_tree.get_entity_for_id(entity_id)
+            
+            # An updated tree position cannot be determined by comparing 
+            # paths, as any descendant nodes of a moved node with have 
+            # altered paths as well. 
+            # Instead, parent_id and child_index should be compared to 
+            # identify which nodes should be included in move operations.
+            try: 
+                if (baseline_entity.parent_id != altered_entity.parent_id or 
+                    baseline_entity.child_index != altered_entity.child_index):
+                    moved_task_ids.add(entity_id)
+            except AttributeError:
+                # This should indicate that the current entity is a TaskList,
+                # and therefore can be ignored for the purposes of identifying
+                # moved Tasks.
+                pass
+            
+        return moved_task_ids
 #------------------------------------------------------------------------------ 
 
 class TaskTreeComparatorTest(PopulatedTaskTreeTestSupport, unittest.TestCase):
@@ -2162,7 +2190,6 @@ class TaskTreeComparatorFindUpdatedTest(PopulatedTaskTreeTestSupport, unittest.T
         self.assertEqual(set(), actual_updated_ids)
 #------------------------------------------------------------------------------
 
-@unittest.skip("Ordering broken with Task refactor.")
 class TaskTreeComparatorFindReorderedTest(PopulatedTaskTreeTestSupport, unittest.TestCase):
     def setUp(self):
         PopulatedTaskTreeTestSupport.setUp(self)
@@ -2203,19 +2230,19 @@ class TaskTreeComparatorFindReorderedTest(PopulatedTaskTreeTestSupport, unittest
             identical.
         """
         ### Arrange ###
-        task_ab = self.find_task(self.working_tasktree, *list('ab'))
-        task_ac = self.find_task(self.working_tasktree, *list('ac'))
+        task_ab = self.find_task(self.working_tasktree, *'ab')
+        task_ac = self.find_task(self.working_tasktree, *'ac')
 
         self.working_tasktree.reorder_task_up(task_ac)
         
-        expected_updated_ids = set([task_ab.entity_id, task_ac.entity_id])
+        expected_moved_ids = set([task_ab.entity_id, task_ac.entity_id])
 
         ### Act ###
-        actual_updated_ids = self.comparator.find_updated_ids(
+        actual_moved_ids = self.comparator.find_moved_task_ids(
             self.baseline_tasktree, self.working_tasktree)
 
         ### Assert ###
-        self.assertEqual(expected_updated_ids, actual_updated_ids)
+        self.assertEqual(expected_moved_ids, actual_moved_ids)
         
     def test_find_reorder_down_updated_task(self):
         """Test that the TaskTreeComparator can identify any Tasks in a 
@@ -2248,23 +2275,23 @@ class TaskTreeComparatorFindReorderedTest(PopulatedTaskTreeTestSupport, unittest
             identical.
         """
         ### Arrange ###
-        task_ab = self.find_task(self.working_tasktree, *list('ab'))
-        task_ac = self.find_task(self.working_tasktree, *list('ac'))
+        task_ab = self.find_task(self.working_tasktree, *'ab')
+        task_ac = self.find_task(self.working_tasktree, *'ac')
 
         self.working_tasktree.reorder_task_down(task_ab)
         
-        expected_updated_ids = set([task_ab.entity_id, task_ac.entity_id])
+        expected_moved_ids = set([task_ab.entity_id, task_ac.entity_id])
 
         ### Act ###
-        actual_updated_ids = self.comparator.find_updated_ids(
+        actual_moved_ids = self.comparator.find_moved_task_ids(
             self.baseline_tasktree, self.working_tasktree)
 
         ### Assert ###
-        self.assertEqual(expected_updated_ids, actual_updated_ids)
+        self.assertEqual(expected_moved_ids, actual_moved_ids)
         
     def test_find_demote_updated_task(self):
         """Test that the TaskTreeComparator can identify any Tasks in a 
-        TaskTree that have updated tree positions due to a reorder operation.
+        TaskTree that have updated tree positions due to a demote operation.
          
         Task a-b will be demoted. The resulting 
         relative branch of the tree will have this structure:
@@ -2298,18 +2325,18 @@ class TaskTreeComparatorFindReorderedTest(PopulatedTaskTreeTestSupport, unittest
 
         self.working_tasktree.demote(task_ab)
         
-        expected_updated_ids = set([task_ab.entity_id, task_ac.entity_id])
+        expected_moved_ids = set([task_ab.entity_id, task_ac.entity_id])
 
         ### Act ###
-        actual_updated_ids = self.comparator.find_updated_ids(
+        actual_moved_ids = self.comparator.find_moved_task_ids(
             self.baseline_tasktree, self.working_tasktree)
 
         ### Assert ###
-        self.assertEqual(expected_updated_ids, actual_updated_ids)
+        self.assertEqual(expected_moved_ids, actual_moved_ids)
         
     def test_find_promote_updated_task(self):
         """Test that the TaskTreeComparator can identify any Tasks in a 
-        TaskTree that have updated tree positions due to a reorder operation.
+        TaskTree that have updated tree positions due to a promoote operation.
          
         Task a-b-a will be promoted. The resulting 
         relative branch of the tree will have this structure:
@@ -2328,7 +2355,7 @@ class TaskTreeComparatorFindReorderedTest(PopulatedTaskTreeTestSupport, unittest
 
         Arrange:
             - Find entities Tasks a-b-a, a-b-b, a-c in working TaskTree.
-            - Promote Task a-b.
+            - Promote Task a-b-a.
             - Create list of expected updated entity IDs.
         Act:
             - Use TaskTreeComparator.find_updated_id to locate the entity IDs
@@ -2338,20 +2365,22 @@ class TaskTreeComparatorFindReorderedTest(PopulatedTaskTreeTestSupport, unittest
             identical.
         """
         ### Arrange ###
-        task_aba = self.find_task(self.working_tasktree, *list('aba'))
-        task_abb = self.find_task(self.working_tasktree, *list('abb'))
-        task_ac = self.find_task(self.working_tasktree, *list('ac'))
+        task_aba = self.find_task(self.working_tasktree, *'aba')
+        task_abb = self.find_task(self.working_tasktree, *'abb')
+        task_abc = self.find_task(self.working_tasktree, *'abc')
+        task_ac = self.find_task(self.working_tasktree, *'ac')
 
         self.working_tasktree.promote(task_aba)
         
-        expected_updated_ids = set([task_aba.entity_id, task_abb.entity_id, task_ac.entity_id])
+        expected_moved_ids = set([task_aba.entity_id, task_abb.entity_id, 
+            task_abc.entity_id, task_ac.entity_id])
 
         ### Act ###
-        actual_updated_ids = self.comparator.find_updated_ids(
+        actual_moved_ids = self.comparator.find_moved_task_ids(
             self.baseline_tasktree, self.working_tasktree)
 
         ### Assert ###
-        self.assertEqual(expected_updated_ids, actual_updated_ids)
+        self.assertEqual(expected_moved_ids, actual_moved_ids)
 #------------------------------------------------------------------------------ 
 
 class TaskDataError(Exception):
