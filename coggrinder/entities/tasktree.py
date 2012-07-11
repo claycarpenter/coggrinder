@@ -9,7 +9,8 @@ from unittest import skip
 from datetime import datetime
 from coggrinder.entities.tasks import Task, TaskList, TestDataEntitySupport, \
     TestDataTaskList, TestDataTask, UpdatedDateIgnoredTestDataTask, UpdatedDateIgnoredTestDataTaskList, \
-    SortedTaskDataChildrenSupport, GoogleServicesTask
+    SortedTaskDataChildrenSupport, GoogleServicesTask, \
+    TestDataGoogleServicesTask, UpdatedDateIgnoredTestDataGoogleServicesTask
 from coggrinder.entities.tree import Tree
 from coggrinder.core.test import ManagedFixturesTestSupport, DISABLED_WORKING_OTHER_TESTS
 import copy
@@ -660,7 +661,6 @@ class TaskDataTestSupport(object):
         return self.branch_str(tasktree, tasklist)        
 #------------------------------------------------------------------------------
 
-@unittest.skip("Ordering broken with Task refactor.")
 class TaskDataTestSupportTest(unittest.TestCase):
     def test_create_dynamic_tasktree(self):
         """Test the creation of a "4x3" TaskTree.
@@ -678,24 +678,28 @@ class TaskDataTestSupportTest(unittest.TestCase):
             - That the expected and actual TaskList A and Task A-C-C are equal.
         """
         ### Arrange ###
-        expected_tasklist_a = TestDataTaskList("A")
-        expected_task_acc = TestDataTask("A-C-C",
-            tasklist_id=expected_tasklist_a.entity_id,
-            parent_id="a-c",
-            previous_task_id=TestDataEntitySupport.short_title_to_id(*list('acb')))
+        expected_tasktree = TaskTree()
+        tl_a = UpdatedDateIgnoredTestDataTaskList(expected_tasktree, 'A')
+        t_aa = UpdatedDateIgnoredTestDataGoogleServicesTask(tl_a, *'AA')
+        t_ab = UpdatedDateIgnoredTestDataGoogleServicesTask(tl_a, *'AB')
+        
+        tl_b = UpdatedDateIgnoredTestDataTaskList(expected_tasktree, 'B')
+        t_ba = UpdatedDateIgnoredTestDataGoogleServicesTask(tl_b, *'BA')
+        t_bb = UpdatedDateIgnoredTestDataGoogleServicesTask(tl_b, *'BB')
+        
+        for entity in expected_tasktree.descendants:
+            entity.is_persisted = True
             
         ### Act ###
-        tasktree = TaskDataTestSupport.create_dynamic_tasktree(
-            tasklist_type=TestDataTaskList, task_type=TestDataTask,
-            siblings_count=3, tree_depth=3)
-        
-        actual_tasklist_a = tasktree.get_entity_for_id("a")
-        actual_task_acc = tasktree.get_entity_for_id("a-c-c")
+        actual_tasktree = TaskDataTestSupport.create_dynamic_tasktree(
+            tasklist_type=UpdatedDateIgnoredTestDataTaskList, 
+            task_type=UpdatedDateIgnoredTestDataGoogleServicesTask,
+            siblings_count=2, tree_depth=2)
         
         ### Assert ###
-        self.assertEqual(expected_tasklist_a, actual_tasklist_a)
-        self.assertEqual(expected_task_acc, actual_task_acc)
+        self.assertEqual(expected_tasktree, actual_tasktree)
 #------------------------------------------------------------------------------ 
+
 class PopulatedTaskTreeTestSupport(TaskDataTestSupport, ManagedFixturesTestSupport):
     def setUp(self):
         """Establish test fixtures common to all tests within this setup.
@@ -2372,7 +2376,7 @@ class TaskTreeComparatorFindReorderedTest(PopulatedTaskTreeTestSupport, unittest
 
         self.working_tasktree.promote(task_aba)
         
-        expected_moved_ids = set([task_aba.entity_id, task_abb.entity_id, 
+        expected_moved_ids = set([task_aba.entity_id, task_abb.entity_id,
             task_abc.entity_id, task_ac.entity_id])
 
         ### Act ###
