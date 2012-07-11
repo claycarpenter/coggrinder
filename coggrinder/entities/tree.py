@@ -144,6 +144,19 @@ class TreeNode(DeclaredPropertiesComparable):
         self.children.extend(orig_children)
     
         return clone
+    
+    def remove_child(self, child):
+        # Remove all children with the equivalent treeless value of the 
+        # provided child node.        
+        matching_children = [x for x in self.children if x.treeless_value == child.treeless_value]
+        for matching_child in matching_children:
+            # Remove child from the children collection.
+            self.children.remove(matching_child)
+                
+            # Clear the removed child's parent reference.
+            matching_child.parent = None
+        
+        return child
 
     def _get_comparable_properties(self):
         return ("parent", "path", "value", "children")
@@ -261,6 +274,34 @@ class TreeNodeTest(unittest.TestCase):
         self.assertEqual(expected_children, root.children)
         self.assertIs(root.children[0], leaf_a)
         self.assertIs(leaf_a.parent, root)
+            
+    def test_remove_child(self):
+        """Test that removing a child from an existing TreeNode clears the
+        parent-child references between the nodes.
+        
+        Clearing the parent-child references involves removing that child 
+        from the parent's children collection, and clearing the parent
+        property of the child.
+        
+        Arrange:
+            - Create TreeNode root.
+            - Create child node leaf A.            
+        Act:
+            - Remove child node leaf A from parent node root twice.
+        Assert:
+            - Node root only has an empty children collection.
+            - Node leaf A has no defined parent reference.
+        """
+        ### Arrange ###
+        root = TreeNode(value="root")
+        leaf_a = TreeNode(root, value="leaf a")        
+        
+        ### Act ###
+        root.remove_child(leaf_a)
+        
+        ### Assert ###
+        self.assertEqual([], root.children)
+        self.assertIsNone(leaf_a.parent)
         
     def test_clone(self):
         """Test that the clone function properly copies the 
@@ -542,14 +583,12 @@ class Tree(TreeNode):
 
             parent_node = parent_node.parent
 
-        # Remove the node from its current position.
-        self.remove_node(node)
-
-        # Add the moving node to the new parent node's children.
-        if new_child_index is None:
-            self.append_node(new_parent_node, node)
-        else:
-            self.insert_node(new_parent_node.path + (new_child_index,), node)
+        """
+        TODO: Shouldn't this just use (new method) remove_child/add_child? 
+        """
+        node.parent.remove_child(node)
+        
+        new_parent_node.add_child(node, child_index=new_child_index)
 
         return node
 
