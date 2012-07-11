@@ -39,7 +39,7 @@ class SortedTaskDataChildrenSupport(object):
                 # If the new child is a Task-like entity without a defined
                 # position, the child_index value will still be None. This
                 # will insert the new Task at the end of the sibling group.
-                super(SortedTaskDataChildrenSupport, self).add_child(child, child_index=None)
+                super(SortedTaskDataChildrenSupport, self).add_child(child, child_index=child_index)
             except AttributeError:
                 # New child is a TaskList-type entity.
                 for sibling_index, sibling in enumerate(self.children):
@@ -583,7 +583,7 @@ class Task(TaskList):
         if self.child_index is not None:
             # Order by child index.
             try:                
-                if other.child_index == None:
+                if other.child_index is None:
                     return True
                 
                 if self.child_index == other.child_index:
@@ -600,15 +600,14 @@ class Task(TaskList):
                 # Check for an "undefined" position. This is indicated by a zero value,
                 # and such positions should be considered _greater_ than any other
                 # defined position value.
-                if self.position == None:
-                    return False
-                
-                if other.position == None:
-                    return True
-                
                 if self.position == other.position:
                     return super(Task, self).__lt__(other)
                 
+                if self.position is None:
+                    return False                
+                elif other.position is None:
+                    return True
+
                 return self.position < other.position
             except AttributeError:
                 # In the case of comparisons against another Task-type entity 
@@ -1153,6 +1152,10 @@ class UpdatedDateIgnoredTestDataTaskList(TestDataTaskList, UpdatedDateFilteredTa
 #------------------------------------------------------------------------------ 
 
 class UpdatedDateIgnoredTestDataTask(TestDataTask, UpdatedDateFilteredTask):
+    pass
+#------------------------------------------------------------------------------ 
+
+class UpdatedDateIgnoredTestDataGoogleServicesTask(TestDataGoogleServicesTask, UpdatedDateFilteredTask):
     pass
 #------------------------------------------------------------------------------ 
 
