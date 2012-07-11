@@ -21,7 +21,7 @@ class TreeNode(DeclaredPropertiesComparable):
     reference. 
     """
     def __init__(self, parent=None, child_index=None, value=None):
-        """Create the node with a parent and option value.
+        """Create the node with a parent and optional value.
 
         Args:
             parent: The parent TreeNode of this node, or None if the parent
@@ -303,8 +303,8 @@ class TreeNodeTest(unittest.TestCase):
         self.assertEqual([], root.children)
         self.assertIsNone(leaf_a.parent)
         
-    def test_clone(self):
-        """Test that the clone function properly copies the 
+    def test_clean_clone(self):
+        """Test that the clean_clone function properly copies the 
         value of the TreeNode while removing the parent and child references
         held by the original.
         
