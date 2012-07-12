@@ -490,15 +490,16 @@ class Task(TaskList):
     @property
     def parent_id(self):
         # Check to see if the parent relationship is defined. If so, defer to 
-        # that.
+        # that, and ensure that the _parent_id attribute is updated.
         if self.parent is not None:
             # Check to see if the parent is a Task (it will have a task_status
-            # attribute) or a TaskList. In the case of a TaskList, return None
-            # instead of the parent's entity ID.
+            # attribute) or a TaskList. In the case of a TaskList, the 
+            # parent_id attribute value should be None instead of the 
+            # parent's entity ID.
             if hasattr(self.parent, "task_status"):
-                return self.parent.entity_id
+                self._parent_id = self.parent.entity_id
             else:
-                return None
+                self._parent_id = None
         
         # No parent relationship has been defined, use the local attribute 
         # value.
@@ -792,15 +793,27 @@ class TaskTest(unittest.TestCase):
                 
         """
         ### Arrange ###
-        t_parent = TestDataTaskList(None, 'parent')
-        t_foo = TestDataTask(t_parent, 'foo')
-        t_bar = TestDataTask(t_foo, 'bar')
+        tasklist = TaskList(None, title='parent', entity_id='parent')
+        t_foo = Task(tasklist, title='foo', entity_id='foo')
+        t_bar = Task(t_foo, title='bar', entity_id='bar')
         t_bar_clone = t_bar.clean_clone()
         
+        # Baz changes parents, testing that the parent_id is updated along 
+        # with new parent references.
+        t_baz = Task(t_foo,title='baz',entity_id='baz')
+        t_baz.parent.remove_child(t_baz)
+        tasklist.add_child(t_baz)
+        
         ### Assert ###
-        self.assertEqual(None, t_foo.parent_id)
+        self.assertIsNone(t_foo.parent_id)
         self.assertEqual(t_foo.entity_id, t_bar.parent_id)
+        self.assertEqual(t_foo.parent_id, t_foo._parent_id)
+        
         self.assertEqual(t_foo.entity_id, t_bar_clone.parent_id)
+        self.assertEqual(t_bar.parent_id, t_bar._parent_id)
+                
+        self.assertIsNone(t_baz.parent_id)
+        self.assertEqual(t_baz.parent_id, t_baz._parent_id)
         
     def test_parent_id_changing_parents_task_to_tasklist(self):
         """Test that the parent_id will be updated to from the old parent
