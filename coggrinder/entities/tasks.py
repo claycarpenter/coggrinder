@@ -65,7 +65,7 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
                 RFC3339Converter())
         )
 
-    def __init__(self, parent, entity_id=None, title="", updated_date=None, 
+    def __init__(self, parent, entity_id=None, title="", updated_date=None,
         children=None, persistence_id=None, is_persisted=False):
         # Initialize TaskList properties first so that they're available during
         # the comparison operations used in the add_child method.
@@ -86,7 +86,7 @@ class TaskList(SortedTaskDataChildrenSupport, TreeNode):
         # Strip the timestamp down to just date (year, month, day) and 
         # a time that includes hours, minutes, and seconds. Microseconds and
         # any timezone info are not preserved.            
-        self.updated_date = datetime(updated_date.year, updated_date.month, 
+        self.updated_date = datetime(updated_date.year, updated_date.month,
             updated_date.day, updated_date.hour, updated_date.minute, updated_date.second)
                 
         TreeNode.__init__(self, parent, value=self)
@@ -415,7 +415,7 @@ class TaskListTest(unittest.TestCase):
         ### Assert ###
         self.assertEqual(tl_new.entity_id, insert_result_str_dict["id"])
         
-        updated_date = datetime.strptime(insert_result_str_dict["updated"],"%Y-%m-%dT%H:%M:%S.000Z")
+        updated_date = datetime.strptime(insert_result_str_dict["updated"], "%Y-%m-%dT%H:%M:%S.000Z")
         self.assertEqual(tl_new.updated_date, updated_date)
 
     def test_to_dict(self):
@@ -489,9 +489,19 @@ class Task(TaskList):
         
     @property
     def parent_id(self):
-        if self.parent is not None and hasattr(self.parent, "task_status"):
-            return self.parent.entity_id
+        # Check to see if the parent relationship is defined. If so, defer to 
+        # that.
+        if self.parent is not None:
+            # Check to see if the parent is a Task (it will have a task_status
+            # attribute) or a TaskList. In the case of a TaskList, return None
+            # instead of the parent's entity ID.
+            if hasattr(self.parent, "task_status"):
+                return self.parent.entity_id
+            else:
+                return None
         
+        # No parent relationship has been defined, use the local attribute 
+        # value.
         return self._parent_id
     
     @parent_id.setter
@@ -505,13 +515,21 @@ class Task(TaskList):
         """
         try:
             if self.parent is not None:
-                assert parent_id == self.parent.entity_id
+                assert parent_id == self.parent.entity_id or parent_id == self.tasklist.entity_id
         except AttributeError:
             # Parent-child relationship has not been established.
             # Set the parent_id to be None.
             pass
             
         self._parent_id = parent_id
+        
+    @property
+    def previous_task_id(self):
+        if self.child_index == 0:
+            return None
+        else:
+            previous_task = self.parent.children[self.child_index - 1] 
+            return previous_task.entity_id
                 
     @property
     def tasklist(self):
@@ -783,6 +801,68 @@ class TaskTest(unittest.TestCase):
         self.assertEqual(None, t_foo.parent_id)
         self.assertEqual(t_foo.entity_id, t_bar.parent_id)
         self.assertEqual(t_foo.entity_id, t_bar_clone.parent_id)
+        
+    def test_parent_id_changing_parents_task_to_tasklist(self):
+        """Test that the parent_id will be updated to from the old parent
+        Task ID to None as a Task is moved from having a parent Task to being
+        a direct child of a TaskList.
+        
+        The move is illustrated by the following task data hierarchies:
+        
+        Initial:
+        - TL A
+            - T A A
+                - T A A A (parent ID is T A A)
+        Final:
+        - TL A
+            - T A A
+            - T A A A (parent ID is None)
+        
+        Arrange:
+            - Create TaskList a, Tasks a-a and a-a-a.
+        Act:
+            - Move Task a-a-a to be a direct child of TaskList a via the 
+            add/remove_child operations.
+        Assert:
+            - That Task a-a-a has a parent_id of None.
+        """
+        ### Arrange ###
+        tl_a = TaskList(None, title='a', entity_id='a')
+        t_aa = Task(tl_a, title='a-a', entity_id='a-a')
+        t_aaa = Task(t_aa, title='a-a-a', entity_id='a-a-a')
+        
+        ### Act ###
+        t_aaa.parent.remove_child(t_aaa)
+        tl_a.add_child(t_aaa)
+        
+        ### Assert ###
+        self.assertIsNone(t_aaa.parent_id)
+        
+    """
+    TODO: Update test documentation.
+    """
+    def test_previous_task_id(self):
+        """Test that the previous_task_id property will resolve to the ID 
+        of the previous Task in the target Task's sibling 
+        group, or None if the target Task is first in its sibling group.
+        
+        Ensure that this property is established even for "clean" clones.
+        
+        Arrange:
+        
+        Act:
+        
+        Assert:
+                
+        """
+        ### Arrange ###
+        t_parent = TestDataTaskList(None, 'tasklist')
+        t_a = TestDataTask(t_parent, 'a')
+        t_b = TestDataTask(t_parent, 'b')
+        
+        ### Assert ###
+        self.assertEqual(None, t_a.previous_task_id)
+        self.assertEqual(t_a.entity_id, t_b.previous_task_id)
         
     """
     TODO: This test needs to be documented.
