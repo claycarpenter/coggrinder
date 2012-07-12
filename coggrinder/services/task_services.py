@@ -78,6 +78,18 @@ class AbstractTaskService(object):
     def _update(self, task):
         raise NotImplementedError
 
+    def move(self, task):
+        assert (task is not None
+            and task.entity_id is not None
+            and task.tasklist_id is not None)
+
+        task = self._move(task)
+
+        return task
+
+    def _move(self, task):
+        raise NotImplementedError
+
     """
     TODO: Rename this to list() to stay in line with Google Services API.
     """
@@ -127,8 +139,8 @@ class GoogleServicesTaskService(AbstractTaskService):
             result_str_dict = self.service_proxy.insert(
                 tasklist=task.tasklist_id, body=insert_str_dict).execute()
         
-        # Replace the Task with a new Task populated with the updated 
-        # properties, and set the persisted flag.
+        # Update the Task using the updated attribute value information 
+        # returned by the Google Services, and set the persisted flag.
         task.update_from_str_dict(result_str_dict)
         task.is_persisted = True
 
@@ -142,6 +154,17 @@ class GoogleServicesTaskService(AbstractTaskService):
         # Refresh the task by getting updated properties from the server.
         task = self.get(task.tasklist_id, task.entity_id)
 
+        return task
+    
+    def _move(self, task):
+        # Execute the move operation.
+        move_result_str_dict = self.service_proxy.move(tasklist=task.tasklist_id, task=task.entity_id,
+            parent=task.parent_id, previous=task.previous_task_id)
+        
+        # Update the Task using the updated attribute value information 
+        # returned by the Google Services.
+        task.update_from_str_dict(move_result_str_dict)
+        
         return task
 
     def _update(self, task):
@@ -167,9 +190,9 @@ class GoogleServicesTaskService(AbstractTaskService):
         parent = task.parent
         assert parent is not None
         
-        # Replace the Task with a new Task populated with the updated 
-        # properties, and restore the parent link.
-        task = GoogleServicesTask.from_str_dict(update_result_str_dict)
+        # Update the Task using the updated attribute value information 
+        # returned by the Google Services.
+        task.update_from_str_dict(update_result_str_dict)
         task.parent = parent
         
         return task
@@ -204,6 +227,11 @@ class GoogleServicesTaskService(AbstractTaskService):
         return tasks
 #------------------------------------------------------------------------------ 
 
+"""
+TODO: All of these tests should likely follow the example set by the current 
+test_insert implementation of using actual captured Google Services responses
+for mock test data.
+"""
 class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
     def setUp(self):
         """Established basic fixtures mimicking the Google Tasks service proxy."""
@@ -222,14 +250,16 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         """
         self.mock_service_proxy = mock()
         self.task_service.service_proxy = self.mock_service_proxy
+        
+        self.tasklist = TaskList(None, title="Mock TaskList")
+        self.tasklist.entity_id = "MTM3ODEyNTc4OTA1OTU2NzE3NTM6MTk3NDg0OTU5Mjow"
+        self.tasklist.is_persisted = True
 
-        self._register_fixtures(self.task_service, self.mock_service_proxy)
+        self._register_fixtures(self.task_service, self.mock_service_proxy,
+            self.tasklist)
 
     def test_get_minimal(self):
         ### Arrange ###        
-        tasklist = TaskList(None)
-        tasklist.entity_id = "tasklistid"
-
         expected_task_id = "abcid"
         expected_task_title = "Task title"
         expected_task_updated_date = datetime(2012, 3, 26, 22, 59, 24)
@@ -246,11 +276,11 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         }
 
         mock_get_request = mock()
-        when(self.mock_service_proxy).get(tasklist=tasklist.entity_id, task=expected_task_id).thenReturn(mock_get_request)
+        when(self.mock_service_proxy).get(tasklist=self.tasklist.entity_id, task=expected_task_id).thenReturn(mock_get_request)
         when(mock_get_request).execute().thenReturn(result_str_dict)
 
         ### Act ###        
-        actual_task = self.task_service.get(tasklist.entity_id, expected_task_id)
+        actual_task = self.task_service.get(self.tasklist.entity_id, expected_task_id)
 
         ### Assert ###
         """
@@ -267,9 +297,6 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
 
     def test_get_tasks_in_tasklist(self):
         ### Arrange ###
-        expected_tasklist = TaskList(None)
-        expected_tasklist.entity_id = "abclistid"
-
         list_result_str = '''
         {"items": [{   "status": "needsAction", 
                 "kind": "tasks#task", 
@@ -314,64 +341,60 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
                updated_date=datetime(2012, 5, 24, 22, 35, 20),
                position=1610612735,
                entity_id="MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjkzOTI1MDgyNw",
-               tasklist_id=expected_tasklist.entity_id,
+               tasklist_id=self.tasklist.entity_id,
                task_status=TaskStatus.NEEDS_ACTION)
         
         expected_task_aa = GoogleServicesTask(None, title="a-a",
                updated_date=datetime(2012, 5, 24, 22, 35, 27),
                position=1610612735, parent_id=expected_task_a.entity_id,
                entity_id="MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjE5ODIyNjA0MTg",
-               tasklist_id=expected_tasklist.entity_id,
+               tasklist_id=self.tasklist.entity_id,
                task_status=TaskStatus.NEEDS_ACTION)
         
         expected_task_aaa = GoogleServicesTask(None, title="a-a-a",
                updated_date=datetime(2012, 5, 25, 2, 33, 33),
                position=2147483647, parent_id=expected_task_aa.entity_id,
                entity_id="MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjMwNTIwNzY5Ng",
-               tasklist_id=expected_tasklist.entity_id,
+               tasklist_id=self.tasklist.entity_id,
                task_status=TaskStatus.NEEDS_ACTION)
         
         expected_task_ab = GoogleServicesTask(None, title="a-b",
                updated_date=datetime(2012, 5, 25, 2, 33, 30),
                position=3758096383, parent_id=expected_task_a.entity_id,
                entity_id="MTM3ODEyNTc4OTA1OTU2NzE3NTM6NDYzMTE1OTEwOjE0ODk4NzI4MDU",
-               tasklist_id=expected_tasklist.entity_id,
+               tasklist_id=self.tasklist.entity_id,
                task_status=TaskStatus.NEEDS_ACTION)  
 
         expected_tasks = TestDataEntitySupport.create_task_data_dict(expected_task_a, expected_task_aa, expected_task_aaa, expected_task_ab)
 
         # Mock request object.
         mock_list_request = mock()
-        when(self.mock_service_proxy).list(tasklist=expected_tasklist.entity_id).thenReturn(mock_list_request)
+        when(self.mock_service_proxy).list(tasklist=self.tasklist.entity_id).thenReturn(mock_list_request)
         when(mock_list_request).execute().thenReturn(list_result_str_dict)
 
         ### Act ###
-        actual_tasks = self.task_service.get_tasks_in_tasklist(expected_tasklist)
+        actual_tasks = self.task_service.get_tasks_in_tasklist(self.tasklist)
 
         ### Assert ###
         self.assertEqual(expected_tasks, actual_tasks)
 
     def test_update_simple(self):
         ### Arrange ###        
-        # IDs used to specify which task to delete and get.
-        tasklist = TaskList(None)
-        tasklist.entity_id = "tasklistid"
-
         # Fake an updated update date by capturing a date, adding five minutes,
         # and using that new date as the date source for a str dict that is
         # returned by the fake service proxy?
         existing_updated_date = datetime(2012, 3, 21, 13, 52, 06)
         expected_updated_date = datetime(2012, 3, 21, 13, 57, 06)
 
-        input_task = GoogleServicesTask(tasklist)
+        input_task = GoogleServicesTask(self.tasklist)
         input_task.entity_id = "abcid"
         input_task.title = "Task title"
-        input_task.tasklist_id = tasklist.entity_id
+        input_task.tasklist_id = self.tasklist.entity_id
         input_task.position = 10456
         input_task.task_status = TaskStatus.COMPLETED
         input_task.updated_date = existing_updated_date
 
-        expected_task = Task(tasklist)
+        expected_task = Task(self.tasklist)
         expected_task.title = input_task.entity_id
         expected_task.position = input_task.position
         expected_task.task_status = input_task.task_status
@@ -392,7 +415,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
 
         # Set up service proxy mock behavior in order to provide the update
         # method with the necessary backend.
-        when(self.mock_service_proxy).update(tasklist=tasklist.entity_id,
+        when(self.mock_service_proxy).update(tasklist=self.tasklist.entity_id,
             task=input_task.entity_id, body=any(dict)).thenReturn(mock_update_request)
         when(mock_update_request).execute().thenReturn(update_result_str_dict)
 
@@ -422,7 +445,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
             "kind": "tasks#task",
             "id": "MTM3ODEyNTc4OTA1OTU2NzE3NTM6MjA0ODgwMzUxNjo3NDE1MTg4NzM",
             "etag": "-kSxjsniVV6Hn53-kChReeLNJUE/LTkyMDExNzk4Nw",
-            "title": "mock insert",
+            "title": "mock task",
             "updated": "2012-07-09T00:37:32.000Z",
             "selfLink": "https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MjA0ODgwMzUxNjow/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MjA0ODgwMzUxNjo3NDE1MTg4NzM",
             "position": "00000000001073741823",
@@ -430,7 +453,7 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         }'''
         insert_result_str_dict = json.loads(mock_insert_response_str)
 
-        task = GoogleServicesTask(tasklist, title="Task title") 
+        task = GoogleServicesTask(tasklist, title="mock task") 
 
         mock_insert_request = mock()
         when(self.mock_service_proxy).insert(tasklist=tasklist.entity_id,
@@ -450,20 +473,16 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
 
     def test_delete(self):
         ### Arrange ###
-        # IDs used to specify which task to delete and get.
-        tasklist = TaskList(None)
-        tasklist.entity_id = "tasklistid"
-
         # Fake an updated update date by capturing a date, adding five minutes,
         # and using that new date as the date source for a str dict that is
         # returned by the fake service proxy?
         existing_updated_date = datetime(2012, 3, 21, 13, 52, 06)
         expected_updated_date = datetime(2012, 3, 21, 13, 57, 06)
 
-        input_task = Task(tasklist)
+        input_task = Task(self.tasklist)
         input_task.entity_id = "abcid"
         input_task.title = "Task title"
-        input_task.tasklist_id = tasklist.entity_id
+        input_task.tasklist_id = self.tasklist.entity_id
         input_task.task_status = TaskStatus.COMPLETED
         input_task.updated_date = existing_updated_date
 
@@ -488,11 +507,11 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
 
         # Set up service proxy mock behavior in order to provide the delete
         # method with the necessary backend.
-        when(self.mock_service_proxy).delete(tasklist=tasklist.entity_id,
+        when(self.mock_service_proxy).delete(tasklist=self.tasklist.entity_id,
             task=input_task.entity_id).thenReturn(mock_delete_request)
         when(mock_delete_request).execute().thenReturn("")
         
-        when(self.mock_service_proxy).get(tasklist=tasklist.entity_id,
+        when(self.mock_service_proxy).get(tasklist=self.tasklist.entity_id,
             task=input_task.entity_id).thenReturn(mock_get_request)
         when(mock_get_request).execute().thenReturn(get_result_str_dict)
 
@@ -507,6 +526,44 @@ class GoogleServicesTaskServiceTest(unittest.TestCase, ManagedFixturesTestSuppor
         self.assertIsNotNone(actual_task)
         self.assertEqual(expected_updated_date, actual_task.updated_date)
         self.assertTrue(actual_task.is_deleted, True)
+
+    def test_move_reorder(self):
+        ### Arrange ###
+        mock_move_response_str = '''{
+            "kind": "tasks#task",
+            "id": "MTM3ODEyNTc4OTA1OTU2NzE3NTM6MjA0ODgwMzUxNjo3NDE1MTg4NzM",
+            "etag": "-kSxjsniVV6Hn53-kChReeLNJUE/LTkyMDExNzk4Nw",
+            "title": "mock task",
+            "updated": "2012-07-09T00:37:32.000Z",
+            "selfLink": "https://www.googleapis.com/tasks/v1/lists/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MjA0ODgwMzUxNjow/tasks/MTM3ODEyNTc4OTA1OTU2NzE3NTM6MjA0ODgwMzUxNjo3NDE1MTg4NzM",
+            "position": "00000000001073741823",
+            "status": "needsAction"
+        }'''
+        move_result_str_dict = json.loads(mock_move_response_str)
+
+        task = GoogleServicesTask(self.tasklist, title="mock task",
+            entity_id="MTM3ODEyNTc4OTA1OTU2NzE3NTM6MjA0ODgwMzUxNjo3NDE1MTg4NzM",
+            updated_date=datetime(2012, 7, 9, 0, 37, 32),
+            position=1073741823) 
+
+        mock_move_request = mock()
+        when(self.mock_service_proxy).move(tasklist=task.tasklist_id,
+            task=task.entity_id, parent=task.parent_id,
+            previous=task.previous_task_id).thenReturn(mock_move_request)
+        when(mock_move_request).execute().thenReturn(move_result_str_dict)
+
+        ### Act ###
+        self.task_service.move(task)
+
+        ### Assert ###
+        self.assertEqual(task.entity_id, move_result_str_dict["id"])
+        self.assertEqual(task.title, move_result_str_dict["title"])
+        self.assertEqual(task.position, int(move_result_str_dict["position"]))
+        
+        updated_date = datetime.strptime(move_result_str_dict["updated"], "%Y-%m-%dT%H:%M:%S.000Z")
+        self.assertEqual(task.updated_date, updated_date)
+        
+        self.assertTrue(task.is_persisted)
 #------------------------------------------------------------------------------
 
 class InMemoryService(object):
@@ -585,6 +642,15 @@ class InMemoryTaskService(AbstractTaskService, InMemoryService):
             if t.tasklist_id == tasklist.entity_id}
 
         return tasklist_tasks
+
+    def _move(self, task):
+        sibling_tasks = task.parent.children
+        for sibling in sibling_tasks:
+            sibling.position = sibling.child_index
+            
+            self._update(sibling)
+        
+        return task
 
     def _update(self, task):
         # Check to make sure the Task is already present in the data store.
@@ -741,7 +807,6 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         before_operation = datetime.now()
 
         expected_task = Task(self.expected_tasklist,
-            tasklist_id=self.expected_tasklist.entity_id,
             entity_id=persisted_entity_id, title=title)
 
         ### Act ###
@@ -810,6 +875,62 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         ### Assert ###
         self.assertTrue(deletable_task.is_deleted)
         self.assertGreater(deletable_task.updated_date, before_deletion)
+
+    """
+    TODO: Update test documentation.
+    """
+    def test_move(self):
+        """Test that...
+
+        Beginning task data hierarchy:
+        - A
+            - A-A
+                - A-A-A
+            - A-B
+            
+        Final task data hierarchy:
+        - A
+            - A-A
+            - A-A-A
+            - A-B
+
+        Arrange:
+            - Create TaskList A, Tasks A-A, A-B, A-A-A.
+        Act:
+            - Move Task A-A-A to be a direct child of TaskList A (mimicking a 
+            promote operation).
+        Assert:
+            - That Task A-B's previous_task_id points to A-A-A.
+            - That Task A-A-A's previous_task_id points to A-A, and its 
+            parent_id is None.
+        """
+        ### Arrange ###
+        tl_a = TestDataTaskList(None, 'a')
+        t_aa = TestDataTask(tl_a, *'aa')
+        t_aaa = TestDataTask(t_aa, *'aaa')
+        t_ab = TestDataTask(tl_a, *'ab')
+        
+        task_data = TestDataEntitySupport.create_task_data_dict(t_aa, t_aaa, t_ab)
+        self.task_service.entity_store = task_data
+
+        ### Act ###
+        t_aa.remove_child(t_aaa)
+        tl_a.add_child(t_aaa, child_index=t_aa.child_index + 1)
+        
+        t_aaa = self.task_service.move(t_aaa)
+
+        ### Assert ###
+        actual_t_aa = self.task_service.get(tl_a.entity_id, t_aa.entity_id)
+        self.assertIsNone(actual_t_aa.parent_id)
+        
+        sibling_task_data = self.task_service.get_tasks_in_tasklist(tl_a)
+        sibling_tasks = sibling_task_data.values()
+        for index, task in enumerate(sibling_tasks):       
+            try:     
+                self.assertGreater(sibling_tasks[index+1], task)
+            except IndexError:
+                # Fine, means we're at the end of the list.
+                break
 #------------------------------------------------------------------------------
 
 class EntityOverwriteError(Exception):
