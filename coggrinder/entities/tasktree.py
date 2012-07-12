@@ -313,12 +313,6 @@ class TaskTree(SortedTaskDataChildrenSupport, Tree):
         # Demote the targeted Tasks. 
         Tree.demote(self, *tasks)
         
-        # Refresh the sibling links of both the old and new/current 
-        # sibling groups.
-        for task in tasks:
-            self._update_child_task_relationships(task.parent.parent)
-            self._update_child_task_relationships(task.parent)
-    
     def get_all_descendant_nodes(self, node):
         descendant_nodes = list()
         
@@ -378,17 +372,6 @@ class TaskTree(SortedTaskDataChildrenSupport, Tree):
         
     def promote_task(self, *tasks):
         assert tasks
-        
-#        task_nodes = list()
-        old_parent_nodes = list()
-        for task in tasks:
-#            task_nodes.append(task)
-            
-            # Get the current parent node now, as this reference will change 
-            # after the Tree.promote operation. This reference provides an 
-            # easy pointer to the correct node for refreshing child Task
-            # relationships.
-            old_parent_nodes.append(task.parent)
         
         # Promote the targeted Tasks.
         Tree.promote(self, *tasks)
