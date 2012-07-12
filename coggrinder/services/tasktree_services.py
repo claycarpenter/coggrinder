@@ -182,6 +182,8 @@ class TaskTreeService(object):
         
         self._push_updated()
         
+        self._push_moved()
+        
     def update_task_status(self, task, new_status):
         self.tree.update_task_status(task, new_status)
     
@@ -246,6 +248,20 @@ class TaskTreeService(object):
             
             # Execute the update operation.
             service.update(entity)
+            
+    def _push_moved(self):
+        # Find the IDs of all Tasks that were moved.
+        moved_task_ids = TaskTreeComparator.find_moved_task_ids(
+            self._original_tasktree, self.tree)
+        
+        # Execute the move operation for each Task. This is the only way to
+        # alter the parent and position values of a Task, as they are 
+        # read-only via the Google Services update and patch operations.
+        for task_id in moved_task_ids:
+            task = self.get_entity_for_id(task_id)
+                        
+            # Execute the update operation.
+            self.task_service.move(task)
 #------------------------------------------------------------------------------
 
 class TaskTreeServiceTestSupport(ManagedFixturesTestSupport):
@@ -283,7 +299,7 @@ class PopulatedTaskTreeServiceTestSupport(TaskTreeServiceTestSupport):
     def setUpClass(cls):
         # Create the expected task data and their containers.
         cls.expected_tasklists = TaskDataTestSupport.create_tasklists(None,
-            tasklist_type=TestDataTaskList)
+            tasklist_type=TestDataTaskList, siblings_count=1)
         cls.expected_all_tasks = TaskDataTestSupport.create_all_tasks(
             cls.expected_tasklists, task_type=TestDataGoogleServicesTask)
         
@@ -367,7 +383,7 @@ class TaskTreeServiceCreationTest(TaskTreeServiceTestSupport, unittest.TestCase)
         task_ac = TestDataGoogleServicesTask(None, *"ac", tasklist_id=tasklist_a.entity_id)
         
         tasklist_b = TestDataTaskList(None, "b")
-        task_ba = TestDataGoogleServicesTask(None,*"ba",tasklist_id=tasklist_b.entity_id)
+        task_ba = TestDataGoogleServicesTask(None, *"ba", tasklist_id=tasklist_b.entity_id)
         
         expected_task_data = TestDataEntitySupport.create_task_data_dict(
             tasklist_b.clean_clone(), task_ba.clean_clone(),
@@ -376,7 +392,7 @@ class TaskTreeServiceCreationTest(TaskTreeServiceTestSupport, unittest.TestCase)
         expected_tasktree = TaskTree(task_data=expected_task_data)
         
         when(self.mock_tasklist_srvc).list().thenReturn(
-            TestDataEntitySupport.create_task_data_dict(tasklist_b,tasklist_a))
+            TestDataEntitySupport.create_task_data_dict(tasklist_b, tasklist_a))
         when(self.mock_task_srvc).get_tasks_in_tasklist(tasklist_a).thenReturn(
             TestDataEntitySupport.create_task_data_dict(task_aa, task_ab, task_ac))
         when(self.mock_task_srvc).get_tasks_in_tasklist(tasklist_b).thenReturn(
@@ -638,8 +654,60 @@ class TaskTreeServiceTaskDataManagementTest(PopulatedTaskTreeServiceTestSupport,
 
         ### Assert ###
         self.assertEqual(expected_tasklist_a.title, actual_tasklist_a.title)
-        self.assertEqual(expected_task_a.treeless_value,
-            actual_task_a.treeless_value)
+        self.assertEqual(expected_task_a.title, actual_task_a.title)
+        
+    """
+    TODO: Update test documentation.
+    """
+    def test_save_task_data_task_promoted(self):
+        """Test that saving the task data will properly update the positions 
+        of any promoted Tasks.
+
+        Arrange:
+            - Create new expected Task Foo.
+            - Create actual clone of Task Foo
+        Act:
+            - Add actual Task Foo through the TaskTreeService.
+            - Save the task tree data.
+            - Refresh the task data (if the new Task hasn't been persisted 
+            correctly, refreshing the task data will wipe it out of the 
+            working tree).
+            - Get the actual Task Foo.
+        Assert:
+            - That the post-refresh task data includes the expected Task Foo.
+        """
+        ### Arrange ###
+        actual_task_aaa = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(*'aaa'))
+
+        ### Act ###
+        self.tasktree_srvc.promote_task(actual_task_aaa)
+        
+        self.tasktree_srvc.push_task_data()
+        self.tasktree_srvc.refresh_task_data()
+
+        ### Assert ###
+        actual_tasklist_a = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(*'a'))
+        
+        actual_task_aa = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(*'aa'))
+        actual_task_aaa = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(*'aaa'))
+        actual_task_ab = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(*'ab'))
+        actual_task_ac = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(*'ac'))
+        
+        actual_task_aab = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(*'aab'))
+        actual_task_aac = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(*'aac'))
+
+        self.assertEqual(actual_tasklist_a.children, [actual_task_aa,
+            actual_task_aaa, actual_task_ab, actual_task_ac])
+
+        self.assertEqual(actual_task_aa.children, [actual_task_aab, actual_task_aac])
 
     """
     TODO: This test likely needs a good cleaning.
@@ -780,9 +848,9 @@ class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest
         Assert:
             That the actual and expected Tasks are identical.
         """
-        ### Arrange ### expected_task.parent.parent == actual_task.parent.parent
-        expected_task_id = TestDataEntitySupport.short_title_to_id(*list('bc'))
-        expected_task = self.tasktree_srvc.get_entity_for_id(expected_task_id)
+        ### Arrange ###
+        expected_task_id = TestDataEntitySupport.short_title_to_id(*'ac')
+        expected_task = self.expected_all_tasks[expected_task_id]
         
         # Comparison fails because expected_task grandparent is not TaskTree.
 
@@ -824,42 +892,42 @@ class PopulatedTaskTreeServiceTest(PopulatedTaskTreeServiceTestSupport, unittest
         self.assertEqual(expected_tasklist_a.title, actual_tasklist_a.title)
         self.assertGreater(actual_tasklist_a.updated_date, expected_tasklist_a.updated_date)
 
-    # TODO: This test is currently being passed despite the fact that 
-    # TaskTreeService.update_task is effectively a no-op. 
     def test_update_task_title(self):
         """Test that updating a Task properly changes the target Task
         properties in the TaskTreeService's task data (TaskTree).
 
         Arrange:
-            - Create an expected Task B with an updated title, static
+            - Create an expected Task a-a with an updated title, static
             updated_date.
         Act:
-            - Retrieve the actual Task B from the TaskTreeService.
-            - Update the actual Task B title.
-            - Retrieve the actual Task B from the TaskTree.
+            - Retrieve the actual Task a-a from the TaskTreeService.
+            - Update the actual Task a-a title.
+            - Retrieve the actual Task a-a from the TaskTree.
         Assert:
-            - That the expected and actual Task Bs are identical across all
+            - That the expected and actual Tasks a-a are identical across all
             properties but the updated date.
-            - That actual Task B has a more recent updated date than expected
-            Task B.
+            - That actual Task a-a has a more recent updated date than expected
+            Task a-a.
         """
         ### Arrange ###
         expected_updated_title = "updated"
-        expected_task_b = copy.deepcopy(
-            self.tasktree_srvc.tree.get_entity_for_id(TestDataEntitySupport.convert_title_to_id('b')))
-        expected_task_b.title = expected_updated_title
-        expected_task_b.updated_date = datetime(2012, 6, 20, 12, 0, 0)
+        expected_t_b = self.tasktree_srvc.get_entity_for_id(
+            TestDataEntitySupport.short_title_to_id(*'aa')).clean_clone()
+        expected_t_b.title = expected_updated_title
+        expected_t_b.updated_date = datetime(2012, 6, 20, 12, 0, 0)
 
         ### Act ###   
-        actual_task_b = self.tasktree_srvc.get_entity_for_id(expected_task_b.entity_id)
-        actual_task_b.title = expected_updated_title
-        self.tasktree_srvc.update_entity(actual_task_b)
-        actual_task_b = self.tasktree_srvc.tree.get_entity_for_id(
-                expected_task_b.entity_id)
+        actual_t_b = self.tasktree_srvc.get_entity_for_id(expected_t_b.entity_id)
+        actual_t_b.title = expected_updated_title
+        
+        self.tasktree_srvc.update_entity(actual_t_b)
+        
+        actual_t_b = self.tasktree_srvc.get_entity_for_id(
+                expected_t_b.entity_id)
 
         ### Assert ###
-        self.assertEqual(expected_task_b.title, actual_task_b.title)
-        self.assertGreater(actual_task_b.updated_date, expected_task_b.updated_date)
+        self.assertEqual(expected_t_b.title, actual_t_b.title)
+        self.assertGreater(actual_t_b.updated_date, expected_t_b.updated_date)
 
     def test_delete_tasklist(self):
         """Test that deleting a TaskList removes the TaskList and any child
