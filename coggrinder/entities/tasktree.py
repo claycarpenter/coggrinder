@@ -393,16 +393,6 @@ class TaskTree(SortedTaskDataChildrenSupport, Tree):
         # Promote the targeted Tasks.
         Tree.promote(self, *tasks)
         
-        # Refresh the sibling links of both the new/current 
-        # sibling groups.
-        for task in tasks:            
-            self._update_child_task_relationships(task.parent)
-        
-        # Refresh the sibling links of both the new/current 
-        # sibling groups.
-        for old_parent_node in old_parent_nodes:
-            self._update_child_task_relationships(old_parent_node)
-        
     def remove_entity(self, entity):
         # Find the entity's node.        
 #        entity_node = self.find_node_for_entity(entity)        
@@ -1927,7 +1917,7 @@ class TaskTreeComparator(object):
             # identify which nodes should be included in move operations.
             try: 
                 if (baseline_entity.parent_id != altered_entity.parent_id or 
-                    baseline_entity.child_index != altered_entity.child_index):
+                    baseline_entity.previous_task_id != altered_entity.previous_task_id):
                     moved_task_ids.add(entity_id)
             except AttributeError:
                 # This should indicate that the current entity is a TaskList,
@@ -2342,24 +2332,22 @@ class TaskTreeComparatorFindReorderedTest(PopulatedTaskTreeTestSupport, unittest
         """Test that the TaskTreeComparator can identify any Tasks in a 
         TaskTree that have updated tree positions due to a promoote operation.
          
-        Task a-b-a will be promoted. The resulting 
+        Task a-a-a will be promoted. The resulting 
         relative branch of the tree will have this structure:
         
         - tl-a
             - t-a-a
-                - [Unchanged]
+                - t-a-a-b
+                - t-a-a-c
+            - t-a-a-a
             - t-a-b
-                - t-a-b-b
-                - t-a-b-c
-            - t-a-b-a
+                - [Unchanged]
             - t-a-c
-                - t-a-c-a
-                - t-a-c-b
-                - t-a-c-c
+                - [Unchanged]
 
         Arrange:
             - Find entities Tasks a-b-a, a-b-b, a-c in working TaskTree.
-            - Promote Task a-b-a.
+            - Promote Task a-a-a.
             - Create list of expected updated entity IDs.
         Act:
             - Use TaskTreeComparator.find_updated_id to locate the entity IDs
@@ -2369,15 +2357,14 @@ class TaskTreeComparatorFindReorderedTest(PopulatedTaskTreeTestSupport, unittest
             identical.
         """
         ### Arrange ###
-        task_aba = self.find_task(self.working_tasktree, *'aba')
-        task_abb = self.find_task(self.working_tasktree, *'abb')
-        task_abc = self.find_task(self.working_tasktree, *'abc')
-        task_ac = self.find_task(self.working_tasktree, *'ac')
+        task_aaa = self.find_task(self.working_tasktree, *'aaa')
+        task_aab = self.find_task(self.working_tasktree, *'aab')
+        task_ab = self.find_task(self.working_tasktree, *'ab')
 
-        self.working_tasktree.promote(task_aba)
+        self.working_tasktree.promote(task_aaa)
         
-        expected_moved_ids = set([task_aba.entity_id, task_abb.entity_id,
-            task_abc.entity_id, task_ac.entity_id])
+        expected_moved_ids = set([task_aaa.entity_id, task_aab.entity_id,
+            task_ab.entity_id])
 
         ### Act ###
         actual_moved_ids = self.comparator.find_moved_task_ids(
