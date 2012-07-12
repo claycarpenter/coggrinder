@@ -158,8 +158,17 @@ class GoogleServicesTaskService(AbstractTaskService):
     
     def _move(self, task):
         # Execute the move operation.
-        move_result_str_dict = self.service_proxy.move(tasklist=task.tasklist_id, task=task.entity_id,
-            parent=task.parent_id, previous=task.previous_task_id)
+        move_request_arguments = {'tasklist': task.tasklist_id, 
+            'task': task.entity_id}
+        
+        if task.parent_id is not None:
+            move_request_arguments['parent'] = task.parent_id
+        
+        if task.previous_task_id is not None:
+            move_request_arguments['previous'] = task.previous_task_id
+            
+        move_result_str_dict = self.service_proxy.move(
+            **move_request_arguments).execute()
         
         # Update the Task using the updated attribute value information 
         # returned by the Google Services.
@@ -927,7 +936,7 @@ class InMemoryTaskServiceTest(unittest.TestCase, ManagedFixturesTestSupport):
         sibling_tasks = sibling_task_data.values()
         for index, task in enumerate(sibling_tasks):       
             try:     
-                self.assertGreater(sibling_tasks[index+1], task)
+                self.assertGreater(sibling_tasks[index + 1], task)
             except IndexError:
                 # Fine, means we're at the end of the list.
                 break
